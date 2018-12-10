@@ -3,9 +3,11 @@
 
 ## Authors and Copyright
 
-   Juri Barthel
+   Juri Barthel, 
    Forschungszentrum Jülich GmbH, 52425 Jülich, Germany
+
    Copyright (c) 2008 - 2018 - Forschungszentrum Jülich GmbH
+   
    Published under the GNU General Public License, version 3,
    see <http://www.gnu.org/licenses/> and LICENSE!
 
@@ -42,7 +44,6 @@ The programs are written in Fortran 90 code for Intel Fortran compilers.
 
 ### TODOs
 
-* publish on GitHub
 * keep up with new code from [JMultiSlice](https://github.com/ju-bar/JMultiSliceLib)
   - investigate if partial C++ code can be used in this project
 * replace FFTPACK routines by fftwf routines in MSA and test for increased speed
