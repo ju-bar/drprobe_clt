@@ -1,0 +1,13 @@
+echo "Updating the bin folder from the Linux source tree"
+cp "LICENSE" "bin"
+cp "celslc/celslc" "bin"
+cp "celslc/celslc howto.txt" "bin"
+cp "msa/msa" "bin"
+cp "msa/msa howto.txt" "bin"
+cp "wavimg/wavimg" "bin"
+cp "wavimg/wavimg howto.txt" "bin"
+cp "BuildCell/executables/Linux/BuildCell.linux" "bin/BuildCell"
+cp "BuildCell/doc/BuildCell.pdf" "bin"
+cp "CellMuncher_v2.0/executables/Linux/CellMuncher.linux" "bin/CellMuncher"
+cp "CellMuncher_v2.0/doc/CellMuncher-v2.7.1.pdf" "bin/CellMuncher.pdf"
+echo Done.

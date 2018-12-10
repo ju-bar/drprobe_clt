@@ -1,0 +1,867 @@
+
+#-----------------------------------------------------------------------------#
+#                                                                             #
+#   HOWTO use the program MSA, Version 0.85b                                  #
+#                                                                             #
+#-----------------------------------------------------------------------------#
+#                                                                             #
+#   Date: 2018-12-05                                                          #
+#                                                                             #
+#   Author: Juri Barthel                                                      #
+#           Ernst Ruska-Centre                                                #
+#           Forschungszentrum Jülich GmbH, 52425 Jülich, Germany              #
+#           RWTH Aachen University, 52074 Aachen, Germany                     #
+#                                                                             #
+#-----------------------------------------------------------------------------#
+#                                                                             #
+# This program is free software: you can redistribute it and/or modify        #
+# it under the terms of the GNU General Public License as published by        #
+# the Free Software Foundation, either version 3 of the License, or           #
+# (at your option) any later version.                                         #
+#                                                                             #
+# This program is distributed in the hope that it will be useful,             #
+# but WITHOUT ANY WARRANTY; without even the implied warranty of              #
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               #
+# GNU General Public License for more details.                                #
+#                                                                             #
+# GNU General Public License, see <http://www.gnu.org/licenses/>.             #
+#                                                                             #
+#-----------------------------------------------------------------------------#
+
+
+CONTENT OF THIS FILE:
+
+1) Installation
+2) Purpose of use
+3) License
+4) Usage and command-line options
+5) The parameter file formats
+6) Multislice calculation setup examples
+7) History of changes
+
+
+#-----------------------------------------------------------------------------#
+
+
+1) Installation
+
+   Required files: msa.exe (msa) binary file
+   Available for MS Windows, Linux, and OS X 64-bit systems
+   
+   
+#-----------------------------------------------------------------------------#
+
+
+2) Purpose of use
+
+MSA performs a multislice calculation for TEM in imaging or scanning mode.
+Result of the calculation is:
+  (i)  STEM mode: a pixel value, line, or a full scan image
+  (ii) CTEM mode: the exit-plane or image-plane wavefunction
+  
+
+#-----------------------------------------------------------------------------#
+
+3) License
+
+  This program is free software: you can redistribute it and/or modify  
+  it under the terms of the GNU General Public License as published by  
+  the Free Software Foundation, either version 3 of the License, or     
+  (at your option) any later version.                                   
+
+  This program is distributed in the hope that it will be useful,       
+  but WITHOUT ANY WARRANTY; without even the implied warranty of        
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         
+  GNU General Public License for more details.                          
+
+  You should have received a copy of the GNU General Public License     
+  along with this program. If not, see <http://www.gnu.org/licenses/>.
+  
+  When using this program, please consider to cite the following
+  article as an appreciation of the many hours of work put into
+  this project:
+ 
+  J. Barthel, "Dr. Probe - A software for high-resolution STEM
+  image simulation", Ultramicroscopy 193 (2018) 1-11.
+  doi: 10.1016/j.ultramic.2018.06.003  
+
+#-----------------------------------------------------------------------------#
+
+
+4) Usage and command-line options
+
+Command-line calling options for the program msa.exe:
+> Usage of msa in command line:
+> msa -prm <Parameter filename>
+>     -out <Output filename>
+>     [-in <Input image filename>]
+>     [-inw <Input wave filename> <insert slice number>]
+>     [-px <horizontal scan-pixel number>]
+>     [-py <vertical scan-pixel number>]
+>     [-lx <last horiz. scan pixel>]
+>     [-ly <last vert. scan pixel>]
+>     [-foc <defocus value in nm>]
+>     [-tx <x beam tilt in mrad>]
+>     [-ty <y beam tilt in mrad>]
+>     [-otx <x object tilt in mrad>]
+>     [-oty <y object tilt in mrad>]
+>     [-sr <effective source radius in nm>]
+>     [-abf <factor> apply absorption (potentials only)]
+>     [-buni <Biso in nm^2> apply DWF (potentials only)]
+>     [-uuni <Uiso in A^2> apply DWF (potentials only)]
+>     [/ctem, switch to imaging TEM simulation]
+>     [/txtout, switch for text output, STEM only]
+>     [/3dout, switch for 3d data output, STEM only]
+>     [/gaussap, uses a gaussian aperture profile, STEM only]
+>     [/wave, save wavefunctions]
+>     [/avwave, save average wavefunctions]
+>     [/detimg, save images of detector functions]
+>     [/verbose, show processing output]
+>     [/debug, show more processing output]
+>     [/silent, show no processing output]
+>     [] = optional parameter
+
+Examples:
+- STEM mode:
+  - Calculation of a full STEM image:
+    msa -prm "msa.prm" -out "stemimage.dat"
+  - Calculation of one pixel of a STEM image
+    msa -prm "msa.prm" -out "stemimage.dat" -px 50 -py 49
+  - Calculation of one pixel row of a STEM image and using text file output
+    msa -prm "msa.prm" -out "stemimage.dat" -py 4 /txtout
+  - Applying partial spatial coherence to a raw STEM image
+    msa -prm "msa.prm" -out "psc_stemimage.dat" -in "stemimage.dat -sr 0.06
+- CTEM mode:
+  - Calculation of an exit-plane wave function from an incident plane wave
+    msa -prm "msa.prm" -out "epw.wav" /ctem
+  - Calculation of an exit-plane wave function from a user provided wave
+    msa -prm "msa.prm" -out "epw.wav" -inw "incident.wav" 1 /ctem
+
+Options:
+-prm "file name": Defines the file containing parameters of the calculation
+                  microscope parameters, slice parameters, etc.
+-out "file name": Defines the output file name used to save the calculation
+                  result. The result is a 4-byte floating point array for
+                  a STEM image calculation and an 8-byte complex array for
+                  a CTEM wave calculation. Suffixes may be added by MSA
+                  depending on other program parameters, such as detector
+                  names and slice indices for thickness series calculations.
+-in "file name" : [optional] Defines an input image file. This option is used
+                  for the application of partial spatial coherence in STEM
+                  mode calculations only. If the file contains a sequence
+                  of images, all images will be convoluted.
+-inw "file name" (integer number) : [optional] Defines an input wave function
+                  in real-space which will be used as the current incident 
+                  wave function from a specific slice number on.
+-px (integer number) : [optional] Defines the x-scan position or scan column
+                  number starting with 0 up to number of scan columns -1.
+-py (integer number) : [optional] Defines the y-scan position or scan row
+                  number starting with 0 up to number of scan rows -1.
+-lx (integer number) : [optional] Defines the last x-scan position (scan
+                  column) number starting from 0 up to # scan columns -1
+                  to be calculated, in this case -px defines the first scan
+                  column to be calculated.
+-ly (integer number) : [optional] Defines the last y-scan position (scan
+                  row) number starting from 0 up to # scan rows -1 to be
+                  calculated, in this case -py defines the first scan row
+                  to be calculated.
+-foc (float value) : [optional] Defines the probe or image wave defocus in
+                  nanometers. Overrides the value set in the parameter file.
+-tx (float value) : [optional] Defines the x beam tilt in mrad.
+                  Overrides the value set in the parameter file.
+-ty (float value) : [optional] Defines the y beam tilt in mrad.
+                  Overrides the value set in the parameter file.
+-otx (float value) : [optional] Defines the x object tilt in mrad.
+                  Overrides the value set in the parameter file.
+-oty (float value) : [optional] Defines the y object tilt in mrad.
+                  [optional] the value set in the parameter file.
+-sr (float value) : [optional] Defines the half-width of the effective
+                  geometrical source profile in nm. Overrides the value set
+                  in the parameter file. Half-width definitions depend on the
+                  source profile chosen in the parameter file.
+-abf (float value) : [optional] Applies a fractional absorption potential.
+                  Only when the slice files are given with potential data,
+                  not possible in case of phase grating data.
+-buni (float value) : [optional] Applies a universal Debye-Waller factor.
+                  The float value is the isotropic Debye-Waller parameter
+                  (Biso) in nm^2.
+                  Only when the slice files are given with potential data,
+                  not possible in case of phase grating data.
+-uuni (float value) : [optional] Applies a universal Debye-Waller factor.
+                  The float value is the isotropic Debye-Waller parameter
+                  (Uiso) in A^2.
+                  Only when the slice files are given with potential data,
+                  not possible in case of phase grating data.
+/ctem : [optional] Activates CTEM mode calculating a coherent(!) wave function.
+                  Image aberrations can be applied to the exit-plane wave
+                  function. STEM image calculations are carried out when
+                  omitting the /ctem parameter (default).
+/txtout : [optional] STEM mode only. Outputs the simulation result in form of
+                  a text file, which includes a header and lists of data.
+                  See section 4 for an explanation of the text file format.
+/3dout : [optional] STEM mode only. The output of results result is in
+                  4-byte floating point arrays. The third dimension represents
+                  the thickness series. One file is generated for each detector
+                  and a respective suffix with the detector name is appended.
+/gaussap : [optional] Applies a gaussian illumination aperture in STEM mode
+                  leading to a larger delocalization of the incident probe.
+                  The 1/e width of the applied Gaussian is defined by the
+                  aperture size parameter in mrad.
+/wave : [optional] Activates wave export at selected slices. Wavefunctions
+                  are saved to file name = name of output file. The file name
+                  is extended with ".wav". Index suffixes are added to denote
+                  the scan pixel, the object slice and the frozen phonon
+                  variation index.
+/avwave : [optional] Activates the output of an average wavefunctions over
+                  multiple frozen lattice calculations.
+/debug : [optional] Activates additional debug output to the console.
+/verbose : [optional] Activates additional program output to the console.
+/detimg : [optional] Images representing the applied detector functions in
+                  Diffraction space are saved to files.
+/lapro : [optional] Use large-angle propagators
+                  exp(-2*Pi/Lambda*(1/cos(theta)-1)) instead of the default
+                  Fresnel propagators exp(-I*Pi*Lambda*q^2).
+                  
+More experimental and undocumented options are hidden in the history of
+changes (section 7).
+                  
+#-----------------------------------------------------------------------------#
+
+
+5) Input paramter file and output formats
+
+
+MSA is controled by at minimum one parameter file. The main parameter file
+is a mandatory program option to be given on each call. The program will
+terminate with an error, of the parameter file is not specified. The structure
+and format of the main parameter file and optional secondary parameter files
+are defined below.
+
+
+INPUT FILE FORMATS
+
+DEFINITION OF THE MSA MAIN PARAMETER FILE
+
+The parameter file is written as line based unformatted ascii or ansi table.
+The file is separated by block tags: '[Microscope Parameters]' and 
+'[Multislice Parameters]' these two block tags must appear, otherwise 
+parameters will not be read in properly.
+
+
+What follows this line is a commented example of an MSA parameter file:
+'[Microscope Parameters]'
+25.000000					(semi angle of incident wave (mrad) in STEM mode)
+80.000000					(lower semi angle of fourier-space detector (mrad))
+220.00000					(upper semi angle of fourier-space detector (mrad))
+1, 'detectors.prm'			(switch for using a detector definition file, and the name of the detector definition file, attention: the output file name will change when using more than one detector, the detector definitions in the preceeding two lines are ignored when using a detector definition file, alle detector definitions are ignored in CTEM mode)
+0.001969					(electron wavelength (nm), <=1.0, alternatively, >1.0: electron energy (keV))
+0.010000					(de-magnified source radius (nm) for applying partial spatial coherence to STEM images)
+3.000000					(defocus spread (nm) (1/e half width) for STEM image simulation only)
+2.000000					(defocus spread kernel width for explicit focal convolution, STEM only)
+7							(defocus spread kernel steps/size, STEM only)
+24							([NOA] = number of aberration definitions following this line. Can be zero when no aberration definitions are given.)
+0 0.000000 0.000000			(aberration definition: (index) (aberration.x) (aberration.y) ! Here MUST follow NOA lines ! )
+1 0.000000 0.000000			( ... another aberration definition ... )
+2 0.000000 0.000000			(ATTENTION: Unformatted reading expects the dot "." as decimal delimeter!)
+3 0.000000 0.000000         (           DO NOT USE COMMA ","!!! It bugs the reading. )
+4 0.000000 0.000000			(           The space char " " is used to separate the 3 values. )
+5 0.000000 0.000000			(aberration numbering starts from 0 up to max. aberration)
+6 0.000000 0.000000			(current implementation supports max. 24 aberrations (1st to 8th order))
+7 0.000000 0.000000			(beginning with 0=image shift C_(0,1), 1=defocus C_(1,0), 2=2-fold astigmatism C_(1,2), )
+8 0.000000 0.000000			(3=axial coma C_(2,1), 4=3-fold astigm. C_(2,3), )
+9 0.000000 0.000000			(5=CS C_(3,0), 6=star aberration C_(3,2), 7=4-fold astigm. C_(3,4), )
+10 0.000000 0.000000    	(8=5th order coma C_(4,1), 9=3-lobe aberration C_(4,3), 10=5-fold astigmatism C_(4,5), )
+11 0.000000 0.000000    	(11=spherical aberration of 6th order C_(5,0), )
+12 0.000000 0.000000    	(12=2-fold aberration of of 6th order C_(5,2), )
+13 0.000000 0.000000    	(13=rosette aberration C_(5,4), )
+14 0.000000 0.000000   		(14=6-fold astigmatism C_(5,6), )
+15 0.000000 0.000000    	(15=7th order coma C_(6,1), )
+16 0.000000 0.000000    	(16=3-fold aberration of 7th order C_(6,3), )
+17 0.000000 0.000000    	(17=5-fold aberration of 7th order C_(6,5), )
+18 0.000000 0.000000    	(18=7-fold astigmatism C_(6,7), )
+19 0.000000 0.000000    	(19=Spherical aberration of 8th order C_(7,0), )
+20 0.000000 0.000000    	(20=2-fold aberration of of 8th order C_(7,2), )
+21 0.000000 0.000000		(21=4-fold aberration of of 8th order C_(7,4), )
+22 0.000000 0.000000		(22=6-fold aberration of of 8th order C_(7,6), )
+23 0.000000 0.000000		(23=8-fold astigmatism C_(7,8) )
+'[Multislice Parameters]'
+0.000000					(object tilt x [deg], approximative approach, keep values smaller than 5 degrees)
+0.000000					(object tilt y [deg], approximative approach, keep values smaller than 5 degrees)
+0.000000					(horizontal scan frame offset [nm])
+0.000000					(vertical scan frame offset [nm])
+1.100000					(horzontal scan frame size [nm])
+1.100000					(vertical scan frame size [nm])
+0.0               			(frame rotation w.r.t. slice x-axis [deg])
+110							(number of scan columns = number of pixels on horizontal scan image axis)
+110							(number of scan rows = number of pixels on vertical scan image axis)
+0							(Switch partial temporal coherence ON = 1 or OFF = 0. Simulation by explicit focal averaging, leadingto a drastic increase of calculation time!)
+0							(Switch partial spatial coherence calculation for an input STEM image. OFF = 0, Gaussian profile = 1, Cauchy profile = 2, Top-hat profile = 3.)
+1							(integer factor to internally repeat supercell data in horizontal direction, x)
+1							(integer factor to internally repeat supercell data in vertical direction, y)
+1							(integer factor to internally repeat supercell data in depth, z, historic obsolete parameter.)
+'sli\sto110c5x5'         	(slice file name string [SFN], slice files will be searched with names [SFN]+"_###.sli" where ### is a three digit number identifying the indiviual slices in numbered order from entrance slice 001 to exit slice [NOSD]. )
+4							([NOSD] = number of slice files in z-order, defines the index range (001 ... [NOSD]) of the slice-file names)
+1							([NFLV] = number of frozen lattice alternatives, if this value is larger than 1. Slice variants can be present either as multiple slice data contained by one file per slice (default), or in form of several individual slice files containing one variation. If the slice variants are present in individual files, the slice file naming is change to [SFN]+"_###_###.sli", where the first index identifies the slice variant number from 001 to [NFLV] and the second index identifies the slice number in z-order from 001 to [NOSD].)
+1                           ([NCPP] = number of minimum frozen lattice variations for one scan pixel in STEM mode, and number of frozen lattice variations generating exit plane waves in CTEM mode, drastic increase of calculation time when >1, since multiple multi-slice calculations will be done per scan pixel. )
+0							(periodic detector readout positions, number of slices after which detectors are read out. A sequence of output files will be generated, adding the index "_t###" where ### is a 3 digit number specifying the slice number of the detection. Default value: 0 -> detectors are read out at the exit plane and just one output file is generated. )
+8							([NOS] = total number of slices in the object, minimum this number of slice IDs MUST FOLLOW BELOW! Only the next NOSD lines will be read, additional lines are ignored.)
+0							(slice id sequence, must be a valid slice index from the slice list 0 = slice 001, <NOSD>-1 = slice <NOSD> as set above)
+1							(...)
+2
+3
+4
+5
+6
+7
+(End of the MSA parameter file).
+
+
+
+The MSA main parameter file allows you to provide an additional parameter
+file defining a series of STEM detectors to be used in the calculation of
+STEM image intensity data. This file may further link to additional files
+specifying the radial detector sensitivity.
+
+  [MSA main parameter file]
+  |
+  +-(OPTIONAL)-[Detector parameter file]
+               |
+               +-(OPTIONAL)-[Individual detector sensitivity profile]
+               |
+               +- ...
+               |
+               +-(OPTIONAL)-[Individual detector sensitivity profile]
+               
+               
+
+DEFINITION OF THE DETECTOR PARAMETER FILE FORMAT:
+
+Use a detector parameter file to define a series of detectors. The parameter
+file is a text file consisting of 3 header lines followed by a variable
+number of data lines defining each one detector.
+
+If you define more than one detector, MSA will generate a series of output
+files. A suffix string will be added according to the namestring parameter
+specified. In case of only one detector definition, no detector suffix string
+is added to the output file name. This applies also in the case that no detector
+definition file is used.
+
+Detector parameter file format used by msa v0.70b+
+line 1:	PRMNAME: string = "[Detector Parameters]"
+line 2: VERSION: long integer = 2016021801 (determines how data is read in)
+line 3:	DETNUM: Integer = Number of detectors defined in the following lines.
+line 4 - line 4+$DETNUM: DETDEF(R1,R2,A1,A2,C1,C2,DN,DS) = Detector definitions.
+
+		Detector definitions (DETDEF) consist of 6 parameters
+		 (Float,Float,Float,Float,Float,Float,String,String)
+		 
+			parameter 1: R1: inner detector radius theta-1 [mrad]
+			parameter 2: R2: outer detector radius theta-2 [mrad]
+			parameter 3: A1: start azimuth phi-1 [deg]
+			parameter 4: A2: stop azimuth phi-2 [deg]
+			parameter 3: C1: decenter-theta-0-x [mrad]
+			parameter 4: C2: decenter-theta-0-y [mrad]
+			parameter 5: DN: detector name string
+			parameter 6: DS: detector sensitivity profile file name
+
+
+Below you find examples of detector definition files used
+by the program "msa" Versions 0.41b - 0.51b, 0.52b - 0.60b, 0.62b - 0.65b, and
+for later versions 0.70b+.
+
+Example of a CURRENT detector definition file for v0.70b+
+'[Detector Parameters]'           (block ID string for detector definitions)
+2016021801                        (detector file format version)
+3                                 (number of detector definitions following, only this number of lines will be read in the following, additional lines are ignored.)
+90.0, 220.0, 0.0, 0.0, 0.0, 0.0, 'HAADF', 'prm/FiscioneHAADF-profile.dat'    (1st detector definition: inner radius [mrad], outer radius [mrad], start azimuth [deg], stop azimuth [deg], decenter-x [mrad], decenter-y [mrad], detector name string, detector sensitivity profile file )
+30.0, 90.0, 0.0, 0.0, 0.0, 0.0, 'ADF', 'prm/GatanDF4-profile.dat'            (2nd ...)
+10.0, 23.0, 0.0, 0.0, 0.0, 0.0, 'ABF', 'prm/GatanDF2-profile.dat'            (3rd ...)
+(End of detector parameter file example)
+
+Example of a detector definition file for v0.62b - v0.64b
+'[Detector Parameters]'           (block ID string for detector definitions)
+2013041001                        (detector file format version)
+3                                 (number of detector definitions following, only this number of lines will be read in the following, additional lines are ignored.)
+90.0, 220.0, 0.0, 0.0, 0.0, 0.0, 'HAADF'    (1st detector definition: inner radius [mrad], outer radius [mrad], start azimuth [deg], stop azimuth [deg], decenter-x [mrad], decenter-y [mrad], detector name string )
+30.0, 90.0, 0.0, 0.0, 0.0, 0.0, 'ADF'       (2nd ...)
+10.0, 23.0, 0.0, 0.0, 0.0, 0.0, 'ABF'       (3rd ...)
+(End of detector parameter file example)
+
+Example of a detector definition file for v0.52b - v0.60b
+'[Detector Parameters]'           (block ID string for detector definitions)
+3                                 (number of detector definitions following, only this number of lines will be read in the following, additional lines are ignored.)
+90.0, 220.0, 0.0, 0.0, 0.0, 0.0, 'HAADF'    (1st detector definition: inner radius [mrad], outer radius [mrad], start azimuth [deg], stop azimuth [deg], decenter-x [mrad], decenter-y [mrad], detector name string )
+30.0, 90.0, 0.0, 0.0, 0.0, 0.0, 'ADF'       (2nd ...)
+10.0, 23.0, 0.0, 0.0, 0.0, 0.0, 'ABF'       (3rd ...)
+(End of detector parameter file example)
+
+Example of a detector definition file for v0.41b - v0.51b
+'[Detector Parameters]'           (block ID string for detector definitions)
+4                                 (number of detector definitions following, only this number of lines will be read in the following, additional lines are ignored.)
+90.0, 220.0, 0.0, 0.0, 'HAADF'    (1st detector definition: inner radius [mrad], outer radius [mrad], start azimuth [deg], stop azimuth [deg], detector name string )
+30.0, 90.0, 0.0, 0.0, 'ADF'       (2nd ...)
+10.0, 23.0, 0.0, 0.0, 'ABF'       (3rd ...)
+0.0, 13.0, 0.0, 0.0, 'BF'         (4th ...)
+(End of detector parameter file example)
+
+
+DEFINITION OF DETECTOR RELATIVE RADIAL SENSITIVITY PROFILES
+
+These file may be used to define the radial sensitivity profile of each
+detector individually. The file name is specified in the detector parameter.
+It is again a text file containing a header line followed by a list of values.
+
+Detector radial relative sensitivity profile parameter files format
+as used by MSA from version v0.70+ on:
+line 1: HEADER: NRS, PT1 (Integer, Float)
+                NRS = Number of radial sensitivity data following from line 2 on
+                PT1 = Pixel number identifying the detector theta-1 location
+line 2 - line (NRS+1): DATA : RS(NRS) (Float)
+                RS(NRS) = a list of sensitivity data.
+
+        The first data item of the list (RS(NRS) is associated to the center
+        of the detector area.
+        In order to make the calculation comparable to the experiment,
+        scale the experiment with the average detector sensitivity as
+        calculated from the whole active area. Then scale the detector
+        radial sensitivity profile relaltive to the same value.
+        The resulting relative radial profile should be given in this list.
+
+Example of a detector sensitivity profile definition for v0.70b+
+512, 125.6               (HEADER line defining number of data and theta-1 pixel number)
+0.0                      (Fist data item associated to the detector center)
+0.0                      (Second item)
+...
+0.31                     (some other item)
+0.34                     (some other item)
+...
+1.0                      (an item where the average detector sensitivity is reached)
+...
+0.2                      (the last item)
+(End of detector sensitivity profile definition example)
+
+
+
+OUTPUT FILE FORMATS
+
+DESCIPTION OF THE TEXT OUTPOUT FILE FORMAT
+
+The text output file format is meant to provide a simplified access to the
+msa output in STEM mode by calling processes. It contains a header defining
+the detector configuration used followed by a sequence of results for an
+arbitrary number of probe positions.
+
+This is the output file structure:
+<number of detectors>	(= number of detection vectors, begin of header)
+<detector name 1>
+<detector name 2>
+...
+<detector name N>
+<number of detection planes> (= length of detection vectors)
+<plane index 1>
+<plane index 2>
+...
+<plane index M>			(end of header)
+1                       (indicates that a data record follows)
+<px>, <py>              (2D probe scan position index)
+<data item 1 of detector 1>
+<data item 2 of detector 1>
+...
+<data item M of detector 1>
+<data item 1 of detector 2>
+<data item 2 of detector 2>
+...
+<data item M of detector 2>
+...
+<data item 1 of detector N>
+<data item 2 of detector N>
+...
+<data item M of detector N>
+1                       (indicates that another record follows)
+...
+0                       (indicates end of file, no more data follows)
+
+
+
+#-----------------------------------------------------------------------------#
+
+
+6) Multislice calculation setup examples
+
+
+Slices variants are selected randomly during every multislice calculation from
+alternative frozen lattice (FL) configurations. This allows on the one hand to
+average over different variations on one scan pixel, and on the otherhand to
+applay different configurations from scan pixel to scan pixel.
+
+
+EXAMPLE 1: FROZEN LATTICE CALCULATION WITH MULTIPLE CONFIGURATIONS, OBJECT IS
+           FULLY PERIODIC ALONG Z.
+- Slice file name: [SFN] = 'C:\Data\Simulation\STO\110\sli\slice'
+- Number of distinguished slices in the fully periodic unit cell: [NOSD] = 2 -> slice IDs 0 and 1
+- Number of frozen lattice alternatives: [NFLV] = 100, each of the 2 slice files contains 100 frozen lattice variants.
+- Since the slice files can be large, please check the total ammount of required and available memory before running msa. Avoid memory swapping to disk, this will cause drastic performance losses.
+- Total number of slices in the object: [NOS] = 40 (determines the object thickness = 20*(thickness of slice 1) + 20*(thickness of slice 2))
+- slice ID sequence: 0 1 0 1 0 1 0 1 0 1 ... 0 1 (minimum [NOS] = 40 lines! in the parameter file)
+-> For every multislice msa selects randomly from the available alternatives.
+- applied slice 1,  ID=0: Variant 091
+- applied slice 2,  ID=1: Variant 007
+- applied slice 3,  ID=0: Variant 053
+- applied slice 4,  ID=1: Variant 044
+- applied slice 5,  ID=0: Variant 023
+- applied slice 6,  ID=1: Variant 002
+- applied slice 7,  ID=0: Variant 017
+........
+- applied slice 39, ID=0: Variant 038
+- applied slice 40, ID=1: Variant 072
+-> when the number of frozen lattice calculations per pixel [NCPP] is larger than one, the random selection multislice is repeated [NCPP]-times and the obtained [NCPP] results are averaged.
+-> every scan pixel is calculated with a different frozen lattice configuration
+
+
+EXAMPLE 2: FROZEN LATTICE CALCULATION WITH MULTIPLE CONFIGURATIONS,
+           OBJECT NOT PERIODIC ALONG Z, e.g. a nanoparticle.
+- Slice file name: [SFN] = 'C:\Data\Simulation\PTP\sli\slice'
+- Number of distinguished slices in the fully periodic unit cell: [NOSD] = 50 -> slice IDs 0 ... 49
+- Number of frozen lattice alternatives: [NFLV] = 10, each of the 50 slice files contains 10 frozen lattice variants.
+- Since the slice files can be large, please check the total ammount of required and available memory before running msa. Avoid memory swapping to disk, this will cause drastic performance losses.
+- Total number of slices in the object: [NOS] = 50
+- slice ID sequence: 0 1 2 3 4 5 ... 49 (minimum [NOS] = 50 lines! in the parameter file)
+-> For every multislice msa selects randomly from the available alternatives.
+- applied slice 1,  ID=0: Variant 002
+- applied slice 2,  ID=1: Variant 007
+- applied slice 3,  ID=2: Variant 003
+- applied slice 4,  ID=3: Variant 004
+- applied slice 5,  ID=4: Variant 003
+- applied slice 6,  ID=5: Variant 002
+- applied slice 7,  ID=6: Variant 001
+........
+- applied slice 49, ID=48: Variant 008
+- applied slice 50, ID=49: Variant 006
+-> when the number of frozen lattice calculations per pixel [NCPP] is larger than one, the random selection multislice is repeated [NCPP]-times and the obtained [NCPP] results are averaged.
+-> every scan pixel is calculated with a slightly different frozen lattice configuration
+
+
+EXAMPLE 3: TEM SIMULATION OF A FULLY PERIODIC OBJECT WITHOUT FL CALCULATION
+- supply slice data containing the periodic unit cell along x and y, apply Debye-Waller factors and absorption potentials during slice generation
+- Integer factor to internally repeat supercell data in horizontal direction, x = 8
+- Integer factor to internally repeat supercell data in vertical direction, y = 10
+- Slice file name: [SFN] = 'C:\Data\Simulation\STO\110\sli\slitem'
+- Number of distinguished slices in the fully periodic unit cell: [NOSD] = 2 -> slice IDs 0 and 1
+- Number of frozen lattice alternatives: [NFLV] = 1 (actually no frozen lattice)
+-> In total 2 slice files should be named as
+- - Slice 1 , slice ID= 0: 'C:\Data\Simulation\STO\110\sli\slitem_001.sli'
+- - Slice 2 , slice ID= 1: 'C:\Data\Simulation\STO\110\sli\slitem_002.sli'
+-> These 2 files will be read in and the data is repeated 8 times along x and 10 times along y after loading.
+- Total number of slices in the object: [NOS] = 80
+- slice ID sequence: 0 1 0 1 0 1 0 1 0 1 ... 0 1 (minimum [NOS] = 80 lines! in the parameter file)
+- use the /ctem flag to start with a plane incident wave
+-> result is saved as wave function data in complex-64-bit
+
+
+#-----------------------------------------------------------------------------#
+
+
+7) History of changes
+
+
+181205: JB: Version 0.85b
+- Fixed a bug in the probe aberration input reading. This should have
+  been a problem since version 0.80b (171213).
+180620: JB: Version 0.84b
+- Added explicit averaging option for partial coherence (focus spread
+  and source size) in the STEM multislice (/epc) (to be tested)
+- Added output of integrated diffraction patterns (/pdif) and integrated
+  probe images (/pimg) for each probe position (features 4D STEM)
+  (to be tested)
+- Added GNU GENERAL PUBLIC LICENSE 3 license information to all files.
+- File gpl-3.txt is added to the project.
+- Added citation information.
+- Modified some text and warning messages.
+180309: JB: Version 0.83b
+- Added option flag /3dout triggering 3d data file output for
+  STEM image simulations.
+180125: JB: Version 0.82b
+- Optimized and corrected a bug in the initialization of source
+  distribution convolution calls
+171220: JB: Version 0.81b
+- Modified the text standard output and introduced a /silent flag
+  which deactivates all text output.
+171213: JB: Version 0.80b
+- Internal code reconfigurations leading to speed-up and reduced
+  memory consumption for small-scale calculations.  
+171212: JB: Version 0.79b
+- Added option /rti measuring run time on the basis of system_clock.
+171109: JB: Version 0.78b
+- Unified wave function export during the multi-slice to be done
+  after the propagation. This slows it down a bit, but keeps wave
+  functions consistent between CTEM and STEM simulations. This is
+  important for double-channeling calculations with inelastic
+  transitions.
+- Extra options "/waveft" and "/avwaveft" are added to skipt the
+  extra inverse Fourier transform done when using option "/wave"
+  or "/avwave".
+- An extra option "-inwft" is added complementing the existing option
+  "-inw" by signaling the insertion of a wave function in Fourier
+  space representation.
+- Added a hidden option to enable the use of vortex probes in STEM mode.
+  The option is "-vtx <l>" where <l> is an integer number setting the
+  orbital angular momentum of the probe.
+170717: JB: Version 0.77b
+- Re-implementation of the switch for large-angle propagator funtions.
+  Using Fresnel propagators is default again. The large-angle propagator
+  can be switched on by the /lapro flag.
+170710: JB: Version 0.76b
+- Implementation of large-angle corrected propagator funtions. Old Fresnel
+  propagators can be switched on by the /fre flag.
+- Bug correction for average wave output trigger.
+170621: JB: Version 0.75b
+- Added command-line options -lx and -ly to define the end of the scan
+  calculation sub-frame. This may be useful to continue interrupted
+  calculations or to allow a more flexible spreading of calculations over
+  several nodes. The two options work together with -px and -py, which
+  define the begin of the scan sub-frame when -lx and -ly are present.
+  In case that only -lx and -ly is given, the calculation runs from scan
+  pixel (0,0) on. In case where only -px and -py are used, only the
+  respective scan pixel is calculated (as with previous msa versions).
+- Adden command-line switch /avwave, which activates the output of
+  average wavefunctions at each extraction point. The average is taken
+  over frozen lattice variations and works for both, STEM and CTEM
+  calculations. The average wavefunctions represent the elastic channel
+  free of thermal diffuse scattering and may be used to separate the
+  thermal diffuse scattering components as in Forbes et al. PRB82 (2010).
+- Removed the application of imaging aberrations in CTEM mode.
+  This should be done with the WAVIMG tool.
+170411: JB: Version 0.74b
+- Changed propagator creation algorithm form 32-bit to 64-bit arithmetics.
+170329: JB: Version 0.73b (bug fix)
+- Corrected a mistake in the potential-to-phasegrating conversion.
+170308: JB: Version 0.73b
+- Allow projected potentials as data type in slice files. MSA will generate
+  phase-gratings from the projected potentials. Absorption can be applied
+  here as well using a new command-line option -abf <value>. Universal DWFs
+  can be applied using the new command-line options -buni <value> or
+  -uuni <value>, where <value> specifies Biso (nm^2) or Uiso (A^2),
+  respectively.
+160923: JB: Version 0.72b
+- Corrected a mistake in the generation of tilted propagators for calculations
+  with object mistilt. The hard aperture was shifting with the tilt vector.
+160829: JB: Version 0.71b
+- Implemented a routine, which creates folders before writing files
+  when the folder doesn't exist.
+  The routine "createfilefolder" is using ifort libraries, so take
+  care to adopt the code when using other compilers.
+160307, JB: Version 0.70b
+- Modified and changed text output concerning the applied electron energy
+  and wavelength and the consistency check with the loaded slice files.
+160218, JB: Version 0.70b
+- Implemented relative radial sensitivity profiles for annular detectors.
+  The use of this option is controled by the detector parameter file. The
+  format of the detector parameter file has been changed accordingly, see
+  section 4.
+150916, JB: Version 0.64b
+- Implemented a variable wavelength input from the parameter file.
+  Line 6 can now be either the wavelength in nm or the electron energy in keV.
+  Values >1 will be interpreted as electron energy, values below as wavelength.
+150602, JB: Version 0.64b
+- Added an output option "/txtout" to save the result to a separate and new file,
+  instead of inserting it into a complete STEM image. The output file name is
+  as specified by the "-out" command-line option. This is a STEM only option.
+  When using the "/txtout" option results are added to a text list with header.
+  The form of this text output file is given below:
+    number of detectors "ndet"
+      list of detector names, one name per line
+    number of export planes "nslc" (thickness)
+      list of export planes, one index per line
+    number of total scan pixels ("nx","ny") (in the image and not in this file)
+    "1" indicating a new record
+      scan pixel index (i,j) (1..nx,1..ny) (for this record)
+      data, ((all export slices)*(all detectors)) items of intensity, one item per line
+    "1" indicating another record coming with the same form as the previous one
+      scan pixel index (i,j) (1..nx,1..ny) (for this record)
+      data, ((all export slices)*(all detectors)) items of intensity, one item per line
+    "0" indicating end of file.
+  The list of intensity values loops first over all thicknesses (inner loop) and
+  then over all detectors (outer loop)
+150506, JB: --
+- Changed the CR/LF handling in non-verbose and non-debug output mode.
+  The STEM pixel message will not receive a line feed anymore.
+150504, JB: --
+- Removed a bug in the slice pre-checking.
+150131, JB: --
+- Modified the slice loading routine to support index suffixes beyond 999.
+150128, JB: --
+- Rebuild due to modification of shared code.
+150115, JB: Version 0.63b
+- Modified the tilted propagator used to simulate an object tilt, such that
+  the zero beam no longer recieves a phase shift.
+141210, JB: --
+- Modified aperture functions in the probe generation module.
+130410, JB: Version 0.62b
+- Modified the detector definition by adding a detector file version number
+  in the second line of the file. The changes to the detector definition
+  format made under "130312, JB: Version 0.61b" were partially undone. The
+  program supports again only annular detector segments and no rectangular or
+  file-based detector definitions. The new detector parameter file format is
+  indicated in section 4 above. Since version 0.61b was never released to the
+  public, the respective format is not explained in section 4.
+130312, JB: Version 0.61b
+- Modified the output file number indication to support numbers beyond 999.
+  The number of digits is 3 at minimum or at least large enough to support the
+  largest output index. WARNING: This feature is currently not supported by the
+  other tools which may be applied subsequently (wavimg v0.52-130110)
+- Modified the detector definition by adding an additional switch parameter.
+  The switch is used to select between different detector definition formats:
+  1: Annular segment (as used before v0.61)
+  2: Rectangular segment (defined by two diagonal corner points)
+  3: Experimental detector data (defined by a detector shape image (possibly
+     also #electrons used to acquire the image for later use with other
+     experimental beam currents and dwell times ) )
+  WARNING: FUNCTIONALITY NOT TESTED!
+120414, JB: Version 0.60b
+- Modified the console text output.
+- Implemented the option to insert a wave function which is used for further
+  scattering calculations from a given slice index on towards the exit plane. 
+  (Preparation of inelastic scattering calculations)
+- Modified the image convolution with a finite source size using direct
+  convolution. The convolution supports now different source profiles triggered
+  by the flag in the parameter file.
+  0 = no convolution
+  1 = Gaussian profile defined by 1/e-half width, up to 3*1/e-width
+  2 = Cauchy (Lorentzian) profile defined by the HWHM parameter, up to 0.01
+      relative amplitude = 10 HWHM.
+  3 = Cylindrical profile defined by a cut-off radius r0 (smothed sigmoid) with
+      0.01 relative width: (1-tanh((r-r0)/r0*100))/2 up to 1.5*r0.
+  The convolution will be done in real-space with a normalized convolution
+  kernel (integral = 1) and a circular aperture at the edge of the kernel.
+120411, JB: Version 0.55b
+- Added command-line option -sr <float value> to set the effective geometrical
+  source profile with comman-line calls.
+120309, JB: Version 0.54b
+- Corrected a misconception in the beam scan positions.
+- modified the open-file shared access specification to better compatibility
+  with compiles for MacOS and Linux.
+120224, JB: Version 0.53b
+- Modified the wave function export. The program distinguishes now between STEM
+  and CTEM mode for the export. In CTEM mode the wave function is stored to
+  file after application of the fresnel propagator. In STEM mode the wave
+  function is stored to file after application of the projected potential phase
+  grating.
+120131, JB: Version 0.52b
+- Added decenter parameters for detectors when using a detector definition file
+  (2 extra parameters).
+111228, JB:
+- Fixed a bug in the wave export naming when using CTEM mode.
+111209, JB: Version 0.51b
+- Reduced the aperture power threshold from 0.01 to 0.001 to reduce artifacts.
+- Included the comand-line switch /gaussap to allow gaussian source profiles
+  in STEM mode.
+111108, JB: Version 0.50b
+- Reorganized the export of wave functions for both, CTEM and STEM mode.
+  Note that the wave function file naming was changed.
+110924, JB: Version 0.45b
+- Added beam tilt and object tilt command-line parameters.
+110513, JB: Version 0.44b
+- Modified the memory management for phase gratings: Support for individual
+  variant numbers. Improved memory efficiency while loading.
+110506, JB: Version 0.43b
+- Added a function to export detector functions in form of binary raw data
+  files. Command-line option /detimg.
+- Minor Modification: Changed detector interval check to min <= x < max, from
+  min <= x <= max.
+- Text corrections and usage information updated.
+- Added some routines to prepare sub-slicing functionality.
+110406, JB: Version 0.42b
+- Bug fixed, the warning for a currently not existing output file now displays
+  the correct output file name.
+- (Still not working) Tried to make the standard output compatible with
+  Wine 1.2.2 for Mac OS.
+110329, JB: Version 0.41b
+- Added a string parameter to the detector definitions. The output file naming
+  in case of multiple detector readouts is changed. The output files are now
+  created in the following way:
+  <output name>_<detector name>_t<readout slice>.<output extension>
+110227, JB: Version 0.40b
+- Added feature to support azimuthally separated detector segments. Detector
+  parameter file format is changed. DO NOT USE OLD DETECTOR PARAMETER FILES! 
+110209, JB: Version 0.39b
+- Added the option to set the defocus via a command-line parameter
+  [-foc <value in nm>], which overrides the value set in the parameter file.
+101217, JB: --
+- Backup wave export files name creation modified.
+101209, JB: Version 0.38b
+- Added support for extended slice file format, where one slice file can contain
+  multiple (frozen lattice) variants of the slice data. This slice file format
+  is also supported by the slice creation routines of the programs "celslc.exe"
+  and "Dr. Probe.exe".
+101123, JB: Version 0.37b
+- Added slice file title string handling.
+101112, JB: Version 0.36b
+- With /bkwexp, wavefunctions at each slice will be exported now before the
+  propagation, but after the application of the projected potential.
+- With /bkwexp, also the incident wave function is saved to a file with file
+  name = <name of output file>+"_000.wav".
+101102, JB: Version 0.35b
+- Added input parameter checks.
+101029, JB: Version 0.35b
+- Apodization of the spatial coherence convolution kernel.
+- Moved the focus spread convolution parameters close to each other in the
+  parameter file.
+- Extended documentation (this file).
+101025, JB: Version 0.34b
+- Simplified command line options: missing output file option causes output to
+  standard output file name.
+- Simplified command line options: missing scan pixel number options cause full
+  STEM image simulation.
+101015, JB: Version 0.33b
+- Bugfix, for exit plane wave function export.
+- Bugfix, for multiple detector readout, power rescaling bug.
+101013, JB: Version 0.33b
+- Bugfix, for wave function export.
+100914, JB: Version 0.32b
+- Added multiple detector readout at periodic slice numbers. A new parameter 
+  was added.
+100908, JB: Version 0.31b
+- Removed a bug in the max. detector angle check when using detector array
+  definitions
+- Removed a bug in output file generation.
+100903, JB: Version 0.30b
+- Massive changes of the msa parameter file format.
+- Added evaluation of frozen lattice variant data.
+- Slice data files are now specified by a slice file name <SFN> string.
+  Example: <SFN>="C:\Data\Material\Slices\slc", Slice files will be searched
+           with names <SFN>+"_###.sli" where ### is a three digit number
+           identifying the indiviual slices in numbered order from entrance
+           slice 001 to exit slice [NOSD]. 
+100902, JB:
+- Simplifyied the msa parameter file.
+100901, JB: Version 0.24b
+- Added additional detector definition file link to the parameter file.
+  If the detector definition file is specified, the standard detector definition
+  is not used, and the detectors defined in the detector definition file are
+  used. MSA loops over the defined detectors and creates a series of output
+  files. Annular detectors are defined by two diffraction angles as usual.
+100831, JB: Version 0.23b
+- Added exit plane wave export, command switch /epwexp.
+100305, JB: Version 0.22b
+- Moved slice memory from module MS to module MSP, slices are now saved in
+  original size without repetitions, repetitions are done during the application
+  of the phase grating, this change should reduce memory consumption in some
+  cases.
+100302, JB:
+- Recompiled with parallelization turned OFF. MSA should use only one thread
+  core on multithreaded systems.
+100222, JB: Version 0.21b
+- Added code for switching between default array ffts 2048, 4096, 8192.
+100127, JB: Version 0.2b
+- Added an option in module multislice for saving real-space backup waves after
+  each slice, by a switch flag ON/OFF (0/1) and a name string for the output
+  which will be extended by "_###.wav", where ### is a the three digit number of
+  current slice. Remark: Last bk wave is free of image side aberrations.
+100126, JB:
+- Switched compiler option for Parallelization ON.
+091119, JB:
+- Added frame rotation, parameter file changed to include the rotation angle 
+  after the vertical frame size parameter.
+- Added object tilt parameters after global sampling parameters.
+
+

@@ -1,0 +1,653 @@
+#-----------------------------------------------------------------------------#
+#                                                                             #
+#   HOWTO use the program WAVIMG, Version 0.70b                               #
+#                                                                             #
+#-----------------------------------------------------------------------------#
+#                                                                             #
+#   Date: 2018-09-14                                                          #
+#                                                                             #
+#   Author: Juri Barthel                                                      #
+#           Ernst Ruska-Centre                                                #
+#           Forschungszentrum Jülich GmbH, 52425 Jülich, Germany              #
+#           RWTH Aachen University, 52074 Aachen, Germany                     #
+#                                                                             #
+#-----------------------------------------------------------------------------#
+#                                                                             #
+# This program is free software: you can redistribute it and/or modify        #
+# it under the terms of the GNU General Public License as published by        #
+# the Free Software Foundation, either version 3 of the License, or           #
+# (at your option) any later version.                                         #
+#                                                                             #
+# This program is distributed in the hope that it will be useful,             #
+# but WITHOUT ANY WARRANTY; without even the implied warranty of              #
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               #
+# GNU General Public License for more details.                                #
+#                                                                             #
+# GNU General Public License, see <http://www.gnu.org/licenses/>.             #
+#                                                                             #
+#-----------------------------------------------------------------------------#
+
+
+CONTENT OF THIS FILE:
+
+1) Installation
+2) Purpose of use
+3) License
+4) Usage and command-line options
+5) The parameter file formats
+6) Multislice calculation setup examples
+7) History of changes
+
+
+#-----------------------------------------------------------------------------#
+
+1) Installation
+
+  Required files: wavimg.exe
+  Builds are available for Microsoft Windows, MacOSX, and Linux operating
+  systems. No special installation procedure is required.
+
+#-----------------------------------------------------------------------------#
+
+2) Purpose of use
+
+  WAVIMG calculates the image intensity for HRTEM imaging on the basis of an
+  electron wavefunction file.
+
+#-----------------------------------------------------------------------------#
+
+3) License
+
+  This program is free software: you can redistribute it and/or modify  
+  it under the terms of the GNU General Public License as published by  
+  the Free Software Foundation, either version 3 of the License, or     
+  (at your option) any later version.                                   
+
+  This program is distributed in the hope that it will be useful,       
+  but WITHOUT ANY WARRANTY; without even the implied warranty of        
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         
+  GNU General Public License for more details.                          
+
+  You should have received a copy of the GNU General Public License     
+  along with this program. If not, see <http://www.gnu.org/licenses/>.  
+
+  When using this program, please consider to cite the following
+  article as an appreciation of the many hours of work put into
+  this project:
+ 
+  J. Barthel, "Dr. Probe - A software for high-resolution STEM
+  image simulation", Ultramicroscopy 193 (2018) 1-11.
+  doi: 10.1016/j.ultramic.2018.06.003
+  
+#-----------------------------------------------------------------------------#
+
+4) Usage and command-line options
+
+  The program WAVIMG is meant to be called from a command-line.
+
+ > Usage of wavimg in command line:
+ > wavimg  -prm 'parameter file name', e.g. 'wavimg.prm', MUST
+ >        [-out 'image file name', e.g. 'img\image.dat', optional]
+ >        [-foc <float> - image defocus in nm, optional]
+ >        [-btx <float> - beam tilt x in mrad, optional]
+ >        [-bty <float> - beam tilt y in mrad, optional]
+ >        [-oar <float> - objective aperture radius in mrad, optional]
+ >        [/sil deactivates console output, switch]
+ >        [/dbg activates extra debug console output, switch]
+ >        [/nli no loop image output in map output mode, switch]
+ >
+ 
+4.1) Parameter description
+
+- The parameter file defines the calculation parameters and the calculation
+  scheme. Comments and detailed descriptions of the parameter file are given
+  in sections 6, 7, and Appendix A.
+- The output image file name overrides the image file name defined in the
+  parameter file.
+- Beam-tilt parameters are applied to the transfer terms only, the wave is
+  kept as is. This means, that the physical frequencies of the wave Fourier
+  components are shifted by the beam tilt. The aperture will be applied with
+  respect to the new axis and not with respect to the original wave zero beam.
+- The objective aperture radius defined by command-line parameter -oar <value>
+  overrides the aperture radius defined in the parameter file.
+  
+
+Example:
+wavimg -prm "C:\data\models\wavimg.prm"
+-> reads the parameter file file "C:\data\models\wavimg.prm"
+-> calculates the image intensity according to specified parameters
+
+#-----------------------------------------------------------------------------#
+
+5) Parameter file format:
+
+The parameter file is written as line based unformatted ascii table.
+
+5.1) Format of the parameter file: TEXT ASCII
+     When copying examples from here, do not include the separation lines "---- ... ----" in your file!
+     These lines are added here to emphasize the parameter file lists.
+
+Valid version 0.55b+ (0.55b)
+------------------------------------------------------------------------------------------------------
+! line 01: '<wave name>'                ! Wave function file name string used to locate existing wave functions. Use quotation marks when the string includes space characters.
+! line 02: <nx>, <ny>                   ! Dimension of the wave data in pixels, <nx> = number of horizontal wave pixels, <ny> = number of vertical wave pixels.
+! line 03: <sx>, <sy>                   ! Sampling rate of the wave data (<sx> = horizontal, <sy> = vertical) [nm/pix].
+! line 04: <HT>                         ! TEM high-tension used for wave function calculation [kV].
+! line 05: <notype>                     ! Image output type option: 0 = TEM image, 1 = complex image plane wave, 2 = wave amplitude, 3 = wave phase, 4 = wave real part, 5 = wave imaginary part, 6 = TEM image map of 2 variables
+! line 06: '<image name>'               ! Image output file name string. Use quotation marks when the string includes space characters.
+! line 07: <ix>, <iy>                   ! Image output size (<ix> = horizontal , <iy> = vertical) in number of pixels.
+! line 08: <intflg>, <mean>, <conv>, <rnoise> ! Flag and parameters for creating integer images with optional noise. Flag <intflg> 0 = off (default), 1 = 32-bit, 2 = 16-bit, Parameter: <mean> = mean vacuum intensity, <conv> = electron to counts conversion rate, <rnoise> detector readout rms noise level in counts.
+! line 09: <extfgl>                     ! Flag activating the extraction of a special image frame (0=OFF, 1=ON). The frame parameters are defined in the lines below.
+! line 10: <so>                         ! Image output sampling rate [nm/pix], isotropic. The parameter is used only if the Flag in line 09 is set to 1.
+! line 11: <opx>, <opy>                 ! Image frame offset in pixels of the input wave. The parameter is used only if the Flag in line 09 is set to 1.
+! line 12: <orot>                       ! Image frame rotation in [deg] with respect to the input wave horizontal axis. The parameter is used only if the Flag in line 09 is set to 1.
+! line 13: <coh-model>                  ! Coherence calculation model switch: 1 = averaging of coherent sub images explicit focal variation but quasi-coherent spatial envelope, 2 = averaging of coherent sub images with explicit focal and angular variation, 3 = quasi-coherent linear envelopes, 4 = Fourier-space synthesis with partially coherent TCC, 5: averaging of coherent sub images with explicit focal, angular, and frozen lattice variation, 6: quasi-coherent image calculation)
+! line 14: <ptcflg>, <f-spread>         ! Flag and parameters for partial temporal coherence: <ptcflg> = flag (0=OFF, 1=ON), <f-spread> = focus spread (1/e) half width [nm]
+! line 15: <pscflg>, <s-conv>           ! Flag and parameters for partial spatial coherence: <pscflg> = flag (0=OFF, 1=ON), <s-conv> = beam convergence (1/e) half width [mrad]
+! line 16: <mtfflg>, <mtf-scale>, '<mtf-file>' ! Flag and parameters for applying the detector MTF: <mtfflag> = flag (0=OFF, 1=ON), <mtf-scale> = calculation scale of the mtf = (sampling rate experiment)/(sampling rate simulation), <mtf-file> = File name string to locate the MTF data. Use quotation marks when the string includes space characters.
+! line 17: <vibflg>, <vibprm1>, <vibprm2>, <vibprm3> ! Flag and parameters for a vibration envelope: <vibflg> = flag (0=OFF, 1=ON-ISO, 2=ON-ANISO), <vibprm1>, <vibprm2> = vibration RMS amplitudes [nm], <vibprm3> = orientation [deg] of the primary vibration amplitude w.r.t. the horizontal image axis.
+! line 18: <numabr>                     ! Number of aberration definitions following this line
+! line 19: <aidx>, <ax>, <ay>           ! aberration definition (index, ax, ay) [nm]  (index list: 0=image shift, 1=defocus, 2=2-fold astigmatism, 3=coma, 4=3-fold astigm., 5=CS, 6=star aberration, 7=4-fold astigm, 8=coma(5th), 9=3-lobe aberr., 10=5-fold astigm., 11=C5, 12=w62, 13=w64, 14=w66 ...)
+! line 20: <aidx>, <ax>, <ay>           ! aberration definition (index, ax, ay) [nm] .. more similar lines possible depending on value of line 18
+! line 21: <oap>                        ! Objective aperture radius [mrad]. Set to very large values to deactivate.
+! line 22: <ocx>, <oxy>                 ! Center of the objective aperture with respect to the zero beam [mrad].
+! line 23: <numloop>                    ! Number variable of loop definitions following below.
+! line 24: <loop-class>                 ! Loop variable class: 1 = aberration, 2 = coherence params, 3 = wave file
+! line 25: <loop-id>                    ! Loop variable identifier (e.g. aberration index)
+! line 26: <loop-form>                  ! Loop variation form: 1 = ramp, 2 = oscillate, 3 = listed.
+! line 27: <range-min>, <range-max>, <num-steps> ! Loop variation range: [<loop-form> == 1] <range-min> = minimum variable value, <range-max> = maximum vaiable value, <num-steps> = number of loop steps (samples), [<loop-form> == 2] <range-min> = variation amplitude, <range-max> = variation frequency, <num-steps> = number of loop steps (samples)
+! line 28: <loop-string>                ! Loop identifier string used for file naming or to identify the suffix sub-string for the location of numbers in input file names, or file name of a parameter variation list.
+! More loop definitions are possible according to the number of loops define din line 23
+------------------------------------------------------------------------------------------------------
+
+Parameter file formats of older wavimg versions and parameter file examples are listed at the end of this file in Appendix A.
+
+#-----------------------------------------------------------------------------#
+
+6) Detailed parameter descriptions
+
+6.1) The coherence model of the image calculation
+The coherence model used for the TEM image calculation is controlled by the
+number typed in line 13 of the parameter file. Numbers between 1 and 6 are
+valid input and mean the following:
+1: Non-linear image calculation including partial temporal coherence (focus
+spread) by explicit averaging. Partial spatial coherence is treated by a quasi-
+coherent approach with a dampening envelope applied to the wave function. This
+model is good for HRTEM with Cs-corrected microscopes, where the partial spatial
+coherence can be largely ignored but the partial temporal coherence limits the
+resolution.
+2: Non-linear image calculation by explicit averaging of coherent sub images
+with focal variation and angular variation. This is a fully accurate calculation
+including all cross-terms and non-linearities. It is valid for all kinds of TEMs
+but quite time consuming.
+3: Linear image calculation considering partial coherence by linear envelopes
+aplied to the linear interference terms. This approximation remains valid for
+weak-phase objects. Non-linear image components are ignored.
+4: Fourier-space synthesis with partially coherent transmission cross-coefficient
+(TCC). This is a fully non-linear mode with dampening including a first-order
+derivative solution of the TCC. It can be applied to moderate coherence cases.
+The calculation is very time consuming and only implemented for reference. Mode 2
+should be preferred over mode 4.
+5: This is a fully non-linear image calculation including frozen-lattice variations.
+The partial coherence is considered by averaging coherent sub-images with explicit
+focal, angular, and frozen lattice variation with random samples of the respective
+distributions.
+6: The image is calculated in a quasi-coherent approximation of partial coherence.
+A dampened image plane wave function is calculated by multiplying the linear
+dampening envelopes in Fourier space and then calculating the absolute square
+in real space. This approximation applies a too strong dampening to some of the
+non-linear interference terms. It should be used only for thin samples and microscopes
+with very small focus spread and small semi-convergence angle (Cs & Cc corrected).
+
+6.2) On Application of MTF:
+The MTF is given by a camera-specific file, which specifies the transfer
+damping of the detection, depending on the spatial camera frequency up to the
+detector nyquist frequency (may depend on binning).
+
+Format of the mtf file: TEXT ASCII
+------------------------------------------------------------------------------------------------------
+! line 01: <numpix>                     ! number of MTF pixels (1+CCD Nyquist)
+! line 02: MTF(0)                       ! first MTF value (frequency i=0)
+! line 03: MTF(1)                       ! 2nd MTF value (frequency i=1)
+! ....
+! line <numpix+1>: MTF(Nyquist)         ! last MTF value (frequency i=<numpix>-1)
+------------------------------------------------------------------------------------------------------
+
+The MTF is applied to the recorded spatial images frequencies.
+For the case that the experimal sampling rate (samp_exp) and the
+sampling rate in the simulation (samp_sim) are not the same, you
+must rescale the MTF to the simulation accordingly. This is done
+by the scaling factor <mtf-scale> in line 16 of the wavimg parameter
+file to
+  <mtf-scale> = samp_exp / samp_sim.
+This factor denotes the required compression of the experimental
+MTF on the Fourier space sampling of the simulation.
+
+
+6.3) On using the loop functionality of version 0.50b+:
+If you want to use a loop over wavefunctions, the 'loop id string'
+parameter is used to identify the wavefunctions of each step of the loop.
+The 'loop id string' is used as a sub-string preceeding a 3 digit number, which
+identifies the wave function index.
+Example: Wave functions are named: 'wave_sl001.wav', 'wave_sl002.wav',
+ ... , 'wave_sl144.wav', and you want to loop over all these waves in steps
+ of 4 (sequence 004, 008, 012, 016, ... 144).
+Then the appropriate parameter setting would be:
+------------------------------------------------------------------------------------------------------
+'wave_sl.wav'                ! wave function file name (complex*8)
+...
+3                            ! loop variable class: 1=aberration, 2=coherence params, 3=wave file
+1                            ! loop variable id: loop parameter identification (e.g. aberration index)
+1                            ! loop variation form: 1=ramp, 2=oscillate
+4, 144, 36                   ! loop variable min., max., # samples (or ampl., frequency, # samples)
+'_sl'                        ! loop id string (for wave identification an output naming purposes)
+------------------------------------------------------------------------------------------------------
+With this setup, wavimg searches for the files 'wave_sl*.wav' where * is
+replaced by a digit string built up from the loop metrics. The start number
+is 4, 36 steps are used, the stop number is <=144.
+
+
+6.4) On using vibration damping envelopes
+Image contrast damping due to vibration of arbitrary kind is implemented by
+means of a Gaussian damping envelope. The program supports 3 options to define
+the damping envelope:
+- Option 1: No vibration damping
+- Option 2: Isotropic vibration damping
+            (still exists for historical reasons to support earlier versions)
+- Option 3: Anisotropic vibration damping
+The vibration damping is parameterized in one line of the parameter file, where
+the option is selected by means of an initial flag parameter, which is followed
+by values defining the strength of the vibration.
+The respective parameter file line is expected to have the following format:
+  <vibflg>, <vibprm1>, <vibprm2>, <vibprm3>
+The parameters are interpreted in the following way:
+  <vibflg> = flag
+              0 = damping OFF,
+              1 = damping ON (isotropic),
+              2 = damping ON (anisotropic)]
+             Selects one of the options listed above.
+  <vibprm1> = RMS vibration amplitude [nm] along a primary axis,
+              required for all values of <vibflg>, MUST be present!
+  <vibprm2> = RMS vibration amplitude [nm] along a secondary axis
+              orthogonal to the primary axis.
+              Optional, but must be present when <vibflg> == 2.
+  <vibprm3> = Orientation [deg] of the primary axis
+              w.r.t. the horizontal image axis.
+              Optional, but must be present when <vibflg> == 2
+The parameter file still supports the previous way of defining an isotropic
+although the effect of Option 1 is fully covered with the effect of Option 2.
+Examples for defining contrast damping due to vibration:
+- Option 1: 0, 0.02 -> (OLD) no vibration envolope used
+- Option 2: 1, 0.02 -> (OLD) isotropic vibration envelope
+- Option 3: 2, 0.022, 0.018, 20.0 -> (NEW) anisotropic vibration envelope
+
+6.5) On using list-directed aberration parameter variation (Version 0.55b+)
+The list directed aberration parameter variation requires an additional
+input file, which specifies a list of aberration vectors to be applied
+with each step of the WAVIMG parameter loop. Aberration vectors specified
+in the file are added to the current aberration vector starting from
+the input made in the WAVIMG parameter file and via the command-line
+arguments. Multiple list directed parameter variations are thus added up
+in each step of the loop.
+The input file format is defined in the following way
+------------------------------------------------------------------------------------------------------
+line 01 : <list length> number defining the length of the list to read
+line 02 : <header length> number defining the length of the list header
+line 03 : <header> list of numbers defining the column content
+line 04+: <data set> list of floating point numbers defining the aberrations
+          Each aberration is defined by two values (ax, ay).
+          The length of <data set> is therefor twice the length of <header>.
+------------------------------------------------------------------------------------------------------
+Here is an example, which defines a combined defocus and CS variation:
+------------------------------------------------------------------------------------------------------
+10
+2
+1 5
+0.0 0.0 0.0 0.0
+1.0 0.0 -500.0 0.0
+2.0 0.0 -2000.0 0.0
+3.0 0.0 -4500.0 0.0
+4.0 0.0 -8000.0 0.0
+5.0 0.0 -1.2E+04 0.0
+6.0 0.0 -1.8E+04 0.0
+7.0 0.0 -2.45E+04 0.0
+8.0 0.0 -3.2E+04 0.0
+9.0 0.0 -4.05E+04 0.0
+------------------------------------------------------------------------------------------------------
+
+
+#-----------------------------------------------------------------------------#
+
+7) History of changes
+
+180702: JB: Version 0.70b
+- Pixelation (sinc) will be triggered with the usage of an MTF for
+  image output.
+- Corrected a bug in the wave function resampling code which lead to
+  a shift of (1,1) relative to an image resampling.
+180205: JB: Version 0.69b
+- Added the cross-term of partial spatial and temporal coherence to
+  the envelope TCC calculation model #4.
+180130: JB: Version 0.68b
+- Corrected bugs in image calculation (special coherence models) and
+  consistently introduced the objective aperture to all of them.
+171220: JB: Version 0.67b
+- Modified the standard output and made /sil really silent.
+171213: JB: Version 0.66b
+- Modified internal array management to reduce memory consumption.
+- Added the command-line flag "/rti" posting runtime information based
+  on system_clock.
+170619: JB: Version 0.65b
+- Fixed a bug that caused wrong FL averaging of TEM images in coherence
+  mode 5, when using additional outer loops.
+160927: JB: Version 0.64b
+- Small changes to text output. More information when calculating loops.
+160914: JB: Version 0.63b
+- Added a "secret" flag "/rnsb" to the command-line options, which
+  re-normalizes the output wave function when a side-band shifted MTF was
+  applied. The re-normalization is done be dividing again by the MTF value
+  applied to the zero beam.
+160829: JB: Version 0.62b
+- Implemented a routine, which creates folders before writing files
+  when the folder doesn't exist.
+  The routine "createfilefolder" is using ifort libraries, so take
+  care to adopt the code when using other compilers.
+151201, JB: Version 0.61b
+- Added a warning when the actual sampling rate of image or wave is by more
+  than 0.1% anisotropic and an MTF is applied.
+- Updated the documentation concerning the scaling of the MTF.
+- Fixed a bug in the vibration dampening envelope applied to wave functions.
+151125, JB: Version 0.60b
+- Fixed a bug in the file name synthesis for multiple loops over wave functions.
+150916, JB: Version 0.60b
+- Added an optional command-line argument ("-foc <value>") to set the image
+  defocus.
+150602, JB: --
+- Added debug info when using sideband shifts for the mtf.
+150403, JB: --
+- Modified the way how the list directed aberrations are applied in loops.
+  The new implementation will allow that the variation from different loops
+  add up in each run. Previously, each loop change was added to the backup
+  offset. The new implementation allows to simulate off-axial aberrations.
+150114, JB: Version 0.59b
+- Removed a bug from the wave export routines.
+141205, JB: Version 0.58b
+- Added dampening functions for the wave function output: linear coherence
+  envelopes, mtf and vibration.
+- Added an undocumented command-line options -sbshx and -sbshy, which can
+  be used to apply the mtf for a shifted sideband, the shift is given in
+  pixels of the output wave function behind the option switch.
+  When simulated wave and experimental wave acquisition are on different
+  samplings, make sure to rescale the sideband shift accordingly.
+  The rescaling of sideband shifts to the simulation can be done by the
+  following formula (independently for each image axis):
+  sbsh_sim = sbsh_exp * s_sim / s_exp,
+  where s_sim and s_exp are the image sizes in nanometers of simulation
+  and experiment respectively.
+140509, JB: Version 0.57b
+- Added the image convolution due to the pixel integration
+- Corrected a bug in the mtf calculation
+140405, JB: Version 0.56b
+- Changed the way how the listed parameter variation is used. The values
+  in the list are now added to the values of the basic aberration set.
+140312, JB: Version 0.55b
+- Added listed parameter variation.
+  The <loop-form> parameter can now be set to value 3, which triggers wavimg to
+  load an additional file specified by the <loop-string> parameter. The file
+  contains then a list directing the parameter variation of wavimg.
+  Currently this function is only supported for aberration variations
+  <loop-class>==1.
+130424, JB: Version 0.54b
+- Modified the noise simulation.
+130422, JB: Version 0.53b
+- Modified the noise simulation.
+  A noise MTF is extracted from central frequencies of the average pattern MTF
+  using an exponential decay fit and applied to the shot noise pattern.
+  The readout noise pattern is added without applying an MTF.
+- Added an anisotropic vibration envelope.
+  The anisotropic envelope is defined by 3 parameters:
+  <vibprm1>, <vibprm1>, <vibprm3>, where
+    <vibprm1> is the RMS vibration amplitude [nm] along a primary axis,
+    <vibprm2> is the RMS vibration amplitude [nm] along a secondary axis
+              orthogonal to the primary axis, and
+    <vibprm3> is the rotation of the primary axis [deg] with respect to the
+              image x axis.
+  The parameter file still supports the previous way of defining an isotropic
+  vibration amplitude with specifying the followin parameters in one line:
+  option 1: 0, 0.02 -> (OLD) no vibration envolope used,
+  option 2: 1, 0.02 -> (OLD) isotropic vibration envelope with RMS amplitude
+            of 0.02 nm,
+  option 3: 2, 0.022, 0.018, 20.0 -> (NEW) anisotropic vibration envelope with
+            RMS amplitudes 0.022 nm and 0.018 nm along the primary and
+            secondary axis respectively, and 20 deg rotation of the primary
+            axis w.r.t. the horizontal image axis
+- Worked over the comments of the current parameter file documentaion in
+  this file.
+130110, JB: Version 0.52b
+- Worked over the integer image and noise modeling. Some bugs and
+  misconceptions were removed.
+120629, JB: Version 0.51b
+- Introduced a new optional command-line parameter for the objective aperture
+  size.
+  The command-line parameter -oar <value> overrides the respective parameter
+  in the parameter file. See line 21 of the general example in section (5.1)
+  below.
+- The objective aperture limitation is now applied to all calculation schemes
+  of the microscope transfer function.
+- Introduced an optional command-line parameter for the image file name used
+  for output. The command-line parameter overrides the image file name
+  specified in line 6 of the parameter file.
+- Removed bugs from the image interpolation routines related to wrap around
+  within the wave array.
+- Removed bugs from the vibration and mtf calculation concerning
+  non-interpolated images.
+- Re-organized the application of vibration envelope, mtf, noise and resonance
+  damping in case of the coherent sub-image averaging scheme
+120217, JB: Version 0.50b
+- Complete re-implementation of the loop behaviour. The loop setup is now more
+  flexible
+  !!! Note that the wavimg parameter file format as changed at the loop
+  definition lines. The implication of these changes are rather drastic,
+  especially if you want to use the loop functionality. Due to the present
+  absence of a detailed manual I suggest to contact me directly in case of
+  problems.
+110924, JB: Version 0.45b
+- Added commandline beam tilt parameters.
+- Added objective aperture parameters to the parameter file.
+110521, JB: Version 0.44b
+- Re-organized the noise image creation for integer output.
+- Added a fully explicit averaging algorithm including partial coherence and
+  frozen-lattice wave functions.
+110314, JB: --
+- bug fix in standard TEM loop image creation, file name transfer fixed.
+101221, JB: --
+- some bug fixes
+100222, JB: Version 0.41b
+- added easier switch to larger fft dimensions. Options: 2048, 4096, 8192
+100128, JB: Version 0.4b
+- added a command line option "/nli" to suppress single image output in map
+  mode (output type = 6).
+- added an outer loop over a series of wave functions.
+  respective parameters (loop-flag, loop start idx, loop end index, loop step)
+  are added to the end of the parameter file. Input waves must be supplied as
+  series <name>_<idx><ext>, where the string <name><ext> is specified in
+  line 01 of the parameter file (e.g. sim.wav), and <idx> is a 3 digit number
+  with leading zeroes (e.g. sim_001.wav, sim_002.wav, ...).
+  In case of 2D-loops, the output is named with two indices,
+  e.g. img_001_003.dat), where the first index is due to the wave loop,
+  and the second index is due to the parameter loop.
+- added functionality for defocus - thickness map image,
+  output image type = 6. The 2D loop dimensions are defined by the two
+  loop-sections at the end of the parameter file. They are applied for this
+  output type even if the loops are deactivated.
+100126, JB: Version 0.3b
+- added howto and parameter file to project tree
+- changed output destination of linker to the main directory of the project.
+
+#-----------------------------------------------------------------------------#
+
+Appendix A
+
+Old version parameter file formats:
+
+A.1) version 0.53b+ (0.53b, 0.54b)
+------------------------------------------------------------------------------------------------------
+! line 01: '<wave name>'                ! Wave function file name string used to locate existing wave functions. Use quotation marks to secure the input including space characters.
+! line 02: <nx>, <ny>                   ! Dimension of the wave data in pixels, <nx> = number of horizontal wave pixels, <ny>  = number of vertical wave pixels.
+! line 03: <sx>, <sy>                   ! Sampling rate of the wave data (<sx> = horizontal, <sy> = vertical) [nm/pix].
+! line 04: <HT>                         ! TEM high-tension as used for wave function calculation [kV].
+! line 05: <notype>                     ! Image output type option: 0 = TEM image, 1 = complex image plane wave, 2 = wave amplitude, 3 = wave phase, 4 = wave real part, 5 = wave imaginary part, 6 = TEM image map of 2 variables
+! line 06: '<image name>'               ! Image output file name string. Use quotation marks to secure the input including space characters.
+! line 07: <ix>, <iy>                   ! Image output size (<ix> = horizontal , <iy> = vertical) in number of pixels.
+! line 08: <intflg>, <mean>, <conv>, <rnoise> ! Flag and parameters for creating integer images with optional noise. Flag <intflg> 0 = off (default), 1 = 32-bit, 2 = 16-bit, Parameter: <mean> = mean vacuum intensity, <conv> = electron to counts conversion rate, <rnoise> detector readout noise level.
+! line 09: <extfgl>                     ! Flag activating the extraction of a special image frame (0=OFF, 1=ON). The frame parameters are defined in the lines below.
+! line 10: <so>                         ! Image output sampling rate [nm/pix], isotropic. The parameter is used only if the Flag in line 09 is set to 1.
+! line 11: <opx>, <opy>                 ! Image frame offset in pixels of the input wave. The parameter is used only if the Flag in line 09 is set to 1.
+! line 12: <orot>                       ! Image frame rotation in [deg] with respect to the input wave horizontal axis. The parameter is used only if the Flag in line 09 is set to 1.
+! line 13: <coh-model>                  ! Coherence calculation model switch: 1 = averaging of coherent sub images explicit focal variation but quasi-coherent spatial envelope, 2 = averaging of coherent sub images with explicit focal and angular variation, 3 = quasi-coherent linear envelopes, 4 = Fourier-space synthesis with partially coherent TCC, 5: averaging of coherent sub images with explicit focal, angular, and frozen lattice variation)
+! line 14: <ptcflg>, <f-spread>         ! Flag and parameters for partial temporal coherence: <ptcflg> = flag (0=OFF, 1=ON), <f-spread> = focus spread (1/e) half width [nm]
+! line 15: <pscflg>, <s-conv>           ! Flag and parameters for partial spatial coherence: <pscflg> = flag (0=OFF, 1=ON), <s-conv> = beam convergence (1/e) half width [mrad]
+! line 16: <mtfflg>, <mtf-scale>, '<mtf-file>' ! Flag and parameters for applying the detector MTF: <mtfflag> = flag (0=OFF, 1=ON), <mtf-scale> = calculation scale of the mtf = (sampling rate experiment)/(sampling rate simulation), <mtf-file> = File name string to locate the MTF data. Use quotation marks to secure the input including space characters.
+! line 17: <vibflg>, <vibprm1>, <vibprm2>, <vibprm3> ! Flag and parameters for a vibration envelope: <vibflg> = flag (0=OFF, 1=ON-ISO, 2=ON-ANISO), <vibprm1>, <vibprm1> = vibration RMS amplitudes [nm], <vibprm3> = orientation [deg] of the primary vibration amplitude w.r.t. the horizontal image axis.
+! line 18: <numabr>                     ! Number of aberration definitions following this line
+! line 19: <aidx>, <ax>, <ay>           ! aberration definition (index, ax, ay) [nm]  (index list: 0=image shift, 1=defocus, 2=2-fold astigmatism, 3=coma, 4=3-fold astigm., 5=CS, 6=star aberration, 7=4-fold astigm, 8=coma(5th), 9=3-lobe aberr., 10=5-fold astigm., 11=C5, 12=w62, 13=w64, 14=w66 ...)
+! line 20: <aidx>, <ax>, <ay>           ! aberration definition (index, ax, ay) [nm] .. more similar lines possible depending on value of line 18
+! line 21: <oap>                        ! Objective aperture radius [mrad]. Set to very large values to deactivate.
+! line 22: <ocx>, <oxy>                 ! Center of the objective aperture with respect to the zero beam [mrad].
+! line 23: <numloop>                    ! Number variable of loop definitions following below.
+! line 24: <loop-class>                 ! Loop variable class: 1 = aberration, 2 = coherence params, 3 = wave file
+! line 25: <loop-id>                    ! Loop variable identifier (e.g. aberration index)
+! line 25: <loop-form>                  ! Loop variation form: 1 = ramp, 2 = oscillate
+! line 26: <range-min>, <range-max>, <num-steps> ! Loop variation range: [<loop-form> == 1] <range-min> = minimum variable value, <range-max> = maximum vaiable value, <num-steps> = number of loop steps (samples), [<loop-form> == 2] <range-min> = variation amplitude, <range-max> = variation frequency, <num-steps> = number of loop steps (samples)
+! line 27: <loop-string>                ! Loop identifier string used for file naming or to identify the suffix sub-string for the location of numbers in input file names.
+! More loop definitions are possible according to the number of loops define din line 23
+------------------------------------------------------------------------------------------------------
+
+A.2) version 0.50b+ (0.50b, 0.51b, 0.52b)
+------------------------------------------------------------------------------------------------------
+! line 01: '<wave name>'                ! Wave function file name string used to locate existing wave functions. Use quotation marks to secure the input including space characters.
+! line 02: <nx>, <ny>                   ! Dimension of the wave data in pixels, <nx> = number of horizontal wave pixels, <ny>  = number of vertical wave pixels.
+! line 03: <sx>, <sy>                   ! Sampling rate of the wave data (<sx> = horizontal, <sy> = vertical) [nm/pix].
+! line 04: <HT>                         ! TEM high-tension as used for wave function calculation [kV].
+! line 05: <notype>                     ! Image output type option: 0 = TEM image, 1 = complex image plane wave, 2 = wave amplitude, 3 = wave phase, 4 = wave real part, 5 = wave imaginary part, 6 = TEM image map of 2 variables
+! line 06: '<image name>'               ! Image output file name string. Use quotation marks to secure the input including space characters.
+! line 07: <ix>, <iy>                   ! Image output size (<ix> = horizontal , <iy> = vertical) in number of pixels.
+! line 08: <intflg>, <mean>, <conv>, <rnoise> ! Flag and parameters for creating integer images with optional noise. Flag <intflg> 0 = off (default), 1 = 32-bit, 2 = 16-bit, Parameter: <mean> = mean vacuum intensity, <conv> = electron to counts conversion rate, <rnoise> detector readout noise level.
+! line 09: <extfgl>                     ! Flag activating the extraction of a special image frame (0=OFF, 1=ON). The frame parameters are defined in the lines below.
+! line 10: <so>                         ! Image output sampling rate [nm/pix], isotropic. The parameter is used only if the Flag in line 09 is set to 1.
+! line 11: <opx>, <opy>                 ! Image frame offset in pixels of the input wave. The parameter is used only if the Flag in line 09 is set to 1.
+! line 12: <orot>                       ! Image frame rotation in [deg] with respect to the input wave horizontal axis. The parameter is used only if the Flag in line 09 is set to 1.
+! line 13: <coh-model>                  ! Coherence calculation model switch: 1 = averaging of coherent sub images explicit focal variation but quasi-coherent spatial envelope, 2 = averaging of coherent sub images with explicit focal and angular variation, 3 = quasi-coherent linear envelopes, 4 = Fourier-space synthesis with partially coherent TCC, 5: averaging of coherent sub images with explicit focal, angular, and frozen lattice variation)
+! line 14: <ptcflg>, <f-spread>         ! Flag and parameters for partial temporal coherence: <ptcflg> = flag (0=OFF, 1=ON), <f-spread> = focus spread (1/e) half width [nm]
+! line 15: <pscflg>, <s-conv>           ! Flag and parameters for partial spatial coherence: <pscflg> = flag (0=OFF, 1=ON), <s-conv> = beam convergence (1/e) half width [mrad]
+! line 16: <mtfflg>, <mtf-scale>, '<mtf-file>' ! Flag and parameters for applying the detector MTF: <mtfflag> = flag (0=OFF, 1=ON), <mtf-scale> = calculation scale of the mtf = (sampling rate experiment)/(sampling rate simulation), <mtf-file> = File name string to locate the MTF data. Use quotation marks to secure the input including space characters.
+! line 17: <vibflg>, <vibprm>           ! Flag and parameters for a vibration envelope: <vibflg> = flag (0=OFF, 1=ON), <vibprm> = vibration RMS amplitude [nm].
+! line 18: <numabr>                     ! Number of aberration definitions following this line
+! line 19: <aidx>, <ax>, <ay>           ! aberration definition (index, ax, ay) [nm]
+! line 20: <aidx>, <ax>, <ay>           ! aberration definition (index, ax, ay) [nm] .. more similar lines possible depending on value of line 18
+! line 21: <oap>                        ! Objective aperture radius [mrad]. Set to very large values to deactivate.
+! line 22: <ocx>, <oxy>                 ! Center of the objective aperture with respect to the zero beam [mrad].
+! line 23: <numloop>                    ! Number variable of loop definitions following below.
+! line 24: <loop-class>                 ! Loop variable class: 1 = aberration, 2 = coherence params, 3 = wave file
+! line 25: <loop-id>                    ! Loop variable identifier (e.g. aberration index)
+! line 25: <loop-form>                  ! Loop variation form: 1 = ramp, 2 = oscillate
+! line 26: <range-min>, <range-max>, <num-steps> ! Loop variation range: [<loop-form> == 1] <range-min> = minimum variable value, <range-max> = maximum vaiable value, <num-steps> = number of loop steps (samples), [<loop-form> == 2] <range-min> = variation amplitude, <range-max> = variation frequency, <num-steps> = number of loop steps (samples)
+! line 27: <loop-string>                ! Loop identifier string used for file naming or to identify the suffix sub-string for the location of numbers in input file names.
+! More loop definitions are possible according to the number of loops define din line 23
+------------------------------------------------------------------------------------------------------
+
+A.3) Specific parameter file examples for version 0.50b+
+
+A.3.1) Simulation of a single TEM image.
+
+BEGIN OF PARAMETER FILE EXAMPLE:
+------------------------------------------------------------------------------------------------------
+'wave_sl012.wav'             ! wave function file name (complex*8)
+512, 512                     ! dimension of wave data (rows and cols)
+0.0145, 0.0134               ! sampling of wave data (x, y) [nm/pix]
+300.0                        ! TEM high-tension (as used for wave functiopn calc)
+0                            ! image type option, 0=TEM image, 1=complex wave, 2=wave amp, 3=wave phase, 4=wave re, 5=wave im, 6=dZ-dT map
+'image.dat'                  ! image intensity file name (real*4)
+400, 400                     ! image size (x, y) in pixels
+1, 3000, 5.6, 5.0            ! flag and prm for integer image creation with noise (flag: 0=off, 1=32bit, 2=16bit, prm: mean vacuum intensity, El. conversion rate, readout noise)
+1                            ! extract special image frame 
+0.012                        ! image sampling rate [nm/pix]
+0.0, 0.0                     ! image frame offset [pixels in wave]
+0.0                          ! image frame rotation
+1                            ! coherence model switch (1: fs-avg, 2: fs&sc-avg, 3: lin-env, 4: nl-env)
+1, 4.0                       ! flag and prm for partail temp. coh.
+1, 0.2                       ! flag and prm for partail spat. coh.
+1, 1.0, 'microscope.mtf'     ! flag, scale, and data for detector mtf
+1, 0.03                      ! flag and prm [amplitude nm] for vibration envelope
+2                            ! number of aberration definitions following
+1, 5.8, 0.0                  ! aberration definition (index, ax, ay) (NCSI defocus for 0.8A resolution at 300kV)
+5, -12000.0, 0.0             ! aberration definition (index, ax, ay) (NCSI C3 for 0.8A resolution at 300kV)
+2500.0                       ! objective aperture size in mrad (set to extreme value to deactivate)
+0.0, 0.0                     ! decenter of the objective aperture in mrad
+0                            ! number of loops
+------------------------------------------------------------------------------------------------------
+END OF PARAMETER FILE EXAMPLE:
+
+A.3.2) Simulation of a defocus-thickness map.
+The simulation requires a thickness series of wavefunctions as input.
+
+BEGIN OF PARAMETER FILE EXAMPLE:
+------------------------------------------------------------------------------------------------------
+'wave_sl.wav'                ! wave function file name (complex*8)
+512, 512                     ! dimension of wave data (rows and cols)
+0.0145, 0.0134               ! sampling of wave data (x, y) [nm/pix]
+300.0                        ! TEM high-tension (as used for wave functiopn calc)
+6                            ! image type option, 0=TEM image, 1=complex wave, 2=wave amp, 3=wave phase, 4=wave re, 5=wave im, 6=dZ-dT map
+'image.dat'                  ! image intensity file name (real*4)
+400, 400                     ! image size (x, y) in pixels
+0, 3000, 1, 0                ! flag and prm for integer image creation with noise (flag: 0=off, 1=32bit, 2=16bit, prm: mean vacuum intensity, El. conversion rate, readout noise)
+0                            ! extract special image frame 
+0.012                        ! image sampling rate [nm/pix]
+0.0, 0.0                     ! image frame offset [pixels in wave]
+0.0                          ! image frame rotation
+1                            ! coherence model switch (1: fs-avg, 2: fs&sc-avg, 3: lin-env, 4: nl-env)
+1, 4.0                       ! flag and prm for partail temp. coh.
+1, 0.2                       ! flag and prm for partail spat. coh.
+1, 1.0, 'microscope.mtf'     ! flag, scale, and data for detector mtf
+1, 0.03                      ! flag and prm [amplitude nm] for vibration envelope
+2                            ! number of aberration definitions following
+1, 5.8, 0.0                  ! aberration definition (index, ax, ay)
+5, -12000.0, 0.0             ! aberration definition (index, ax, ay)
+2500.0                       ! objective aperture size in mrad (set to extreme value to deactivate)
+0.0, 0.0                     ! decenter of the objective aperture in mrad
+2                            ! number of loops
+1                            ! loop variable class: 1=aberration ! this is a defocus loop
+1                            ! loop variable id: 1=defocus
+1                            ! loop variation form: 1=ramp
+-20.0, 20.0, 41              ! loop variable min., max., # samples
+'foc'                        ! loop id string (for naming purposes, not used here)
+3                            ! loop variable class: 3=wave file ! this is a loop over wavefunctions (here, thickness)
+1                            ! loop variable id: 1 (not used here)
+1                            ! loop variation form: 1=ramp
+1, 20, 20                    ! loop variable min., max., # samples
+'_sl'                        ! loop id string (for wave identification and output naming purposes)
+------------------------------------------------------------------------------------------------------
+END OF PARAMETER FILE EXAMPLE:
+
+#-----------------------------------------------------------------------------#
+
+Appendix B
+
+Contact data:
+
+  Dr. Juri Barthel
+  ju.barthel@fz-juelich.de
+
+  Central Facility for Electron Microscopy
+  RWTH Aachen University
+  Ahornstr. 55
+  52074 Aachen
+  Germany
+
+  Ernst Ruska-Centre for Microscopy and Spectroscopy with Electrons
+  Forschungszentrum Jülich GmbH
+  52425 Juelich
+  Germany
+
+#-----------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------#

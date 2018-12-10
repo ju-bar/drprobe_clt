@@ -1,0 +1,68 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27703.2042
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "celslc", "celslc\celslc.vfproj", "{A28A66BE-28A0-4890-B385-0EB0CF6EC606}"
+EndProject
+Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "msa", "msa\msa.vfproj", "{89312CB7-9A72-4EC2-A5EE-68F997F04BB2}"
+EndProject
+Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "wavimg", "wavimg\wavimg.vfproj", "{EE3295A2-6653-4B52-AF48-77F9D0026727}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A437CCEA-E420-45B9-837B-A189441B3C08}"
+	ProjectSection(SolutionItems) = preProject
+		compress-drprobe_clt-bin.osx.sh = compress-drprobe_clt-bin.osx.sh
+		compress-drprobe_clt-bin.sh = compress-drprobe_clt-bin.sh
+		compress-drprobe_clt-src.sh = compress-drprobe_clt-src.sh
+		drprobe_clt_bin.linux.tar.gz = drprobe_clt_bin.linux.tar.gz
+		drprobe_clt_bin.osx.tar.gz = drprobe_clt_bin.osx.tar.gz
+		drprobe_clt_src.tar.gz = drprobe_clt_src.tar.gz
+		DrProbeCLT-Winx64.zip = DrProbeCLT-Winx64.zip
+		LICENSE = LICENSE
+		make-all.osx.sh = make-all.osx.sh
+		make-all.sh = make-all.sh
+		README.md = README.md
+		update-bin.osx.sh = update-bin.osx.sh
+		update-bin.sh = update-bin.sh
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A28A66BE-28A0-4890-B385-0EB0CF6EC606}.Debug|x64.ActiveCfg = Debug|x64
+		{A28A66BE-28A0-4890-B385-0EB0CF6EC606}.Debug|x64.Build.0 = Debug|x64
+		{A28A66BE-28A0-4890-B385-0EB0CF6EC606}.Debug|x86.ActiveCfg = Debug|Win32
+		{A28A66BE-28A0-4890-B385-0EB0CF6EC606}.Debug|x86.Build.0 = Debug|Win32
+		{A28A66BE-28A0-4890-B385-0EB0CF6EC606}.Release|x64.ActiveCfg = Release|x64
+		{A28A66BE-28A0-4890-B385-0EB0CF6EC606}.Release|x64.Build.0 = Release|x64
+		{A28A66BE-28A0-4890-B385-0EB0CF6EC606}.Release|x86.ActiveCfg = Release|Win32
+		{A28A66BE-28A0-4890-B385-0EB0CF6EC606}.Release|x86.Build.0 = Release|Win32
+		{89312CB7-9A72-4EC2-A5EE-68F997F04BB2}.Debug|x64.ActiveCfg = Debug|x64
+		{89312CB7-9A72-4EC2-A5EE-68F997F04BB2}.Debug|x64.Build.0 = Debug|x64
+		{89312CB7-9A72-4EC2-A5EE-68F997F04BB2}.Debug|x86.ActiveCfg = Debug|Win32
+		{89312CB7-9A72-4EC2-A5EE-68F997F04BB2}.Debug|x86.Build.0 = Debug|Win32
+		{89312CB7-9A72-4EC2-A5EE-68F997F04BB2}.Release|x64.ActiveCfg = Release|x64
+		{89312CB7-9A72-4EC2-A5EE-68F997F04BB2}.Release|x64.Build.0 = Release|x64
+		{89312CB7-9A72-4EC2-A5EE-68F997F04BB2}.Release|x86.ActiveCfg = Release|Win32
+		{89312CB7-9A72-4EC2-A5EE-68F997F04BB2}.Release|x86.Build.0 = Release|Win32
+		{EE3295A2-6653-4B52-AF48-77F9D0026727}.Debug|x64.ActiveCfg = Debug|x64
+		{EE3295A2-6653-4B52-AF48-77F9D0026727}.Debug|x64.Build.0 = Debug|x64
+		{EE3295A2-6653-4B52-AF48-77F9D0026727}.Debug|x86.ActiveCfg = Debug|Win32
+		{EE3295A2-6653-4B52-AF48-77F9D0026727}.Debug|x86.Build.0 = Debug|Win32
+		{EE3295A2-6653-4B52-AF48-77F9D0026727}.Release|x64.ActiveCfg = Release|x64
+		{EE3295A2-6653-4B52-AF48-77F9D0026727}.Release|x64.Build.0 = Release|x64
+		{EE3295A2-6653-4B52-AF48-77F9D0026727}.Release|x86.ActiveCfg = Release|Win32
+		{EE3295A2-6653-4B52-AF48-77F9D0026727}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3FD59126-EF57-4261-9F49-B412822A1B4B}
+	EndGlobalSection
+EndGlobal

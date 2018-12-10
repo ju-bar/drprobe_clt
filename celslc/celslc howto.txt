@@ -1,0 +1,973 @@
+#-----------------------------------------------------------------------------#
+#                                                                             #
+#   HOWTO use the program CELSLC, Version 0.70b                               #
+#                                                                             #
+#-----------------------------------------------------------------------------#
+#                                                                             #
+#   Date: 2018-11-28                                                          #
+#                                                                             #
+#   Author: Dr. Juri Barthel                                                  #
+#           Ernst Ruska-Centre                                                #
+#           Forschungszentrum Jülich GmbH, 52425 Jülich, Germany              #
+#                                                                             #
+#-----------------------------------------------------------------------------#
+#                                                                             #
+# This program is free software: you can redistribute it and/or modify        #
+# it under the terms of the GNU General Public License as published by        #
+# the Free Software Foundation, either version 3 of the License, or           #
+# (at your option) any later version.                                         #
+#                                                                             #
+# This program is distributed in the hope that it will be useful,             #
+# but WITHOUT ANY WARRANTY; without even the implied warranty of              #
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               #
+# GNU General Public License for more details.                                #
+#                                                                             #
+# GNU General Public License, see <http://www.gnu.org/licenses/>.             #
+#                                                                             #
+#-----------------------------------------------------------------------------#
+
+
+CONTENT OF THIS FILE:
+
+1) Installation
+2) Purpose of use
+3) License
+4) Usage and command-line options
+5) Examples
+6) Structure and format of cel files
+7) History of changes
+
+
+#-----------------------------------------------------------------------------#
+
+
+1) Installation
+
+   Required files: celslc.exe (celslc) binary file
+   Available for MS Windows, Linux, and OS X 64-bit systems
+   
+   
+#-----------------------------------------------------------------------------#
+
+
+2) Purpose of use
+
+celslc calculates the phase grating for multislice calculations on the basis
+of an EMS-type supercell file or a CIF structure file for TEM in imaging or
+scanning mode.
+Result of the calculation is:
+  (i)  Phase gratings in form of ems-type sli files
+       (no propagator data is generated)
+  (ii) Slice Parameters containing information about the generated
+       phase gratings.
+The slicing is done in equidistant steps or with each atomic plane along the
+super-cell c-axis. This means that by default the slices are sorted along
+[ 0 0 1], such that the first slice is located at the fractional coordinate
+z = 0 of the super-cell. Alternatively the slice sequence can be created in
+reversed order, starting with the first slice at z = 1. The latter option
+corresponds to a [ 0 0 -1] projection. The electron scattering potentials are
+calculated from atomic scattering factors as parameterized by A. Weickenmeier
+and H. Kohl [Acta Cryst. A47 (1991) 590-597].
+
+
+#-----------------------------------------------------------------------------#
+
+
+3) License
+
+  This program is free software: you can redistribute it and/or modify  
+  it under the terms of the GNU General Public License as published by  
+  the Free Software Foundation, either version 3 of the License, or     
+  (at your option) any later version.                                   
+
+  This program is distributed in the hope that it will be useful,       
+  but WITHOUT ANY WARRANTY; without even the implied warranty of        
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         
+  GNU General Public License for more details.                          
+
+  You should have received a copy of the GNU General Public License     
+  along with this program. If not, see <http://www.gnu.org/licenses/>.
+  
+  When using this program, please consider to cite the following
+  article as an appreciation of the many hours of work put into
+  this project:
+ 
+  J. Barthel, "Dr. Probe - A software for high-resolution STEM
+  image simulation", Ultramicroscopy 193 (2018) 1-11.
+  doi: 10.1016/j.ultramic.2018.06.003
+
+
+#-----------------------------------------------------------------------------#
+
+
+4) Usage and command-line options
+
+Command-line calling options for the program celslc.exe:
+  > CELSLC parameters
+  >  -cel <string> = CEL structure file (e.g. "atoms.cel")
+  >  -cif <string> = CIF structure file (e.g. "atoms.cif")
+  >  -ht <number>  = electron energy in keV (10 ... 1300)
+  >  -nx <number>  = horizontal cell sampling (32 ... 2048)
+  >  -ny <number>  = vertical cell sampling (32 ... 2048)
+  >  -slc <string> = slice file name (e.g. "scl")
+  > [-abf <number> = apply fix rel. absorption factor]
+  > [-abs         -> apply built-in absorption factors]
+  > [-dwf         -> apply Debye-Waller factors]
+  > [-fl          -> frozen-lattice simulation]
+  > [-nv <number>  = number of FL variants per slice (1 ... 2048)]
+  > [-nz <number>  = number of equidistant slices (0 ... 2048)]
+  > [-pot         -> export potentials to files *.pot]
+  > [-pps         -> output projected potentials to slice files]
+  > [-prj <u,v,w,u,v,w,a,b,c> = super-cell re-orientation]
+  > [-rev         -> slicing in reversed sequence]
+  > [-ssc <number> = single slice calculation]
+  > [-tla <x,y,z>  = additional shift of atoms]
+  >
+  > [] = optional parameters
+
+Detailed explanations of options:
+
+  Command parameters in [] brackets are optional and partially exclusive.
+  The other parameters must be given, otherwise the program will terminate
+  without calculation.
+  
+  
+  -cel <string> = super-cell file (e.g. "atoms.cel")
+  
+  The CEL format of the super-cell input file is specified in section 5 below.
+  
+  
+  -cif <string> = super-cell file (e.g. "atoms.cif")
+  
+  Supports standard CIF data as defined in [http://www.iucr.org/resources/cif].
+  When both input formats are specified (-cel and -cif) the -cif option
+  is preferred. The program requires one of these options to be present.
+  
+  
+  -slc <string> = slice file name (e.g. "scl")
+ 
+  The format of the output slice files is uncompressed binary raw data.
+  The files contain a header and phasegrating data and can be used with
+  the programs MSA and Dr. Probe.
+  Warning: Slice files (*.sli) can be quite large depending on the
+           chosen sampling.
+  
+         
+  -nx <number>  = horizontal cell sampling (32 ... 2048)
+  -ny <number>  = vertical cell sampling (32 ... 2048)
+ 
+  The phase grating sampling must be specified by the parameters
+  -nx <number> and -ny <number>. The numbers specify the number of pixels
+  used to sample the projected electron scattering potentials. In order
+  to allow for maximum speed of the scattering calculations, the
+  sampling numbers should be composed of only small prime factors 2, 3,
+  and 5. Samplings containing higher prima factors than 5 will cause
+  increased calculation times.
+  
+  
+  -ht <number>  = electron energy in keV (10 ... 1300)
+  
+  The kinetic energy of the incident electrons must be specified by
+  the input parameter -ht <number>, where the number denotes the
+  electron energy in keV.
+  
+  
+  -nz <number>  = number of slices (0 ... 2048)
+  
+  The number of slices specified by the option -nz <number> initiates
+  an equidistant partitioning of the super-cell along z. When this
+  option is not used, the super-cell will be partitioned automatically
+  into in general non-equidistant slices for each atomic (001) plane
+  in the structure model. The threshold for atoms belonging to one
+  atomic plane is a difference of the z position of less than a few
+  picometers. Using the option -nz 0 will cause an equidistant slicing
+  with an automattically determined number of slices, which represent
+  the major (001) plane period.
+  CELSLC calculates projected electron scattering potentials for
+  each of the cells' slices. The z-sampling by slices is ideal if
+  individual atomic planes are contained by individual slices.
+  Remark:  Deviations from the actual atomic plane spacing due to the
+           chosen slice sampling will consequently lead to deviations
+           of the calculated electron diffraction. Especially higher-
+           order Laue-zones (HOLZ) will not be placed at the correct
+           diffraction angles in such cases.
+           The programs MSA and Dr. Probe both support phase grating
+           input with non-equidistant z sampling.
+    
+  
+  -rev         -> slicing in reversed sequence
+  
+  Using the option -rev will reverse the slicing sequence by applying a
+  mirror operation to the input supercell with the mirror plane
+  at z/c = 0.5.
+  Warning: Due to this mirroring 
+           (i)  the electron diffraction will be reversed in z, and
+           (ii) the rotational sense of the crystal system will be
+                inverted, e.g. a right-handed screw is transformed
+                into a left-handed screw.
+  
+  
+  -fl          -> frozen-lattice simulation
+  
+  By applying the option -fl, the electron scattering potentials are
+  displaced away from their equilibrium position by a random amount
+  according to the specified thermal vibration parameter. The atom
+  displacements are uncorrelated following the Einstein approach of
+  thermal vibration. For frozen-lattice simulations you should combine
+  this option with the option -nv.
+  Waring: The option -fl will override and deactivate the option -dwf.
+  
+  
+  -nv <number>  = number of FL variants per slice (1 ... 2048)
+  
+  The option -nv <number> specifies how many variants are calculated for
+  each slice of the supercell.
+  Warning: Slice files (*.sli) can become quite large for a large number
+           of variants.
+  
+  
+  -dwf         -> apply Debye-Waller factors
+  
+  By applying the option -dwf, the electron scattering potentials are
+  convoluted by Debye-Waller factors.
+  Warning: This option should only be used for small angle calculations
+           such as for TEM image calculations. Due to the convolution
+           the scattering power at large angles is drastically reduced.
+  
+  
+  -abs         -> apply built-in absorption factors
+  
+  By applying the option -abs absorptive form factors are calculated
+  according to A. Weickenmeier and H. Kohl [Acta Cryst. A47 (1991)
+  590-597]. The option -abs can only be used in combination with the
+  option -dwf. Using the option -abs will override and deactivate the
+  option -abf.
+  
+  
+  -abf <number> = apply fix rel. absorption
+  
+  By applying the option -abf absorptive form factors are calculated
+  as a fraction of the elastic form factors. The fraction must be
+  specified by the input number. The option -abf can only be used in
+  combination with the option -dwf.
+  
+  
+  -pot         -> export potentials to files *.pot
+  
+  By applying the option -pot projected electron scattering 
+  potentials are saved for each slice of the supercell.
+  Potentials are stored without the relativistic correction.
+  
+  
+  -pps         -> output projected potentials to slice files
+  
+  This switch can be used to output projected potentials instead of
+  phase gratings to the slice files.
+  Potentials are stored without the relativistic correction.
+    
+  
+  -ssc <number> = single slice calculation
+  
+  This option allows you to calculate the phase grating for one specific
+  slice of the object. The slice is identified by an index number. The
+  indexing starts form number 1 and goes up to the number of slices
+  defined with the -nz option. This option may be used to calculate all
+  phase gratings in parallel. Keep all other settings identical to an
+  all-slice calculation.
+  
+  
+  -prj <9 numbers> = new super-cell, re-orientation and re-sizing
+  
+  This option can be used to re-orient the input structure and
+  use it in a new orthorhombic super-cell of given size. The
+  orientation is given by the first 6 numbers, defining the new
+  projection direction and a perpendicular direction for the new
+  y-axis of the projection. All orientation vectors [uvw] are 
+  specified in coordinates of the real-space input lattice. The
+  size of the new super-cell is given by the last 3 numbers
+  defining the extension in nanometers along each of the 3 new
+  axes x, y, and z, where z is along the new projection direction.
+  The origin point of the structure is not changed.
+  Take care to supply sizes and orientations producing a periodic
+  super-cell. Aperiodic super-cells may produce serious image
+  artifacts at the super-cell borders. In particular slightly wrong
+  super-cell dimensions in combination with atoms at the 0 or 1
+  fractional coordinates of the new cell, may produce aperiodic
+  structures. It is thus recommended to check the output carefully.
+  If the used structure contains artifacts, please use a dedicated
+  structure manipulation software to create an orthorhombic super-
+  cell first.
+  Example: -prj 2.,4.,1.,-2.,2.,-1.,0.79289,0.79289,0.79289
+           This creates a new super-cell along the direction [2,4,1]
+           of the input structure, with the new y-axis in a
+           perpendicular direction coinciding with [-2,2,-1].
+           The new super-cell is a cube extending 0.79289 nm
+           along each of the new axes.
+           
+  
+  -tla <3 numbers> = additional shift of atoms
+  
+  This option can be used to shift the whole structure in the
+  chosen final orthorhombic super-cell by a given amount in
+  fractional coordinates. All atoms are shifted by the same amount
+  and their final fractional coordinates are wrapped back periodically
+  into the range [0,1).
+  Example: -tla 0,0.125,0.0625
+           This shifts all atoms along the positive y and z axis
+           by 1/4th and 1/16th of the super-cell dimension.
+
+
+Additional and experimental options:
+
+  -3dp = create a 3-dimensional potential then slice it
+
+  The software will calculate a full 3-dimensional potential with
+  sampling nx, ny, nz. Slices will be calculated for each plane nz.
+
+
+  -fx <filename> = external x-ray form-factor table
+
+  X-ray form factors will be loaded from the specified file. Form
+  factors for electron scattering will be calculated using a
+  parameterization with 3 Gaussians and 3 Cauchy functions. The
+  parameters will be stored in a new text file. The input form factors
+  will be used for the calculation.
+  Please, contact the author for more information on the I/O with
+  this option.
+
+
+  -fe <filename> = external form-factors for electron diffraction
+
+  Form factors for electron diffraction will be loaded from the
+  specified file and used for the calculation. The form factors
+  are expected to be expressed in a parameterization by 3 Gaussians
+  and 3 Cauchy functions.
+  Please, contact the author for more information on the I/O with
+  this option.
+
+
+  -ffdec <number> = output form factor decay q
+
+  Calculates the scattering vector q for which the atomic form factors
+  has decayed below a relative level as specified by <number>.
+
+
+  -f2dec <number> = output of scattering power decay q
+
+  Calculates the scattering vector q for which the square of atomic form
+  factors has decayed below a relative level as specified by <number>.
+
+
+  -inf <number> = input format switch
+
+  Defines the input format to be expected from files specified with
+  option -cel or -cif. The following assignment is made depending
+  on the value of <number>
+  0,1 = default (also when -inf is not used), CIF or CEL text file
+  10-19 = external 3d potential in text form (from ABINIT code)
+          the last digit identifies the column index after the
+		  three spatial coordinates in the text list of potential
+		  values.
+		  Example: 14 -> work with column 8 of the table.
+		  Example: 10 -> work with column 4 of the table.
+
+
+  -buni <number> = use the provided Biso value [nm^2] for all atoms.
+
+
+  -nsca <number> = switch internal table of atomic form factors.
+
+  Selects from internal tables of atomic form factors:
+  1: Weickenmeier & Kohl, Acta Cryst. A 47 (1991) 590 - 597
+  2: Waasmaier & Kirfel, Acta Cryst. A 51 (1995) 416 - 431
+  The default table (1) is used when this option is omitted.
+
+
+  -rti = print run-time information
+
+  
+  -silent = print no information
+  
+  
+  -verbose = print more information
+
+
+
+#-----------------------------------------------------------------------------#
+
+
+5) Examples
+
+- slice creation for imaging (BF) TEM simulation.
+celslc -cel "C:\data\models\model1.cel" -slc "C:\data\models\slices\mod1" -nx 256 -ny 256 -nz 8 -ht 300.0 -dwf -abs
+-> reads the cell file "C:\data\models\model1.cel"
+-> saves slice files mod1_001.sli, mod1_002.sli, .. in folder "C:\data\models\slices\"
+-> saves slice parameters to file mod1.prm in folder "C:\data\models\slices\"
+-> generates 8 slices of size 1024x1024 for 300.0 kV electron diffraction with thermal motion considered by Debye-Waller factors, including absorption potentials
+
+- slice creation for STEM simulation with one frozen lattice configuration
+celslc -cel "C:\data\models\model2.cel" -slc "C:\data\models\slices\mod2" -nx 1024 -ny 1024 -nz 40 -ht 300.0 -fl
+-> reads the cell file "C:\data\models\model2.cel"
+-> saves slice files mod2_001.sli, mod2_002.sli, .. in folder "C:\data\models\slices\", where each slice file contains one frozen lattice configuration
+-> saves slice parameters to file mod1.prm in folder "C:\data\models\slices\"
+-> generates 8 slices of size 1024x1024 for 300.0 kV electron diffraction with thermal motion considered by small atom displacements (frozen lattice).
+
+- slice creation for STEM simulation
+celslc -cel "C:\data\models\model1.cel" -slc "C:\data\models\slices\mod1" -nx 1024 -ny 1024 -nz 8 -nv 20 -ht 300.0 -fl
+-> reads the cell file "C:\data\models\model1.cel"
+-> saves slice files mod1_001.sli, mod1_002.sli, .. in folder "C:\data\models\slices\", where each slice file contains 20 frozen lattice configuration
+-> saves slice parameters to file mod1.prm in folder "C:\data\models\slices\"
+-> generates 20 variants of 8 slices of size 1024x1024 for 300.0 kV electron diffraction with thermal motion considered by small atom displacements (frozen lattice).
+
+
+#-----------------------------------------------------------------------------#
+
+
+6) Structure and format of cel files
+
+Super-cell data is the primary input data for celslc and in this sense also
+for any program which takes celslc output as input data, e.g. msa.
+Design the supercell carefully and keep the following points in mind:
+- (A) The supercell is taken as periodic unit of the material. It may contain
+      aperiodic structures which are however periodically repeated by the
+      multisclice algorithm due to the multiple application of Fourier
+      transforms. Thus, make the unit cell large enough to suppress unwanted
+      effects of the periodic repetition. For STEM simulation this means, that
+      the wave function, originally confined to a small area will distribute
+      through the whole crystal lattice and eventually wrap around the applied
+      real-space frame. Due to this wrap around, the electron wave might
+      experience scattering by a possible aperiodic feature twice, which is
+      not happening in the experiment. This problem is more likely to appear
+      with a large object thickness. You should avoid a real-space overlap of
+      components of the incident convergent beam, which is diverging again in
+      the object.
+- (B) Periodicity along the x,y, and z-direction may be exploited to generate
+      small and few phase gratings an repeat their application in the multislice
+      algorithm. However, for frozen lattice calculations with thermal
+      vibrations, this periodicity is no longer existing.  Accordingly, you
+      have to generate multiple variants of the originally periodic data and
+      feed this variants to the multislice algorithm.
+- (C) Large real-space frames, large number of individual phase gratings, and
+      extremely fine real-space sampling (needed for high-angle scattering
+      calculation) require a large ammount of memory and also computation time.
+      Roughly precalculate the memory consumption and adopt sampling parameters
+      to the capabilities of your PC.
+
+Super-cell file structure:
+General info: use ANSI character encoding when saving the cel file, separate
+the values by at least one space character, use the "point" (.) as decimal
+delimeter.
+line 01: # comment or structure name, no relevant structure data
+line 02:   <zero>  <x cell size in nm>  <y cell size in nm>  <z cell size in nm>  <alpha cell angle in deg>  <beta cell angle in deg>  <gamma cell angle in deg>  (currently only 90 degree cell angles!)
+line 03:  <Atom symbol>  <x fractional ccordinate>  <y fractional ccordinate>  <z fractional ccordinate>  <occupancy>  <vibration parameter B_iso in nm^2>  <zero>  <zero>  <zero>  (Example: " Sr  0.00000  0.00000  0.00000  1.0000  0.00600  0.00000  0.00000  0.00000")
+line 04:  <Atom symbol>  <x fractional ccordinate>  <y fractional ccordinate>  <z fractional ccordinate>  <occupancy>  <vibration parameter B_iso in nm^2>  <zero>  <zero>  <zero>  (Example: " Ti  0.50000  0.50000  0.50000  1.0000  0.00550  0.00000  0.00000  0.00000")
+line 05:  ... ( more atomic data as in line 03 and 04)
+....
+line XX: * (final line, the "*" signalizes the end of atomic data)
+
+Example cel files:
+1)
+# batio3 100 Super-cell data created by BuildPrimitiveCell modified by CellMuncher
+ 0  0.3995  0.4039  0.3995 90.0000 90.0000 90.0000
+ O    0.000000  0.013000  0.500000  1.000000  0.009600  0.000000  0.000000  0.000000
+ O    0.000000  0.527000  0.000000  1.000000  0.008400  0.000000  0.000000  0.000000
+ Ti   0.000000  0.982000  0.000000  1.000000  0.009600  0.000000  0.000000  0.000000
+ O    0.500000  0.013000  0.000000  1.000000  0.009600  0.000000  0.000000  0.000000
+ Ba   0.500000  0.500000  0.500000  1.000000  0.007500  0.000000  0.000000  0.000000
+*
+
+2)
+cubic srtio3 110, original unit cell repeated 4x along x and 6x along y
+  0   2.2092  2.3430  0.5523 90.0000 90.0000 90.0000
+ O    0.250000  0.166667  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.250000  0.333333  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.250000  0.500000  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.250000  0.666667  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.250000  0.833333  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.250000  0.000000  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.500000  0.166667  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.500000  0.333333  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.500000  0.500000  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.500000  0.666667  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.500000  0.833333  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.500000  0.000000  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.750000  0.166667  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.750000  0.333333  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.750000  0.500000  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.750000  0.666667  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.750000  0.833333  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.750000  0.000000  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.000000  0.166667  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.000000  0.333333  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.000000  0.500000  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.000000  0.666667  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.000000  0.833333  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.000000  0.000000  0.125000  1.000000  0.007300  0.000000  0.000000  0.000000
+ Ti   0.250000  0.250000  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.250000  0.416667  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.250000  0.583333  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.250000  0.750000  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.250000  0.916667  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.250000  0.083333  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.500000  0.250000  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.500000  0.416667  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.500000  0.583333  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.500000  0.750000  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.500000  0.916667  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.500000  0.083333  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.750000  0.250000  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.750000  0.416667  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.750000  0.583333  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.750000  0.750000  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.750000  0.916667  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.750000  0.083333  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.000000  0.250000  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.000000  0.416667  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.000000  0.583333  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.000000  0.750000  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.000000  0.916667  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.000000  0.083333  0.125000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Sr   0.375000  0.166667  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.375000  0.333333  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.375000  0.500000  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.375000  0.666667  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.375000  0.833333  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.375000  0.000000  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.625000  0.166667  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.625000  0.333333  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.625000  0.500000  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.625000  0.666667  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.625000  0.833333  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.625000  0.000000  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.875000  0.166667  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.875000  0.333333  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.875000  0.500000  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.875000  0.666667  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.875000  0.833333  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.875000  0.000000  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.125000  0.166667  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.125000  0.333333  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.125000  0.500000  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.125000  0.666667  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.125000  0.833333  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.125000  0.000000  0.125000  1.000000  0.006000  0.000000  0.000000  0.000000
+ O    0.312500  0.250000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.312500  0.416667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.312500  0.583333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.312500  0.750000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.312500  0.916667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.312500  0.083333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.562500  0.250000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.562500  0.416667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.562500  0.583333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.562500  0.750000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.562500  0.916667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.562500  0.083333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.812500  0.250000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.812500  0.416667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.812500  0.583333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.812500  0.750000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.812500  0.916667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.812500  0.083333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.062500  0.250000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.062500  0.416667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.062500  0.583333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.062500  0.750000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.062500  0.916667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.062500  0.083333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.437500  0.250000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.437500  0.416667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.437500  0.583333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.437500  0.750000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.437500  0.916667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.437500  0.083333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.687500  0.250000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.687500  0.416667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.687500  0.583333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.687500  0.750000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.687500  0.916667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.687500  0.083333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.937500  0.250000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.937500  0.416667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.937500  0.583333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.937500  0.750000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.937500  0.916667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.937500  0.083333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.187500  0.250000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.187500  0.416667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.187500  0.583333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.187500  0.750000  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.187500  0.916667  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.187500  0.083333  0.375000  1.000000  0.007300  0.000000  0.000000  0.000000
+ Sr   0.250000  0.166667  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.250000  0.333333  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.250000  0.500000  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.250000  0.666667  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.250000  0.833333  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.250000  0.000000  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.500000  0.166667  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.500000  0.333333  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.500000  0.500000  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.500000  0.666667  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.500000  0.833333  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.500000  0.000000  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.750000  0.166667  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.750000  0.333333  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.750000  0.500000  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.750000  0.666667  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.750000  0.833333  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.750000  0.000000  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.000000  0.166667  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.000000  0.333333  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.000000  0.500000  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.000000  0.666667  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.000000  0.833333  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ Sr   0.000000  0.000000  0.625000  1.000000  0.006000  0.000000  0.000000  0.000000
+ O    0.375000  0.166667  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.375000  0.333333  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.375000  0.500000  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.375000  0.666667  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.375000  0.833333  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.375000  0.000000  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.625000  0.166667  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.625000  0.333333  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.625000  0.500000  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.625000  0.666667  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.625000  0.833333  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.625000  0.000000  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.875000  0.166667  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.875000  0.333333  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.875000  0.500000  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.875000  0.666667  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.875000  0.833333  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.875000  0.000000  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.125000  0.166667  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.125000  0.333333  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.125000  0.500000  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.125000  0.666667  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.125000  0.833333  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.125000  0.000000  0.625000  1.000000  0.007300  0.000000  0.000000  0.000000
+ Ti   0.375000  0.250000  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.375000  0.416667  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.375000  0.583333  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.375000  0.750000  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.375000  0.916667  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.375000  0.083333  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.625000  0.250000  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.625000  0.416667  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.625000  0.583333  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.625000  0.750000  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.625000  0.916667  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.625000  0.083333  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.875000  0.250000  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.875000  0.416667  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.875000  0.583333  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.875000  0.750000  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.875000  0.916667  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.875000  0.083333  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.125000  0.250000  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.125000  0.416667  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.125000  0.583333  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.125000  0.750000  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.125000  0.916667  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ Ti   0.125000  0.083333  0.625000  1.000000  0.005500  0.000000  0.000000  0.000000
+ O    0.312500  0.250000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.312500  0.416667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.312500  0.583333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.312500  0.750000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.312500  0.916667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.312500  0.083333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.562500  0.250000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.562500  0.416667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.562500  0.583333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.562500  0.750000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.562500  0.916667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.562500  0.083333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.812500  0.250000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.812500  0.416667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.812500  0.583333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.812500  0.750000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.812500  0.916667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.812500  0.083333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.062500  0.250000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.062500  0.416667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.062500  0.583333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.062500  0.750000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.062500  0.916667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.062500  0.083333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.437500  0.250000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.437500  0.416667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.437500  0.583333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.437500  0.750000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.437500  0.916667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.437500  0.083333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.687500  0.250000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.687500  0.416667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.687500  0.583333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.687500  0.750000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.687500  0.916667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.687500  0.083333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.937500  0.250000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.937500  0.416667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.937500  0.583333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.937500  0.750000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.937500  0.916667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.937500  0.083333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.187500  0.250000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.187500  0.416667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.187500  0.583333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.187500  0.750000  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.187500  0.916667  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+ O    0.187500  0.083333  0.875000  1.000000  0.007300  0.000000  0.000000  0.000000
+*
+
+
+#-----------------------------------------------------------------------------#
+
+
+7) History of changes:
+
+- 181128. JB: Version 0.70b
+              Dr. Probe CLT source project trees combined in preparation for
+			  depositing to GitHub. Makefiles are included.
+              Text output has been reformatted in some splaces. Progress
+			  indication occurs now only when several variants are calculated.
+			  Max. phase shift warning is made only once for the whole cell.
+			  Slice thickness is reported and the slice data parameter file
+			  will be written in all slicing mode as long as slice #1 is
+			  calculated. The output is suppressed with option -ssc n, n>1.
+- 180702. JB: Version 0.69b
+              Added output of form-factor decay k-values on -ffdec <value>
+              and scattering power loss k-values on -f2dec <value>
+              (Undocumented research feature)
+- 180404. JB: Version 0.68b
+              Added output for interaction constant and mean inner potential.
+              Constants re-checked to be consistent with MuSTEM.
+- 180321. JB: Version 0.67b
+              Corrected a bug in the CIF loading routine. The space group
+              identification should now work based on international table
+              numbers or space group H-M symbols also.
+              Corrected the name of space group 216 to 'F -4 3 m'.
+- 171220. JB: Version 0.66b
+              Reformatted std. output and added -verbose and -silent flags.
+- 171214. JB: Version 0.65b
+              Optimized Internal array management to reduce static memory
+              consumption.
+              Added run time information available with flag "-rti".
+- 170728. JB: Version 0.63b
+              Core code reformations for gaining about 30% speed in the
+              calculation of projected potentials.
+              Atoms sitting in identical sites (distance < 50pm) will now
+              be displaced coherently as one site in a frozen lattice.
+              Bug fix in the calculation of ionic potentials (hidden feature).
+- 170720. JB: Version 0.62b
+              Bug fix in the generation of phase gratings.
+- 170719. JB: Version 0.61b
+              Inserted bandwidth limitation on phase gratings.
+              Reimplemented Weickenmeier&Kohl form factors with numerical
+              integration of absorptive form factors.
+              Replaced source file fscatt.f with wekoscatt.f90
+              Corrected a scaling issue in the absorptive form factors.
+              Inserted a trigger "-nsca 2" to switch to Waasmaier and
+              Kirfel form factors instead of Weickenmeier and Kohl.
+              Corrected an issue with string parsing for CIF file input.
+- 170712. JB: Version 0.60b
+              Removed atonum.f and atosym.f from the link list, the functions
+              are no longer used.
+              Added wakiscatt.f90 to the link list. This implements routines
+              to use Waasmaiers and Kirfels x-ray form factor table.
+              Added integration.f90 to the link list. This implements simple
+              routines for numerical integration. Used for absorptive form
+              factor calculations.
+              Changed the magnitude of 1d random displacements calculated from
+              Debye-Waller parameters Biso (input). The previous amplitudes
+              were by a factor Sqrt(3) too small. Calculations with Debye-Waller
+              factors were and are correct.
+- 170710: JB: Version 0.57b
+              Added Waasmaier and Kirfels x-ray scattering table for
+              neutral atomic form factors for cross-checking purposes. This table
+              is not made available in the public release.
+              Inserted code triggers for potential generation and
+              form factor oversampling and interpolation (CellSlicer).
+              Reduced the propagator aperture from 0.67 to 0.66.
+              Implemented the large angle propagator version (CellSlicer) in
+              addition to the previous Fresnel propagator (paraxial approx.).
+- 170630: JB: Version 0.56b
+              Corrected a bug in the consideration of occupancy for ionic charge
+              potentials.
+              Corrected a small (insignificant) bug in one numerical approximation
+              of terms involved in Weickenmeier's absorptive potential calculation.
+              Added "L" as symbol for a vacancy in CIF i/o, also with charges.
+- 170306: JB: Version 0.55b
+              Added option -pps which is a switch to output the projected potentials
+              in the slice files instead of the (default) phase grating output.
+              The potentials are before relativistic correction.
+- 161215: JB: Version 0.54b
+              Corrected the documentation of the orientation input. All orientations
+              must be given in real-space lattice coordinates.
+- 160914: JB: Version 0.53b
+              Omitting -nz when using 3D potential input forces identical sampling
+              of the projected potential slices along z and is no longer causing
+              a critical error.
+- 160829: JB: Version 0.52b
+- 160829: JB: Implemented a routine, which creates folders before writing files
+              when the folder doesn't exist.
+              The routine "createfilefolder" is using ifort libraries, so take
+              care to adopt the code when using other compilers.
+- 160724: JB: Corrected a bug that could cause additional atoms to appear on
+              periodic equivalent sites after re-orienting the cell.
+- 160518: JB: Corrected a bug that could cause crashes with some structures.
+- 160316: JB: Corrected the unintended use of ionic potentials when using the
+              standard (neutral) scattering tables.
+- 160307: JB: Added text output about the used electron energy or wavelength.
+- 160303: JB: Added functions for automatic non-equidistant slicing. The option -nz
+              is now optional. The automatic slicing scheme is used by default when
+              the option is not used. The traditional equidistant slicing scheme is
+              used when the number of slices specified with the option -nz <number>.
+              For numbers larger than 0, the given number of slices is created. The
+              option -nz 0 will use the equidistant slicing with an automatically
+              determined number of slices.
+- 160302: JB: Version 0.51b
+- 160301: JB: Removed bugs from the CEL and CIF loading routines.
+- 160202: JB: Changed the spacegroup names to the recommended CIF standard.
+              Added CIF file output after aplication of the -prj option.
+- 160122: JB: Added the option -tla to shift atoms along the final (a,b,c) axes
+              of the orthorhombic super-cell. The parameters of this option
+              specify the shift vector in fractional coordinates of the cell.
+- 160111: JB: Added CIF input via the option -cif. For calls where both input
+              options are given (-cel and -cif), -cif is preferred.
+              Added the option -prj to change the projection direction of the
+              structure creating an othorhombic super-cell (block). (to be tested)
+              CELSLC will now export a structure file named "CELSLC_used.cel"
+              in the working directory, which defines the new super-cell obtained
+              after changing the projection direction. This will not happen
+              on calls without the -prj option.
+- 160111: JB: Version 0.50b
+- 151022: JB: Corrected a bug causing stack overflow in the 3D potential saving
+              Changed the sign of 3D DFT potential input while reading to transform
+              the potential to the same positive scale as used by the traditional
+              isolated atom model.
+- 151021: JB: Made the options -dwf and -buni <value> consistent in all calls.
+              -dwf activates the use of Debye-Waller Factors globally, while
+              -buni resets all B_ISO Parameters to the given value.
+- 151021: JB: Version 0.42b
+- 150609: JB: Brought 3D and 2D potential calculations to the diffraction limit.
+              The way how the diffraction was limited in the previous versions
+              was different. Effectively the 2D potentials now have a smooth
+              cut-off between 0.8 and 1.0 of Nyquist. This should not change the
+              diffraction calculation, since there an additional smaller
+              aperture is used at 0.67 of Nyquist.
+              Added the command-line option -buni <value>, which will set all
+              Debye-Waller factor B_iso parameters to the given value in nm^2.
+              3D potentials will be convoluted with a respective universal DWF.
+- 150603: JB: Version 0.41b
+- 150603: JB: Added the command-line option -ssc <number> for single slice phase
+              grating calculations. Potential application for parallel computing.
+- 150511: JB: Changed the way how external 3D potentials are loaded. The command-
+              line argument -inf <number> allows to select the number of the
+              data column. Currently there is 1 format supported. By setting
+              -inf 10 you select the 4th column as the data columns. The setting
+              -inf 11 selects the 5th column, and so on.
+              This option is still hidden and not documented.
+- 150301: JB: Added creation of atom data table for 3D potential based on
+              atomic structure cel input file, triggerd by the option -3dp.
+              This option is still hidden and not documented.
+- 150130: JB: Version 0.40b
+- 150130: JB: Support for larger number of slices up to 2048. The number of
+              digits in the file slice names adopts to the number of slices
+              specified by the "-nz" option.
+- 150130: JB: Support for larger number of variants per slice up to 2048.
+              The number of digits in file names adopts to the number of 
+              variants specified by the "-nv" option.
+- 150130: JB: Implementation for 3D potential generation (option: -3dp).
+              This option is still hidden and not documented.
+              Creates a 3D potential sampling the input super-cell as specified
+              by options "-nx", "-ny", "-nz". Exports the 3D potential before
+              relativistic correction in the working directory to a file named
+              "pot3d-2.dat". Exports phase-gratings for each x-y-plane along z
+              in slice files as specified by option "-slc". Multiple variants
+              of 3D potentials are not supported.
+- 150127: JB: Preliminary implementation of 3D potential input from external
+              sources. (Undocumented)
+- 150110: JB: Modified the structure factor calculation routine leading to a
+              20% reduction in computation time for the potentials for case
+              with a large number of similar atoms in the structure.
+- 141217: JB: Implementation of atomic data and structure tables in the slice
+              file header. This change may lead to an extension of the header
+              and also to a shift of the data. The size of the slice files is
+              no longer constant for one structure.
+- 141217: JB: Version 0.35b
+- 141125: JB: Slight modification of the structure factor computations.
+- 140516: JB: Made the parameter [-nv <# frozen-lattice variants>] optional.
+              By default 1 variant is calculated. A waring message is posted in
+              case of a frozen-lattice generation with only 1 variant.
+- 140516: JB: Added an option [-rev] to allow reverse slicing sequence along
+              [ 0 0 -1]. The default slicing sequence is along [ 0 0 1] as in
+              the previous versions.
+- 140516: JB: Version 0.34b
+- 131217: JB: Removed the implementation of static and vibrational atomic
+              displacements along z in a slice. This concept turned out to be
+              wrong.
+- 131217: JB: Version 0.33b
+- 131001: JB: Implemented input of scattering factors from FX-tables or
+              FE-parameters. Due to the large potential of producing incorrect
+              calculations, an explanation of this function and the required
+              input format for the FX-tables or for the FE-parameters will be
+              provided on request only.
+- 130926: JB: Version 0.32b
+- 130903: JB: Implemented static and vibrational atomic displacements along z
+              in a slice.
+- 130903: JB: Version 0.31b
+- 130416: JB: Fixed a bug which prevented the creation of slices from a
+              completely empty supercell.
+- 121005: JB: Version 0.30b
+- 121005: JB: Data structure, loading and saving routines for inelastic
+              scattering data and extended header tables with equilibrium atom
+              positions.
+- 120324: JB: Version 0.23b
+- 120324: JB: Corrected problems while reading incomplete supercell data, which
+              could lead to a program crash.
+- 120319: JB: Version 0.22b
+- 120224: JB: Changed time-consuming 2D scattering factor precalculations to
+              faster 1D version.
+- 120224: JB: Version 0.21b
+- 120224: JB: Added optional complex valued potential export to files *.pot,
+              switch by -pot command line option.
+- 110519: JB: Version 0.20b
+- 110519: JB: Added again slice generation with constant absorption factor,
+              option -abf <value>.
+- 110406: JB: Version 0.19b
+- 110303: JB: Added Scattering factors for hydrogen, fittet to Weickenmeyer and
+              Kohl parameterization from the tables of E. Kirkland.
+- 110209: JB: Removed a bug in slice title creation.
+- 101209: JB: Added support for multiple variant slice files, new command line
+              option -nv <num> determines number <num> of variants per slice.
+- 101209: JB: Version 0.18b
+- 101123: JB: Added slice title support, info on slice composition.
+- 101025: JB: Removed a randomization error from the atom displacement
+              generation.
+- 100816: JB: Changed frozen lattice displacement distribution from uniform to
+              Gaussian.
+- 100222: JB: Version 0.15b
+- 100222: JB: Added global parameters fft_dmin and fft_dmax for easier switch
+              to different FFT dimensions
+- 100128: JB: Version 0.14b
+- 100128: JB: Removed a bug during max. phase shift checks.
+- 100128: JB: Added the command line option "-dwf" to switch usage of Debye-
+              Waller factors.
+- 100128: JB: Renamed the command line option from "-nodwf" to "-fl" for frozen
+              lattice calculation.
+- 100128: JB: Changed the command line option "-abs". It wont take an
+              additional value any more. Instead absorption potentials are
+              calculated according to Weickenmeier and Kohl. This option may be
+              overriden by the -fl option, requires -dwf option.
+- 100126: JB: Switches compiler option for Parallelization ON
+- 100105: JB: Added an aperture (cutoff in the range of 2/3 Nyquist to Nyquist)
+              to the potentials during slice calculation, in order to prevent
+              significant streaking in the real space potential when using
+              undamped frozen lattice potentials.
+- 100105: JB: Bug removed: Complex slice calculation, switched real to imag
+- 091210: JB: Increased max. number of slices to 999.
+
+
+#-----------------------------------------------------------------------------#
