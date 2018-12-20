@@ -14,7 +14,7 @@ make -C celslc
 make -C msa
 make -C wavimg
 # updating the binary folder
-echo "- updateing the binary folder"
+echo "- updating the binary folder"
 ./update-bin.sh
 # archiving the binary folder
 echo "- archiving the binary folder"
