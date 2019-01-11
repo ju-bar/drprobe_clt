@@ -6,7 +6,7 @@
    Juri Barthel, 
    Forschungszentrum Jülich GmbH, 52425 Jülich, Germany
 
-   Copyright (c) 2008 - 2018 - Forschungszentrum Jülich GmbH
+   Copyright (c) 2008 - 2019 - Forschungszentrum Jülich GmbH
    
    Published under the GNU General Public License, version 3,
    see <http://www.gnu.org/licenses/> and LICENSE!
@@ -53,11 +53,15 @@ of documentation.
 
 The programs are written in Fortran 90 code for Intel Fortran compilers.
 
+The code of the program MSA links to "libfftwf-3.3.lib"
+MSA uses data output by FFTW and is in no form based on work represented by
+the FFTW project. Source code and library binary code of FFTW are available
+from http://www.fftw.org/ (accessed April 2018).
+
 ### TODOs
 
 * keep up with new code from [JMultiSlice](https://github.com/ju-bar/JMultiSliceLib)
   - investigate if partial C++ code can be used in this project
 * add notes on experimental and undocumented features to the howto files.
-* replace FFTPACK routines by fftwf routines in MSA and test for increased speed
 * add a wrapper tool for applying external transition potentials for EELS and EDX
 

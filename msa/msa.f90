@@ -1,13 +1,13 @@
 !**********************************************************************
 !
-!  PROGRAM: msa, version 0.85
+!  PROGRAM: msa, version 0.86
 !  FILE: msa.f90
 !  PURPOSE:  Entry point for the console application MSA.
 !            Multislice calculation for electron diffraction
 !
 !**********************************************************************
 !                                                                      
-!   Date: 2018-12-05                                                   
+!   Date: 2018-01-07                                                   
 !                                                                      
 !   Author: Juri Barthel                                               
 !           Ernst Ruska-Centre                                         
@@ -79,7 +79,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "0.85  64-bit  -  2018 Dec   5  -"
+  MSP_verApp  =                   "0.90b 64-bit  -  2019 Jan  11  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -111,7 +111,7 @@ program msa
 
 
 ! ------------
-! VORTEX PROBE (added 2017-10-17 JB as hidden option)
+! VORTEX PROBE (added 2017-10-17 JB)
   if (MSP_Vortex/=0) then
     if (0==MSP_ctemmode) then
       write(unit=MSP_stmp,fmt=*) MSP_Vortex
@@ -123,6 +123,14 @@ program msa
     end if
   end if
 ! ------------
+  
+  
+! ------------
+! K-MOMENT ANALYSIS (added 2019-01-11 JB)
+  if (MSP_Kmomout > 0) then
+    
+  end if
+! ------------
 
   
 ! ------------
@@ -132,6 +140,7 @@ program msa
   call PostSureMessage("Loading parameter file.")
   call LoadParameters(MSP_prmfile)
   call PostRuntime("main parameter input finished", 1)
+  MS_fft_flags = MSP_FFTW_FLAG
 ! ------------
 
 ! ------------
@@ -157,13 +166,6 @@ program msa
        & trim(adjustl(MSP_stmp))//" nm.")
   end  if
   if (MSP_ApplyPSC/=0) then ! jump to convolution ?
-    ! init STF module
-    nerr = STF_err_num
-    call PostMessage("Initialize module for wave modelling.")
-    call STF_INIT_ALLOC()
-    if (STF_err_num/=nerr) then
-      call CriticalError("Module init failed.")
-    end if
     call PostMessage("Initialize module for multislice calculations.")
     nerr = MS_err_num
     call MS_INIT()
@@ -204,15 +206,15 @@ program msa
   if (MS_err_num/=nerr) call CriticalError("Memory allocation failed.")
   call PostMessage("Extracting size parameters from first sli-file.")
   call SetGlobalCellParams()
-  FFT_BOUND = max(FFT_BOUND_MIN, 2**CEILING( LOG( real( max(MS_dimx,MS_dimy) ) )/LOG(2.0) )) ! next 2^N above max(nx,ny) or 128
-  if (FFT_BOUND>FFT_BOUND_MAX) call CriticalError("FFT plan exceeds maximum size (8192).")
-  FFT_NYQ = FFT_BOUND/2
-  STF_FFT_BOUND = FFT_BOUND
-  STF_FFT_NYQ = FFT_NYQ 
+  !FFT_BOUND = max(FFT_BOUND_MIN, 2**CEILING( LOG( real( max(MS_dimx,MS_dimy) ) )/LOG(2.0) )) ! next 2^N above max(nx,ny) or 128
+  !if (FFT_BOUND>FFT_BOUND_MAX) call CriticalError("FFT plan exceeds maximum size (8192).")
+  !FFT_NYQ = FFT_BOUND/2
+  !STF_FFT_BOUND = FFT_BOUND
+  !STF_FFT_NYQ = FFT_NYQ 
   write(unit=MSP_stmp,fmt='(A,I5,A,I5)') "- wave function size: ", MS_dimx, " x ", MS_dimy
   call PostMessage( trim(MSP_stmp) )
-  write(unit=MSP_stmp,fmt='(A,I5)') "- FFT working field size: ", FFT_BOUND
-  call PostMessage( trim(MSP_stmp) )
+  !write(unit=MSP_stmp,fmt='(A,I5)') "- FFT working field size: ", FFT_BOUND
+  !call PostMessage( trim(MSP_stmp) )
   ! allocate memory for phasegratings, size: MSP_dimcellx * MSP_dimcelly
   call PostMessage("Allocating memory for slice data.")
   call MSP_ALLOCPGR(MSP_dimcellx,MSP_dimcelly,nerr)
@@ -225,12 +227,6 @@ program msa
 
 ! ------------
 ! INITIALIZE WAVE GENERATION MODULE
-   nerr = STF_err_num
-  call PostMessage("Initialize module for wave modelling.")
-  call STF_INIT_ALLOC()
-  if (STF_err_num/=nerr) then
-    call CriticalError("Module init failed.")
-  end if
   MS_nslid = MSP_nslid
   if (MSP_use_extdefocus/=0) then ! update the defocus using the external command line parameter
     call STF_SetAberration(2,MSP_extdefocus,0.0)
@@ -295,7 +291,7 @@ program msa
 
 ! ------------
 ! DETECTOR ARRAY SETUP
-  if (MSP_ctemmode==0) then
+  if (0==MSP_ctemmode) then
     call PostMessage("Preparing detector data.")
     call MSP_ALLOCDET(nerr)
     if (nerr/=0) then
@@ -306,6 +302,13 @@ program msa
       call CriticalError("Failed to setup annular segment detectors.")
     end if
     call PostRuntime("detector functions prepared", 1)
+    if (MSP_Kmomout>0) then
+      call MSP_SetKmomentDetector(nerr)
+      if (nerr/=0) then
+        MSP_Kmomout = 0
+        call PostWarning("Failed to setup k-moment integration, option -kmom is ignored.")
+      end if
+    end if
   end if
 ! ------------
 
@@ -433,20 +436,14 @@ LH: do
 ! DO MULTISLICE
   call PostMessage("Starting multislice calculations.")
   if (MSP_ctemmode==0) then
-    call STEMMultislice()
+    call STEMMultiSlice()
   else
-    call CTEMMultislice()
+    call CTEMMultiSlice()
   end if
 ! -------------------------------------------------------------------
 !
 ! <<<< CORE OF CALCULATION
 
-!! ------------
-!! SAVE THE RESULT TO FILE *** MOVED TO CTEMMultiSlice and STEMMultislice
-!!  call CheckLicense()
-!  call PostMessage("Saving result to output file.")
-!  call SaveResult(MSP_outfile)
-!! ------------
 
   if ((DEBUG_EXPORT>0 .or. VERBO_EXPORT>0) .and. MSP_runtimes==1 ) then ! per loop run time info
     call PostRuntime("multislice calculation done", 0)

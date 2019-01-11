@@ -3,7 +3,7 @@
 !                                                                      !
 !    File     :  STEMfunction                                          !
 !                                                                      !
-!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2018   !
+!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2019   !
 !                                                                      !
 !**********************************************************************!
 !                                                                      !
@@ -12,31 +12,35 @@
 !                                                                      !
 !    Purpose  : Implementation of STEM imaging functions and data      !
 !               manipulations of simulation and analysis               !
-!    Version  :  1.0.1, Dec 05, 2018                                   !
-!    To Link  : SFFTs.f                                                !
-!               BasicFuncs.f90                                         !
+!               This is a reduced and single-thread version of the     !
+!               original file, designed for use with the program ms.   !
+!                                                                      !
+!    Version  : 1.1.0, Jan 08, 2019                                    !
+!                                                                      !
+!   Linked Libs: libfftwf-3.3.lib                                      !
+!   Includes   : fftw3.f03.in                                          !
 !                                                                      !
 !**********************************************************************!
-!                                                                       
-!  Author:  Juri Barthel                                
-!           Ernst Ruska-Centre                                          
-!           Forschungszentrum Jülich GmbH, 52425 Jülich, Germany        
-!                                                                       
-!-----------------------------------------------------------------------
-!                                                                       
-! This program is free software: you can redistribute it and/or modify  
-! it under the terms of the GNU General Public License as published by  
-! the Free Software Foundation, either version 3 of the License, or     
-! (at your option) any later version. See gpl-3.txt                                   
-!                                                                       
-! This program is distributed in the hope that it will be useful,       
-! but WITHOUT ANY WARRANTY; without even the implied warranty of        
-! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         
-! GNU General Public License for more details.                          
-!   
-! You should have received a copy of the GNU General Public License     
-! along with this program. If not, see <http://www.gnu.org/licenses/>.  
-!                                                                       
+!                                                                      !
+!  Author:  Juri Barthel                                               !
+!           Ernst Ruska-Centre                                         !
+!           Forschungszentrum Jülich GmbH, 52425 Jülich, Germany       ! 
+!                                                                      !
+!----------------------------------------------------------------------!
+!                                                                      !
+! This program is free software: you can redistribute it and/or modify !
+! it under the terms of the GNU General Public License as published by !
+! the Free Software Foundation, either version 3 of the License, or    !
+! (at your option) any later version. See gpl-3.txt                    !              
+!                                                                      !
+! This program is distributed in the hope that it will be useful,      !
+! but WITHOUT ANY WARRANTY; without even the implied warranty of       !
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the        !
+! GNU General Public License for more details.                         !
+!                                                                      !
+! You should have received a copy of the GNU General Public License    !
+! along with this program. If not, see <http://www.gnu.org/licenses/>. !
+!                                                                      !
 !-----------------------------------------------------------------------
 
 
@@ -64,13 +68,15 @@ MODULE STEMfunctions
 
 ! Use STF as acronym for public parameters funcs and subs!
     
-! Global module dependencies
-!   USE ...
-!  USE iso_varying_string
-    
+  ! Global module dependencies
+  use, intrinsic :: iso_c_binding   
+  
   implicit none
   
-  ! declare internal data types
+  ! Declare internal data types
+  integer, parameter :: C_FFTW_R2R_KIND = C_INT ! missing declare in fftw3 include
+  
+  INCLUDE 'fftw3.f03.in'
 
   ! accessibility of subroutines or functions
 !  private :: STF_***
@@ -79,28 +85,25 @@ MODULE STEMfunctions
   private :: STF_TABBED_SIGMOID
   private :: STF_SETTAB_USC
   private :: STF_SETTAB_SCR
-  private :: STF_SETTAB_USC2
-  private :: STF_SETTAB_SCR2
+  !private :: STF_SETTAB_USC2
+  !private :: STF_SETTAB_SCR2
   
   public :: STF_HT2WL
   public :: STF_WL2HT
-  public :: STF_FFT
+  !public :: STF_FFT
+  public :: STF_ApertureFunction
+  public :: STF_ApertureFunctionS
   public :: STF_PrepareProbeWaveFourier
   public :: STF_PrepareVortexProbeWaveFourier
   public :: STF_PreparePlaneWaveFourier
   public :: STF_AberrateWaveFourier
   public :: STF_ApplyObjectiveAperture
   public :: STF_AberrationFunction
-  public :: STF_GetCohProbeWave
-  public :: STF_GetCohProbeWaveRe
-  public :: STF_GetCohProbeWaveIm
   public :: STF_GetPhasePlate
   
 !  public :: STF_***
-  public :: STF_INIT ! call first!
-                     ! set STF_FFT_BOUND
-  public :: STF_INIT_ALLOC ! call then
-  public :: STF_UNINIT
+  public :: STF_INIT ! call first !
+  public :: STF_UNINIT ! call to clean up allocations !
   
   public :: STF_SetAberrationByName
   public :: STF_GetAberrationByName
@@ -137,28 +140,16 @@ MODULE STEMfunctions
   integer*4, public :: STF_err_num
   DATA STF_err_num /0/
   
-! Max FFT size
-  !integer*4, private, parameter :: FFT_BOUND = 8192
-  !integer*4, private, parameter :: FFT_NYQ = 4096
-  !integer*4, private, parameter :: FFT_BOUND = 4096
-  !integer*4, private, parameter :: FFT_NYQ = 2048
-  !integer*4, private, parameter :: FFT_BOUND = 2048
-  !integer*4, private, parameter :: FFT_NYQ = 1024
-  integer*4, public :: STF_FFT_BOUND
-  DATA STF_FFT_BOUND /2048/
-  integer*4, public :: STF_FFT_NYQ
-  DATA STF_FFT_NYQ /1024/
-
 ! aberration power threshold
   real*4, private, parameter :: STF_POWERTHRESH_WA = 1.0E-30
   
 ! aperture power threshold
-  real*4, private, parameter :: STF_APERTURETHRESH = 1.0E-03
+  real*4, public, parameter :: STF_APERTURETHRESH = 1.0E-03
   
 ! aperture angle thresholds
   real*4, private, parameter :: STF_RELANGTHRESH = 1.0E-3
   real*4, private, parameter :: STF_RELANGWIDTHTHRESH = 1.0E-2
-  real*4, private, parameter :: STF_APSMOOTHPIX = 1.0
+  real*4, public, parameter :: STF_APSMOOTHPIX = 1.0
   
 
 ! explicit defocus average parameter defaults
@@ -210,13 +201,7 @@ MODULE STEMfunctions
 ! size holder, dynamically determined in STF_INIT()
   integer*4, public :: STF_maxaberration
   DATA STF_maxaberration /0/
-! allocatable tables
-  !real*4, public :: STF_wa(2,STF_maxaberration) ! coeffictients
-  !integer*4, public :: STF_waidx(2,STF_maxaberration) ! coeffictients index hash
-  !character(len=2*STF_aberration_shortname_length), public &
-  !   & :: STF_asn(STF_maxaberration) ! short names
-  !character*STF_aberration_longname_length, public &
-  !   & :: STF_aln(STF_maxaberration) ! long names
+! allocatable aberration tables
   real*4, dimension(:,:), public, allocatable :: STF_wa ! coeffictients
   integer*4, dimension(:,:), public, allocatable :: STF_waidx ! coeffictients index hash
   integer*1, dimension(:,:), public, allocatable :: STF_asn ! short names
@@ -246,8 +231,9 @@ MODULE STEMfunctions
   real*4, public :: STF_beam_tilty ! [mrad]
   DATA STF_beam_tilty /0.0/
   
-! data array used for calculation
-  complex*8, allocatable, dimension(:,:), public :: STF_sc !, STF_sc2
+! data arrays used for calculation
+  
+  !complex*8, allocatable, dimension(:,:), public :: STF_sc !, STF_sc2
   real*4, public :: STF_PreparedWavePower
   
 ! anglular function tables
@@ -259,26 +245,15 @@ MODULE STEMfunctions
 ! binomial coefficient tables
   integer*4, dimension(0:2*STF_maxaberration_order,0:2*STF_maxaberration_order) :: STF_BINOMIAL_TAB
 ! scramble and unscramble lists
+  integer*4, private :: STF_TABDIM_SCR1, STF_TABDIM_SCR2
+  integer*4, private :: STF_TABDIM_USC1, STF_TABDIM_USC2
+  DATA STF_TABDIM_SCR1 /0/
+  DATA STF_TABDIM_SCR2 /0/
+  DATA STF_TABDIM_USC1 /0/
+  DATA STF_TABDIM_USC2 /0/
   integer*4, allocatable, dimension(:), private :: STF_TABBED_SCR, STF_TABBED_USC  
   integer*4, allocatable, dimension(:), private :: STF_TABBED_SCR2, STF_TABBED_USC2  
   
-! function names for general interface calling index
-! ----------->
-! ----------->
-! IMPORTANT PARAMETER: STF_FUNC_NUM
-!   controls number of callable functions
-! ------------------O
-! -----------------O|
-!                  ||
-!                  vv
-!              CHANGE THIS PARAMETER
-!              TO INCLUDE MORE FUNCTIONS !!!
-!              + CAREFULLY CHECK STF_INIT()
-!                FOR CORRECT NAME-PRESETS in STF_FuncNames
-  integer*4, public, parameter :: STF_FUNC_NUM = 10 ! number of implemented functions
-  integer*4, public, parameter :: STF_FUNC_NAME_LENGTH = 80 ! max. length of function names
-  integer*1, dimension(STF_FUNC_NAME_LENGTH,STF_FUNC_NUM), public :: STF_FuncNames
-
 
 !*********************************************************************!
 !*********************************************************************!
@@ -340,9 +315,6 @@ SUBROUTINE STF_INIT()
   integer*4, parameter :: subnum = 100
   integer*4, parameter :: asl = 2*STF_aberration_shortname_length
   integer*4, parameter :: all = STF_aberration_longname_length
-  integer*4, parameter :: fnl = STF_FUNC_NAME_LENGTH
-  
-!
   integer*4 :: m, n, l, err
   real*4 :: angle, ascale
   integer*4, external :: binomial ! BasicFuncs.f90
@@ -501,72 +473,12 @@ SUBROUTINE STF_INIT()
   call STF_SetAberrationSName(24, "w88 W88 ")
 ! ------------
 
-! ------------
-  call SetVarString(STF_FuncNames(1:fnl,1),fnl,"Coherent Probe Intensity")
-  call SetVarString(STF_FuncNames(1:fnl,2),fnl,"Partially Spatial Coherent Probe Intensity")
-  call SetVarString(STF_FuncNames(1:fnl,3),fnl,"Partially Temporal Coherent Probe Intensity")
-  call SetVarString(STF_FuncNames(1:fnl,4),fnl,"Partially Coherent Probe Intensity")
-  call SetVarString(STF_FuncNames(1:fnl,5),fnl,"Partially Spatial Quasi-Coherent Probe Intensity")
-  call SetVarString(STF_FuncNames(1:fnl,6),fnl,"Partially Temporal Quasi-Coherent Probe Intensity")
-  call SetVarString(STF_FuncNames(1:fnl,7),fnl,"Partially Quasi-Coherent Probe Intensity")
-  call SetVarString(STF_FuncNames(1:fnl,8),fnl,"Real Part of Probe Wave Function")
-  call SetVarString(STF_FuncNames(1:fnl,9),fnl,"Imaginary Part of Probe Wave Function")
-  call SetVarString(STF_FuncNames(1:fnl,10),fnl,"Phase Plate")
-! ------------
 
 ! ------------
 !  write(unit=*,fmt=*) " > STF_INIT: EXIT."
   return
 
 END SUBROUTINE STF_INIT
-!**********************************************************************!
-
-
-
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE STF_INIT_ALLOC()
-! function: 
-! -------------------------------------------------------------------- !
-! parameter: 
-! -------------------------------------------------------------------- !
-
-  implicit none
-
-! ------------
-! DECLARATION
-  integer*4, parameter :: subnum = 105
-!
-  integer*4 :: nsdim, nalloc
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > STF_INIT_ALLOC: INIT."
-  nsdim = STF_FFT_BOUND ! set before calling to initialize FFT arrays
-! ------------
-
-
-  ! ------------
-! allocate module arrays
-  if (allocated(STF_sc)) deallocate(STF_sc,stat=nalloc)
-  allocate(STF_sc(nsdim,nsdim), stat=nalloc)
-  if (allocated(STF_TABBED_SCR)) deallocate(STF_TABBED_SCR,stat=nalloc)
-  allocate(STF_TABBED_SCR(1:nsdim),stat=nalloc)
-  if (allocated(STF_TABBED_USC)) deallocate(STF_TABBED_USC,stat=nalloc)
-  allocate(STF_TABBED_USC(1:nsdim),stat=nalloc)
-  if (allocated(STF_TABBED_SCR2)) deallocate(STF_TABBED_SCR2,stat=nalloc)
-  allocate(STF_TABBED_SCR2(1:nsdim),stat=nalloc)
-  if (allocated(STF_TABBED_USC2)) deallocate(STF_TABBED_USC2,stat=nalloc)
-  allocate(STF_TABBED_USC2(1:nsdim),stat=nalloc)
-! ------------
-
-
-! ------------
-!  write(unit=*,fmt=*) " > STF_INIT_ALLOC: EXIT."
-  return
-
-END SUBROUTINE STF_INIT_ALLOC
 !**********************************************************************!
 
 
@@ -602,11 +514,14 @@ SUBROUTINE STF_UNINIT()
     call STF_ERROR("STF_INIT failed: Deallocation error.",subnum+1)
     return
   end if
-  if (allocated(STF_sc)) deallocate(STF_sc,stat=nalloc)
   if (allocated(STF_TABBED_SCR)) deallocate(STF_TABBED_SCR,stat=nalloc)
   if (allocated(STF_TABBED_USC)) deallocate(STF_TABBED_USC,stat=nalloc)
   if (allocated(STF_TABBED_SCR2)) deallocate(STF_TABBED_SCR2,stat=nalloc)
   if (allocated(STF_TABBED_USC2)) deallocate(STF_TABBED_USC2,stat=nalloc)
+  STF_TABDIM_SCR1 = 0
+  STF_TABDIM_SCR2 = 0
+  STF_TABDIM_USC1 = 0
+  STF_TABDIM_USC2 = 0
 ! reset aberration list length
 ! ------------
 
@@ -1190,10 +1105,10 @@ END SUBROUTINE STF_TABBED_SIGMOID
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE STF_SETTAB_SCR(ndim)
+SUBROUTINE STF_SETTAB_SCR(nx, ny)
 ! function: presets scramble tab
 ! -------------------------------------------------------------------- !
-! parameter: integer*4 :: ndim
+! parameter: integer*4 :: nx, ny (dimensions of the TABBED_SCR tables) !
 ! -------------------------------------------------------------------- !
 !!!!!!! BE SHURE TO CALL BEFORE USING STF_TABBED_SCR !!!!!!!!
 ! -------------------------------------------------------------------- !
@@ -1203,27 +1118,43 @@ SUBROUTINE STF_SETTAB_SCR(ndim)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 2900
-  integer*4 :: ndim, ndim2, ndim2m1
-  integer*4 :: i
+  integer*4, intent(in) :: nx, ny
+  integer*4 :: n2, n2m1
+  integer*4 :: i, nalloc
 ! ------------
 
 ! ------------
-! INIT
-!  write(unit=*,fmt=*) " > STF_SETTAB_SCR: INIT."
-  ndim2 = ndim/2
-  ndim2m1 = ndim2-1
+  if (nx /= STF_TABDIM_SCR1 .and. nx > 0) then ! STF_TABBED_SCR must be changed
+    if (allocated(STF_TABBED_SCR)) deallocate(STF_TABBED_SCR, stat=nalloc)
+    STF_TABDIM_SCR1 = 0
+    allocate(STF_TABBED_SCR(nx), stat=nalloc)
+    STF_TABDIM_SCR1 = nx
+    STF_TABBED_SCR = 1
+    n2 = (nx - modulo(nx,2))/2
+    n2m1 = n2 - 1
+    do i=1,nx
+      STF_TABBED_SCR(i) = modulo((i+n2m1),nx)-n2
+    end do
+  end if
 ! ------------
 
 ! ------------
 ! parameter preset
-  STF_TABBED_SCR = 1
-  do i=1,ndim
-    STF_TABBED_SCR(i)=mod((i+ndim2m1),ndim)-ndim2
-  end do
+  if (ny /= STF_TABDIM_SCR2 .and. ny > 0) then ! STF_TABBED_SCR2 must be changed
+    if (allocated(STF_TABBED_SCR2)) deallocate(STF_TABBED_SCR2, stat=nalloc)
+    STF_TABDIM_SCR2 = 0
+    allocate(STF_TABBED_SCR2(ny), stat=nalloc)
+    STF_TABDIM_SCR2 = ny
+    STF_TABBED_SCR2 = 1
+    n2 = (ny - modulo(ny,2))/2
+    n2m1 = n2 - 1
+    do i=1,ny
+      STF_TABBED_SCR2(i) = modulo((i+n2m1),ny)-n2
+    end do
+  end if
 ! ------------
 
 ! ------------
-!  write(unit=*,fmt=*) " > STF_SETTAB_SCR: EXIT."
   return
 
 END SUBROUTINE STF_SETTAB_SCR
@@ -1233,10 +1164,10 @@ END SUBROUTINE STF_SETTAB_SCR
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE STF_SETTAB_USC(ndim)
+SUBROUTINE STF_SETTAB_USC(nx, ny)
 ! function: presets unscramble tab
 ! -------------------------------------------------------------------- !
-! parameter: integer*4 :: ndim
+! parameter: integer*4 :: nx, ny (dimensions of the TABBED_USC tables) !
 ! -------------------------------------------------------------------- !
 !!!!!!! BE SHURE TO CALL BEFORE USING STF_TABBED_USC !!!!!!!!
 ! -------------------------------------------------------------------- !
@@ -1246,22 +1177,39 @@ SUBROUTINE STF_SETTAB_USC(ndim)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 3000
-  integer*4 :: ndim, ndim2
-  integer*4 :: i
+  integer*4, intent(in) :: nx, ny
+  integer*4 :: n2, n2m1
+  integer*4 :: i, nalloc
 ! ------------
 
 ! ------------
-! INIT
-!  write(unit=*,fmt=*) " > STF_SETTAB_USC: INIT."
-  ndim2 = ndim/2
+  if (nx /= STF_TABDIM_USC1 .and. nx > 0) then ! STF_TABBED_USC must be changed
+    if (allocated(STF_TABBED_USC)) deallocate(STF_TABBED_USC, stat=nalloc)
+    STF_TABDIM_USC1 = 0
+    allocate(STF_TABBED_USC(nx), stat=nalloc)
+    STF_TABDIM_USC1 = nx
+    STF_TABBED_USC = 1
+    n2 = (nx - modulo(nx,2))/2
+    n2m1 = n2 - 1
+    do i=1,nx
+      STF_TABBED_USC(i) = modulo((i+n2m1),nx) + 1
+    end do
+  end if
 ! ------------
 
 ! ------------
-! parameter preset
-  STF_TABBED_USC = 1
-  do i=1,ndim
-    STF_TABBED_USC(i)=mod(i-1+ndim2,ndim)+1
-  end do
+  if (ny /= STF_TABDIM_USC2 .and. ny > 0) then ! STF_TABBED_USC2 must be changed
+    if (allocated(STF_TABBED_USC2)) deallocate(STF_TABBED_USC2, stat=nalloc)
+    STF_TABDIM_USC2 = 0
+    allocate(STF_TABBED_USC2(ny), stat=nalloc)
+    STF_TABDIM_USC2 = ny
+    STF_TABBED_USC2 = 1
+    n2 = (ny - modulo(ny,2))/2
+    n2m1 = n2 - 1
+    do i=1,ny
+      STF_TABBED_USC2(i) = modulo((i+n2m1),ny) + 1
+    end do
+  end if
 ! ------------
 
 ! ------------
@@ -1276,95 +1224,12 @@ END SUBROUTINE STF_SETTAB_USC
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE STF_SETTAB_SCR2(ndim)
-! function: presets scramble tab
-! -------------------------------------------------------------------- !
-! parameter: integer*4 :: ndim
-! -------------------------------------------------------------------- !
-!!!!!!! BE SHURE TO CALL BEFORE USING STF_TABBED_SCR !!!!!!!!
-! -------------------------------------------------------------------- !
-
-  implicit none
-
-! ------------
-! DECLARATION
-  integer*4, parameter :: subnum = 29000
-  integer*4 :: ndim, ndim2, ndim2m1
-  integer*4 :: i
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > STF_SETTAB_SCR2: INIT."
-  ndim2 = ndim/2
-  ndim2m1 = ndim2-1
-! ------------
-
-! ------------
-! parameter preset
-  STF_TABBED_SCR2 = 1
-  do i=1,ndim
-    STF_TABBED_SCR2(i)=mod((i+ndim2m1),ndim)-ndim2
-  end do
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > STF_SETTAB_SCR2: EXIT."
-  return
-
-END SUBROUTINE STF_SETTAB_SCR2
-!**********************************************************************!
-
-
-
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE STF_SETTAB_USC2(ndim)
-! function: presets unscramble tab
-! -------------------------------------------------------------------- !
-! parameter: integer*4 :: ndim
-! -------------------------------------------------------------------- !
-!!!!!!! BE SHURE TO CALL BEFORE USING STF_TABBED_USC !!!!!!!!
-! -------------------------------------------------------------------- !
-
-  implicit none
-
-! ------------
-! DECLARATION
-  integer*4, parameter :: subnum = 30000
-  integer*4 :: ndim, ndim2
-  integer*4 :: i
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > STF_SETTAB_USC2: INIT."
-  ndim2 = ndim/2
-! ------------
-
-! ------------
-! parameter preset
-  STF_TABBED_USC2 = 1
-  do i=1,ndim
-    STF_TABBED_USC2(i)=mod(i-1+ndim2,ndim)+1
-  end do
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > STF_SETTAB_USC2: EXIT."
-  return
-
-END SUBROUTINE STF_SETTAB_USC2
-!**********************************************************************!
-
-
-
-!**********************************************************************!
-!**********************************************************************!
 SUBROUTINE STF_FFT(cdata,nx,ny,dir)
-! function: 
+! function: internal in-place 2D complex-to-complex Fourier transform.
 ! -------------------------------------------------------------------- !
-! parameter: 
+! parameter: complex*8 :: cdata(nx,ny) :: data to be transformed
+!            integer*4 :: nx, ny :: dimensions
+!            integer*4 :: dir :: directions (>=0: forward, <0: backward)
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1373,56 +1238,39 @@ SUBROUTINE STF_FFT(cdata,nx,ny,dir)
 ! DECLARATION
   integer*4, parameter :: subnum = 3400
   integer*4, intent(in) :: nx,ny
-  character*(*), intent(in) :: dir
-  complex*8, intent(inout) :: cdata(STF_FFT_BOUND,STF_FFT_BOUND)
-  
-  integer*4 :: transformed
-  external :: ODDCC128S, ODDCC256S, ODDCC512S, ODDCC1024S
-  external :: ODDCC2048S, ODDCC4096S, ODDCC8192S
+  integer*4, intent(in) :: dir
+  complex*8, intent(inout) :: cdata(nx,ny)
+  complex(C_FLOAT_COMPLEX), pointer :: work(:,:)
+  type(C_PTR) :: fft_plan ! local fft plan
+  type(C_PTR) :: fft_pdata ! local aligned data allocated for fft
 ! ------------
 
 ! ------------
 ! INIT
-!  write(unit=*,fmt=*) " > STF_FFT: INIT."
-  transformed = 0
+  if (nx <= 0 .and. ny <= 0) return ! better do nothing
+  fft_pdata = fftwf_alloc_complex( int(nx*ny, C_SIZE_T) )
+  call c_f_pointer(fft_pdata, work, [nx,ny])
+  if (dir >= 0) then ! forward dft
+    fft_plan = fftwf_plan_dft_2d(ny, nx, work, work, FFTW_FORWARD, FFTW_ESTIMATE)
+  else ! backward dft
+    fft_plan = fftwf_plan_dft_2d(ny, nx, work, work, FFTW_BACKWARD, FFTW_ESTIMATE)
+  end if
+  work(1:nx,1:ny) = cdata(1:nx,1:ny) ! copy data
 ! ------------
 
 ! ------------
-  select case (STF_FFT_BOUND)
+! TRANSFORM
+  call fftwf_execute_dft(fft_plan, work, work)
+  cdata(1:nx,1:ny) = work(1:nx,1:ny) ! copy result
+! ------------
   
-  case (128)
-    call ODDCC128S(cdata,nx,ny,dir)
-    transformed = 1
-    
-  case (256)
-    call ODDCC256S(cdata,nx,ny,dir)
-    transformed = 1
-    
-  case (512)
-    call ODDCC512S(cdata,nx,ny,dir)
-    transformed = 1
-    
-  case (1024)
-    call ODDCC1024S(cdata,nx,ny,dir)
-    transformed = 1
-  
-  case (2048)
-    call ODDCC2048S(cdata,nx,ny,dir)
-    transformed = 1
-    
-  case (4096)
-    call ODDCC4096S(cdata,nx,ny,dir)
-    transformed = 1
-    
-  case (8192)
-    call ODDCC8192S(cdata,nx,ny,dir)
-    transformed = 1
-  
-  end select ! (STF_FFT_BOUND)
+! ------------
+! CLEAN UP
+  call fftwf_destroy_plan(fft_plan)
+  call fftwf_free(fft_pdata)
 ! ------------
 
 ! ------------
-!  write(unit=*,fmt=*) " > STF_FFT: EXIT."
   return
 
 END SUBROUTINE STF_FFT
@@ -1609,347 +1457,14 @@ END FUNCTION STF_AberrationFunction
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE STF_GetCohProbeWave(re,im,ndim,sampling)
-! function: calculates the coherent probe wavefunction from the current
-!           coherent aberrations in real-space, with re=real part
-!           and im=imaginary part
-! -------------------------------------------------------------------- !
-! parameter: real*4 :: re(ndim,ndim) : reference to array recieving the
-!                                     probe wavefunction real part
-!            real*4 :: im(ndim,ndim) : reference to array recieving the
-!                                     probe wavefunction imaginary part
-!            integer*4 :: ndim : size of array
-!            real*4 :: sampling : real-space sampling for probefunction
-! -------------------------------------------------------------------- !
-! required link: SFFTs.f
-! -------------------------------------------------------------------- !
-
-  implicit none
-
-
-! ------------
-! DECLARATION
-  integer*4, parameter :: subnum = 1700
-  
-  integer*4 :: ndim
-  real*4 :: sampling
-  real*4, intent(out) :: re(ndim,ndim),im(ndim,ndim)
-  
-  integer*4 :: i, j, ndim2, i1, j1
-  complex*8 :: cval
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > STF_GetCohProbeWave: INIT."
-! check init-status
-  if (STF_maxaberration<=0) then
-    call STF_ERROR("STF_GetCohProbeWave: Module not initialized. Aborting.",subnum+1)
-    return
-  end if
-! save data size
-  STF_dim = ndim
-  call STF_SETTAB_USC(ndim)
-  ndim2 = int(ndim/2)
-  STF_sampling = sampling
-! set Fourier-space sampling
-  STF_itog = 0.5/sampling/real(ndim2)
-  STF_itow = STF_itog*STF_lamb
-! ------------
-
-! ------------
-! preset Fourier-space array with exp[-i*chi]
-  call STF_PrepareProbeWaveFourier(ndim,ndim,sampling,sampling)
-! ------------
-
-! ------------
-! transform to real space (scramble first!)
-  call STF_FFT(STF_sc,ndim,ndim,"bac") ! external call from SFFTs.f
-! ------------
-
-! ------------
-! calculate wave components by taking absolute square in real space
-! + unscramble (shifts origin)
-  do j=1,ndim
-    j1 = STF_TABBED_USC(j)
-    do i=1,ndim
-      i1 = STF_TABBED_USC(i)
-      cval = STF_sc(i,j)
-      re(i1,j1) = real(cval)
-      im(i1,j1) = imag(cval)
-!      re(i,j) = real(cval)
-!      im(i,j) = imag(cval)
-    end do
-  end do
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > STF_GetCohProbeWave: EXIT."
-  return
-
-END SUBROUTINE STF_GetCohProbeWave
-!**********************************************************************!
-
-
-
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE STF_GetCohProbeWaveRe(re,ndim,sampling)
-! function: calculates the coherent probe wavefunction from the current
-!           coherent aberrations in real-space, real-part!!
-! -------------------------------------------------------------------- !
-! parameter: real*4 :: re(ndim,ndim) : reference to array recieving the
-!                                     probe wavefunction real part
-!            integer*4 :: ndim : size of array
-!            real*4 :: sampling : real-space sampling for probefunction
-! -------------------------------------------------------------------- !
-! required link: SFFTs.f
-! -------------------------------------------------------------------- !
-
-  implicit none
-
-
-! ------------
-! DECLARATION
-  integer*4, parameter :: subnum = 2700
-  
-  integer*4 :: ndim
-  real*4 :: sampling
-  real*4 :: re(ndim,ndim)
-  
-  integer*4 :: i, j, ndim2, i1, j1, ndim2m1
-  real*4 :: wx, wy, wy2, chi, power, anglethresh, threshwidth
-  real*4 :: tpower, tpowscal, rval
-  complex*8 :: cval
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > STF_GetCohProbeWave: INIT."
-! check init-status
-  if (STF_maxaberration<=0) then
-    call STF_ERROR("STF_GetCohProbeWaveRe: Module not initialized. Aborting.",subnum+1)
-    return
-  end if
-! save data size
-  call STF_SETTAB_SCR(ndim)
-  call STF_SETTAB_USC(ndim)
-  STF_dim = ndim
-  ndim2 = int(ndim/2)
-  ndim2m1 = ndim2-1
-  STF_sampling = sampling
-! set Fourier-space sampling
-  STF_itog = 0.5/sampling/real(ndim2)
-  STF_itow = STF_itog*STF_lamb
-  anglethresh = STF_caperture*0.001
-  threshwidth = anglethresh*0.1
-! ------------
-
-! ------------
-! preset Fourier-space array with exp[-i*chi]
-!!!  call STF_GetProbeWaveFourier(sc,ndim,sampling)
-! ------------
-! preset Fourier-space array with exp[-i*chi]
-  STF_sc(:,:) = cmplx(0.0,0.0)
-  tpower = 0.0
-  do j=1,ndim
-    wy = STF_TABBED_SCR(j)*STF_itow
-    wy2 = wy*wy
-    do i=1,ndim
-      wx = STF_TABBED_SCR(i)*STF_itow
-!      power = 1.0-sigmoid(sqrt(wx*wx+wy*wy),anglethresh,threshwidth)
-!      if (power<STF_APERTURETHRESH) cycle ! apply condenser aperture
-!      chi = STF_AberrationFunction(wx,wy)
-!      wave(i,j) = cmplx(cos(chi),-sin(chi))*power
-!      tpower = tpower + power*power
-      
-!      rval = sigmoid(sqrt(wx*wx+wy*wy),anglethresh,threshwidth)  ! intrinsict calculation method
-!     use tabbed version here, (speed increased by approx 15%)
-      call STF_TABBED_SIGMOID(sqrt(wx*wx+wy2),anglethresh,threshwidth,rval)  ! tabbed calculation method
-      power = 1.0-rval
-      !power = 1.0-sigmoid(sqrt(wx*wx+wy*wy),anglethresh,threshwidth)
-      
-      if (power<STF_APERTURETHRESH) cycle ! apply condenser aperture
-      
-      chi = STF_AberrationFunction(wy,wx)  ! TRANSPOSED
-!     use intrinsic version here, ( no speed gain with tabbed version)
-      cval = cmplx(cos(chi),-sin(chi)) ! intrinsict calculation method
-!      call STF_TABBED_EXP(-chi,cval) ! tabbed calculation method
-      STF_sc(i,j) = cval*power
-!      STF_sc(i,j) = cmplx(cos(chi),-sin(chi))*power
-      tpower = tpower + power*power
-      
-    end do
-  end do
-!  write(unit=*,fmt=*) "FS-power:",tpower
-  tpowscal = 1.0/tpower/real(ndim*ndim)
-! ------------
-! ------------
-
-! ------------
-! transform to real space (scramble first!)
-  call STF_FFT(STF_sc,ndim,ndim,"bac") ! external call from SFFTs.f
-! ------------
-
-! ------------
-! calculate wave components by taking absolute square in real space
-! + unscramble (shifts origin)
-  do j=1,ndim
-    j1 = STF_TABBED_USC(j)
-    do i=1,ndim
-      i1 = STF_TABBED_USC(i)
-      cval = STF_sc(i,j)
-      re(i1,j1) = real(cval)*tpowscal
-!      im(j1,i1) = imag(cval)
-!      re(i,j) = real(cval)
-!      im(i,j) = imag(cval)
-    end do
-  end do
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > STF_GetCohProbeWaveRe: EXIT."
-  return
-
-END SUBROUTINE STF_GetCohProbeWaveRe
-!**********************************************************************!
-
-
-
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE STF_GetCohProbeWaveIm(im,ndim,sampling)
-! function: calculates the coherent probe wavefunction from the current
-!           coherent aberrations in real-space, imaginary-part!!
-! -------------------------------------------------------------------- !
-! parameter: real*4 :: im(ndim,ndim) : reference to array recieving the
-!                                     probe wavefunction real part
-!            integer*4 :: ndim : size of array
-!            real*4 :: sampling : real-space sampling for probefunction
-! -------------------------------------------------------------------- !
-! required link: SFFTs.f
-! -------------------------------------------------------------------- !
-
-  implicit none
-
-
-! ------------
-! DECLARATION
-  integer*4, parameter :: subnum = 2800
-  
-  integer*4 :: ndim
-  real*4 :: sampling
-  real*4 :: im(ndim,ndim)
-  
-  integer*4 :: i, j, ndim2, i1, j1, ndim2m1
-  real*4 :: wx, wy, wy2, chi, power, anglethresh, threshwidth
-  real*4 :: tpower, tpowscal, rval
-  complex*8 :: cval
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > STF_GetCohProbeWaveIm: INIT."
-! check init-status
-  if (STF_maxaberration<=0) then
-    call STF_ERROR("STF_GetCohProbeWaveIm: Module not initialized. Aborting.",subnum+1)
-    return
-  end if
-! save data size
-  call STF_SETTAB_SCR(ndim)
-  call STF_SETTAB_USC(ndim)
-  STF_dim = ndim
-  ndim2 = int(ndim/2)
-  ndim2m1 = ndim2-1
-  STF_sampling = sampling
-! set Fourier-space sampling
-  STF_itog = 0.5/sampling/real(ndim2)
-  STF_itow = STF_itog*STF_lamb
-  anglethresh = STF_caperture*0.001
-  threshwidth = anglethresh*0.1
-! ------------
-
-! ------------
-! preset Fourier-space array with exp[-i*chi]
-!!!  call STF_GetProbeWaveFourier(sc,ndim,sampling)
-! ------------
-! preset Fourier-space array with exp[-i*chi]
-  tpower = 0.0
-  STF_sc(:,:) = cmplx(0.0,0.0)
-  do j=1,ndim
-    wy = STF_TABBED_SCR(j)*STF_itow !(mod((j+ndim2m1),ndim)-ndim2)*STF_itow
-    wy2 = wy*wy
-    do i=1,ndim
-      wx = STF_TABBED_SCR(i)*STF_itow !(mod((i+ndim2m1),ndim)-ndim2)*STF_itow
-!      power = 1.0-sigmoid(sqrt(wx*wx+wy*wy),anglethresh,threshwidth)
-!      if (power<STF_APERTURETHRESH) cycle ! apply condenser aperture
-!      chi = STF_AberrationFunction(wx,wy)
-!      wave(i,j) = cmplx(cos(chi),-sin(chi))*power
-!      tpower = tpower + power*power
-      
-!      rval = sigmoid(sqrt(wx*wx+wy*wy),anglethresh,threshwidth)  ! intrinsict calculation method
-!     use tabbed version here, (speed increased by approx 15%)
-      call STF_TABBED_SIGMOID(sqrt(wx*wx+wy2),anglethresh,threshwidth,rval)  ! tabbed calculation method
-      power = 1.0-rval
-      !power = 1.0-sigmoid(sqrt(wx*wx+wy*wy),anglethresh,threshwidth)
-      
-      if (power<STF_APERTURETHRESH) cycle ! apply condenser aperture
-      
-      chi = STF_AberrationFunction(wy,wx) ! TRANSPOSED
-!     use intrinsic version here, ( no speed gain with tabbed version)
-      cval = cmplx(cos(chi),-sin(chi)) ! intrinsict calculation method
-!      call STF_TABBED_EXP(-chi,cval) ! tabbed calculation method
-      STF_sc(i,j) = cval*power
-!      STF_sc(i,j) = cmplx(cos(chi),-sin(chi))*power
-      tpower = tpower + power*power
-      
-    end do
-  end do
-!  write(unit=*,fmt=*) "FS-power:",tpower
-  tpowscal = 1.0/tpower/real(ndim*ndim)
-! ------------
-! ------------
-
-! ------------
-! transform to real space (scramble first!)
-  call STF_FFT(STF_sc,ndim,ndim,"bac") ! external call from SFFTs.f
-! ------------
-
-! ------------
-! calculate wave components by taking absolute square in real space
-! + unscramble (shifts origin)
-  do j=1,ndim
-    j1 = STF_TABBED_USC(j)
-    do i=1,ndim
-      i1 = STF_TABBED_USC(i)
-      cval = STF_sc(i,j)
-!      re(j1,i1) = real(cval)*tpowscal
-      im(i1,j1) = imag(cval)*tpowscal
-!      re(i,j) = real(cval)
-!      im(i,j) = imag(cval)
-    end do
-  end do
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > STF_GetCohProbeWaveIm: EXIT."
-  return
-
-END SUBROUTINE STF_GetCohProbeWaveIm
-!**********************************************************************!
-
-
-
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE STF_PrepareProbeWaveFourier(ndimx,ndimy,samplingx,samplingy)
+SUBROUTINE STF_PrepareProbeWaveFourier(wave, nx, ny, sampx,sampy)
 ! function: calculates the prove wavefunction in fourier space
-!           from aberration and saves it in global public array STF_sc
-!           complex*8 array of size (FFT_BOUND,FFT_BOUND)
-!           Data is scrambled and transposed
+!           from aberration.
+!           Data is scrambled and normalized.
 ! -------------------------------------------------------------------- !
-! parameter: integer*4 :: ndimx,ndimy : wave result dimension
-!            real*4 :: samplingx,samplingy : wave result sampling x & y
+! parameter: integer*4 :: nx, ny : dimensions
+!            real*4 :: sampx,sampy : sampling x & y [nm/pix]
+!            complex*8 :: wave(:,:) : wave function data
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1958,11 +1473,12 @@ SUBROUTINE STF_PrepareProbeWaveFourier(ndimx,ndimy,samplingx,samplingy)
 ! DECLARATION
   integer*4, parameter :: subnum = 1700
   
-  integer*4 :: ndimx,ndimy
-  real*4 :: samplingx,samplingy
+  integer*4, intent(in) :: nx, ny
+  real*4, intent(in) :: sampx,sampy
+  complex*8, intent(out) :: wave(1:nx,1:ny)
   
-  integer*4 :: i, j, ndim2x, ndim2y
-  real*4 :: wx, wy, wx2, chi, power, anglethresh, threshwidth
+  integer*4 :: i, j, nx2, ny2
+  real*4 :: wx, wy, wy2, chi, power, anglethresh, threshwidth
   real*4 :: tpower, rval, itogx, itogy, itowx, itowy
   real*4 :: camx, camy, lbtx, lbty, wap
   complex*8 :: cval
@@ -1979,20 +1495,14 @@ SUBROUTINE STF_PrepareProbeWaveFourier(ndimx,ndimy,samplingx,samplingy)
     return
   end if
 ! save data size
-  call STF_SETTAB_SCR(ndimx)
-  call STF_SETTAB_SCR2(ndimy)
+  call STF_SETTAB_SCR(nx, ny)
   !STF_dim = ndim
-  ndim2x = int(ndimx/2)
-  ndim2y = int(ndimy/2)
-  !STF_sampling = sampling
-! set Fourier-space sampling
-  !STF_itog = 0.5/sampling/real(ndim2)
-  !STF_itow = STF_itog*STF_lamb
-  itogx = 0.5/samplingx/real(ndim2x)
+  nx2 = (nx - modulo(nx,2)) / 2
+  ny2 = (ny - modulo(ny,2)) / 2
+  itogx = 1.0 / ( sampx * real(nx) )
+  itogy = 1.0 / ( sampy * real(ny) )
   itowx = itogx*STF_lamb
-  itogy = 0.5/samplingy/real(ndim2y)
   itowy = itogy*STF_lamb
-  !wave = cmplx(0.0,0.0)
   anglethresh = max(STF_caperture*STF_RELANGTHRESH,0.25*(itowx+itowy))
   threshwidth = 0.5*(itowx+itowy)*STF_APSMOOTHPIX
   STF_PreparedWavePower = 0.0
@@ -2005,14 +1515,15 @@ SUBROUTINE STF_PrepareProbeWaveFourier(ndimx,ndimy,samplingx,samplingy)
 
 ! ------------
 ! preset Fourier-space array with exp[-i*chi]
-  STF_sc(:,:) = 0.0
+  wave(1:nx,1:ny) = 0.0
   tpower = 0.0
-  do j=1,ndimx
-    wx = STF_TABBED_SCR(j)*itowx+lbtx
-    wx2 = (wx-camx)**2
-    do i=1,ndimy
-      wy = STF_TABBED_SCR2(i)*itowy+lbty
-      wap = wx2 + (wy-camy)**2
+  do j=1, ny
+    wy = STF_TABBED_SCR2(j)*itowy + lbty
+    wy2 = (wy-camy)**2
+    do i=1, nx
+      wx = STF_TABBED_SCR(i)*itowx + lbtx
+      wap = wy2 + (wx-camx)**2
+      ! aperture
       if (STF_cap_type==0) then ! set sigmoid aperture function
         call STF_TABBED_SIGMOID(sqrt(wap),anglethresh,threshwidth,rval)
         power = 1.0-rval
@@ -2024,19 +1535,19 @@ SUBROUTINE STF_PrepareProbeWaveFourier(ndimx,ndimy,samplingx,samplingy)
           power = 1.0
         end if
       end if
-      
-      
-      
+      ! check aperture
       if (power<STF_APERTURETHRESH) cycle ! apply condenser aperture
-      
+      ! aberration function
       chi = STF_AberrationFunction(wx,wy)
-      cval = cmplx(cos(chi),-sin(chi)) ! intrinsict calculation method
-      STF_sc(i,j) = cval*power
+      cval = cmplx(cos(chi),-sin(chi)) ! phase plate
+      wave(i,j) = cval*power
       STF_PreparedWavePower = STF_PreparedWavePower + power*power
-      
+      !
     end do
   end do
 !  write(unit=*,fmt=*) "FS-power:",tpower
+  wave(1:nx,1:ny) = wave(1:nx,1:ny) / sqrt(STF_PreparedWavePower) ! normalize
+  STF_PreparedWavePower = 1.0
 ! ------------
 
 ! ------------
@@ -2049,16 +1560,17 @@ END SUBROUTINE STF_PrepareProbeWaveFourier
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE STF_PrepareVortexProbeWaveFourier(oam,ndimx,ndimy,samplingx,samplingy)
-! function: calculates the prove wavefunction in fourier space
-!           from aberration and saves it in global public array STF_sc
-!           complex*8 array of size (FFT_BOUND,FFT_BOUND)
-!           Data is scrambled and transposed
-!           This creates a STEM vortex probe.
+SUBROUTINE STF_PrepareVortexProbeWaveFourier(wave, oam, nx, ny, sampx, sampy)
+! function: Calculates the probe wavefunction in fourier space
+!           from aberrations and aperture.
+!           The result is scrambled and normalized.
+!           This creates a STEM vortex probe of orbital angular
+!           momentum <oam>.
 ! -------------------------------------------------------------------- !
 ! parameter: integer*4 :: oam : vortex orbital angular momentum
-!            integer*4 :: ndimx,ndimy : wave result dimension
-!            real*4 :: samplingx,samplingy : wave result sampling x & y
+!            integer*4 :: nx, ny : dimensions
+!            real*4 :: sampx,sampy : sampling x & y [nm/pix]
+!            complex*8 :: wave(:,:) : wave function
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -2067,12 +1579,12 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(oam,ndimx,ndimy,samplingx,samplingy
 ! DECLARATION
   integer*4, parameter :: subnum = 1710
   
-  integer*4 :: oam
-  integer*4 :: ndimx,ndimy
-  real*4 :: samplingx,samplingy
+  integer*4, intent(in) :: oam, nx, ny
+  real*4, intent(in) :: sampx,sampy
+  complex*8, intent(out) :: wave(1:nx,1:ny)
   
-  integer*4 :: i, j, ndim2x, ndim2y
-  real*4 :: wx, wy, wx2, chi, power, anglethresh, threshwidth
+  integer*4 :: i, j, nx2, ny2
+  real*4 :: wx, wy, wy2, chi, power, anglethresh, threshwidth
   real*4 :: tpower, rval, itogx, itogy, itowx, itowy
   real*4 :: camx, camy, lbtx, lbty, wap, vtx
   complex*8 :: cval
@@ -2089,20 +1601,13 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(oam,ndimx,ndimy,samplingx,samplingy
     return
   end if
 ! save data size
-  call STF_SETTAB_SCR(ndimx)
-  call STF_SETTAB_SCR2(ndimy)
-  !STF_dim = ndim
-  ndim2x = int(ndimx/2)
-  ndim2y = int(ndimy/2)
-  !STF_sampling = sampling
-! set Fourier-space sampling
-  !STF_itog = 0.5/sampling/real(ndim2)
-  !STF_itow = STF_itog*STF_lamb
-  itogx = 0.5/samplingx/real(ndim2x)
+  call STF_SETTAB_SCR(nx, ny)
+  nx2 = (nx - modulo(nx,2)) / 2
+  ny2 = (ny - modulo(ny,2)) / 2
+  itogx = 1.0 / ( sampx * real(nx) )
+  itogy = 1.0 / ( sampy * real(ny) )
   itowx = itogx*STF_lamb
-  itogy = 0.5/samplingy/real(ndim2y)
   itowy = itogy*STF_lamb
-  !wave = cmplx(0.0,0.0)
   anglethresh = max(STF_caperture*STF_RELANGTHRESH,0.25*(itowx+itowy))
   threshwidth = 0.5*(itowx+itowy)*STF_APSMOOTHPIX
   STF_PreparedWavePower = 0.0
@@ -2115,14 +1620,15 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(oam,ndimx,ndimy,samplingx,samplingy
 
 ! ------------
 ! preset Fourier-space array with exp[-i*chi]
-  STF_sc(:,:) = 0.0
+  wave(1:nx,1:ny) = 0.0
   tpower = 0.0
-  do j=1,ndimx
-    wx = STF_TABBED_SCR(j)*itowx+lbtx
-    wx2 = (wx-camx)**2
-    do i=1,ndimy
-      wy = STF_TABBED_SCR2(i)*itowy+lbty
-      wap = wx2 + (wy-camy)**2
+  do j=1, ny
+    wy = STF_TABBED_SCR2(j)*itowy + lbty
+    wy2 = (wy-camy)**2
+    do i=1, nx
+      wx = STF_TABBED_SCR(i)*itowx + lbtx
+      wap = wy2 + (wx-camx)**2
+      ! aperture
       if (STF_cap_type==0) then ! set sigmoid aperture function
         call STF_TABBED_SIGMOID(sqrt(wap),anglethresh,threshwidth,rval)
         power = 1.0-rval
@@ -2134,8 +1640,9 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(oam,ndimx,ndimy,samplingx,samplingy
           power = 1.0
         end if
       end if
-      
+      ! check aperture
       if (power<STF_APERTURETHRESH) cycle ! apply condenser aperture
+      ! vortex
       vtx = 0. ! preset vortex phase with as zero
       if (wx==0.) then ! calculate the vortex component of the aberration function
         if (wy>0.) vtx = -real(oam)*0.5*STF_pi + 0.5*STF_pi
@@ -2143,14 +1650,16 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(oam,ndimx,ndimy,samplingx,samplingy
       else ! wx values other than 0
         vtx = -real(oam)*atan2(wy,wx) + 0.5*STF_pi
       end if
+      ! aberration function
       chi = STF_AberrationFunction(wx,wy) + vtx ! combine lens aberrations and a pure vortex aberration
-      cval = cmplx(cos(chi),-sin(chi)) ! intrinsict calculation method
-      STF_sc(i,j) = cval*power
+      cval = cmplx(cos(chi),-sin(chi)) ! phase plate
+      wave(i,j) = cval*power
       STF_PreparedWavePower = STF_PreparedWavePower + power*power
-      
     end do
   end do
 !  write(unit=*,fmt=*) "FS-power:",tpower
+  wave(1:nx,1:ny) = wave(1:nx,1:ny) / sqrt(STF_PreparedWavePower) ! normalize
+  STF_PreparedWavePower = 1.0
 ! ------------
 
 ! ------------
@@ -2164,14 +1673,13 @@ END SUBROUTINE STF_PrepareVortexProbeWaveFourier
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE STF_PreparePlaneWaveFourier(ndimx,ndimy,samplingx,samplingy)
-! function: prepares a plane wavefunction in fourier space
-!           and saves it in global public array STF_sc
-!           complex*8 array of size (FFT_BOUND,FFT_BOUND)
-!           Data is scrambled and transposed
+SUBROUTINE STF_PreparePlaneWaveFourier(wave, nx, ny, sampx,sampy)
+! function: prepares a plane wavefunction in fourier space.
+!           The result is scrambled and normalized.
 ! -------------------------------------------------------------------- !
-! parameter: integer*4 :: ndimx,ndimy : wave result dimension
-!            real*4 :: samplingx,samplingy : wave result sampling x & y
+! parameter: integer*4 :: nx, ny : dimensions
+!            real*4 :: sampx,sampy : sampling x & y [nm/pix]
+!            complex*8 :: wave(1:nx,1:ny) :: wave function
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -2180,12 +1688,12 @@ SUBROUTINE STF_PreparePlaneWaveFourier(ndimx,ndimy,samplingx,samplingy)
 ! DECLARATION
   integer*4, parameter :: subnum = 3500
   
-  integer*4 :: ndimx,ndimy
-  real*4 :: samplingx,samplingy
+  integer*4, intent(in) :: nx, ny
+  real*4, intent(in) :: sampx, sampy
+  complex*8, intent(out) :: wave(1:nx,1:ny)
   
-  integer*4 :: i, j, ndim2x, ndim2y
-  real*4 :: wx, wy, chi, anglethresh, threshwidth
-  real*4 :: tpower, itogx, itogy, itowx, itowy
+  integer*4 :: i, j, nx2, ny2
+  real*4 :: rx, ry, chi, rsca
   real*4 :: lbtx, lbty
   
   real*4, external :: sigmoid
@@ -2199,53 +1707,31 @@ SUBROUTINE STF_PreparePlaneWaveFourier(ndimx,ndimy,samplingx,samplingy)
     call STF_ERROR("STF_PreparePlaneWaveFourier: Module not initialized. Aborting.",subnum+1)
     return
   end if
-! save data size
-  call STF_SETTAB_SCR(ndimx)
-  call STF_SETTAB_SCR2(ndimy)
-  !STF_dim = ndim
-  ndim2x = int(ndimx/2)
-  ndim2y = int(ndimy/2)
-  !STF_sampling = sampling
-! set Fourier-space sampling
-  !STF_itog = 0.5/sampling/real(ndim2)
-  !STF_itow = STF_itog*STF_lamb
-  itogx = 0.5/samplingx/real(ndim2x)
-  itowx = itogx*STF_lamb
-  itogy = 0.5/samplingy/real(ndim2y)
-  itowy = itogy*STF_lamb
-  !wave = cmplx(0.0,0.0)
-  anglethresh = 0.25*(itowx+itowy)
-  threshwidth = anglethresh*0.25
-  STF_PreparedWavePower = 0.0
-  lbtx = STF_beam_tiltx*0.001/STF_lamb
-  lbty = STF_beam_tilty*0.001/STF_lamb
+  nx2 = (nx - modulo(nx,2)) / 2
+  ny2 = (ny - modulo(ny,2)) / 2
+  lbtx = STF_beam_tiltx*0.001 ! beam tilt in [rad]
+  lbty = STF_beam_tilty*0.001
+  rsca = 1.0 / sqrt( real( nx*ny )) ! transform renormalization
 ! ------------
 
 
 ! ------------
-! preset Fourier-space with 0-beam of 1.0
-  STF_sc(:,:) = 0.0
-  STF_sc(1,1) = cmplx(1.0,0.0)
-  tpower = 1.0
-  STF_PreparedWavePower = tpower
-  
-! transfer to real space and apply a physe wedge to tilt the wave
-  call STF_FFT(STF_sc,ndimx,ndimy,"bac") ! external call from SFFTs.f
-  
-  do j=1,ndimy
-    wy = real(j-ndim2y-1)*samplingy
-    do i=1,ndimx
-      wx = real(i-ndim2x-1)*samplingx
-      chi = 2.0*STF_pi*(wx*lbtx+wy*lbty)
-      STF_sc(i,j) = cmplx(cos(chi),sin(chi))
+! What follows is a weird way of calculating the tilted plane wave.
+! Note that beam-tilts off the Fourier pixels are allowed. In such
+! a case, the phase ramp in real-space doesn't comply to periodic
+! boundary conditions (modulo 2*Pi). This means, that there is a
+! streak in the Fourier-space representation, if the beam tilt doesn't
+! fall on a Fourier pixel, condition: bt = i * lambda / (sampling * ndim).
+  do j=1, ny
+    ry = real(j-ny2-1)*sampy ! /!\ ry goes negative
+    do i=1, nx
+      rx = real(i-nx2-1)*sampx ! /!\ rx goes negative
+      chi = 2.0 * STF_pi * (rx*lbtx+ry*lbty) / STF_lamb
+      wave(i,j) = cmplx(cos(chi),sin(chi)) * rsca ! the scaling keeps the norm in Fourier-space
     end do
   end do
-!  write(unit=*,fmt=*) "FS-power:",tpower
-! ------------
-
-! ------------
 ! transform to Fourier space
-  call STF_FFT(STF_sc,ndimx,ndimy,"for") ! external call from SFFTs.f
+  call STF_FFT(wave, nx, ny, 1) ! external call from SFFTs.f
 ! ------------
 
 ! ------------
@@ -2263,9 +1749,9 @@ END SUBROUTINE STF_PreparePlaneWaveFourier
 SUBROUTINE STF_GetPhasePlate(p,ndim,sampling)
 ! function: calculates the aberration function in fourier space
 ! -------------------------------------------------------------------- !
-! parameter: real*4 :: p(FFT_BOUND,FFT_BOUND) : pphase plate ref
-!            integer*4 :: ndim : wave result dimension
-!            real*4 :: sampling
+! parameter: real*4 :: p(ndim,ndim) : phase plate
+!            integer*4 :: ndim : dimension (square size)
+!            real*4 :: sampling [nm/pix]
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -2325,12 +1811,12 @@ END SUBROUTINE STF_GetPhasePlate
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE STF_AberrateWaveFourier(wave,ndimx,ndimy,samplingx,samplingy)
+SUBROUTINE STF_AberrateWaveFourier(wave, nx, ny, sampx, sampy)
 ! function: applies aberrations to the given wave function
 ! -------------------------------------------------------------------- !
-! parameter: complex*8 :: wave(ndimy,ndimx)
-!            integer*4 :: ndimx,ndimy : wave dimension
-!            real*4 :: samplingx,samplingy : wave result sampling x & y
+! parameter: complex*8 :: wave(ny,nx) :: wave function (Fourier-space)
+!            integer*4 :: nx, ny :: dimensions
+!            real*4 :: sampx, sampy :: sampling rates x & y [nm/pix]
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -2339,12 +1825,12 @@ SUBROUTINE STF_AberrateWaveFourier(wave,ndimx,ndimy,samplingx,samplingy)
 ! DECLARATION
   integer*4, parameter :: subnum = 3600
   
-  complex*8 :: wave(ndimy,ndimx)
-  integer*4 :: ndimx,ndimy
-  real*4 :: samplingx,samplingy
+  complex*8, intent(inout) :: wave(nx, ny)
+  integer*4, intent(in) :: nx, ny
+  real*4, intent(in) :: sampx,sampy
   
-  integer*4 :: i, j, ndim2x, ndim2y
-  real*4 :: wx, wy, wx2, chi
+  integer*4 :: i, j, nx2, ny2
+  real*4 :: wx, wy, wy2, chi
   real*4 :: itogx, itogy, itowx, itowy
   complex*8 :: cval
 ! ------------
@@ -2358,32 +1844,25 @@ SUBROUTINE STF_AberrateWaveFourier(wave,ndimx,ndimy,samplingx,samplingy)
     return
   end if
 ! save data size
-  call STF_SETTAB_SCR(ndimx)
-  call STF_SETTAB_SCR2(ndimy)
-  !STF_dim = ndim
-  ndim2x = int(ndimx/2)
-  ndim2y = int(ndimy/2)
-  !STF_sampling = sampling
-! set Fourier-space sampling
-  !STF_itog = 0.5/sampling/real(ndim2)
-  !STF_itow = STF_itog*STF_lamb
-  itogx = 0.5/samplingx/real(ndim2x)
+  call STF_SETTAB_SCR(nx, ny)
+  nx2 = (nx - modulo(nx,2)) / 2
+  ny2 = (ny - modulo(ny,2)) / 2
+  itogx = 1.0 / (sampx*real(nx))
   itowx = itogx*STF_lamb
-  itogy = 0.5/samplingy/real(ndim2y)
+  itogy = 1.0 / (sampy*real(ny))
   itowy = itogy*STF_lamb
-  !wave = cmplx(0.0,0.0)
 ! ------------
 
 
 ! ------------
-  do j=1,ndimx
-    wx = STF_TABBED_SCR(j)*itowx
-    wx2 = wx*wx
-    do i=1,ndimy
-      wy = STF_TABBED_SCR2(i)*itowy
+  do j=1, ny
+    wy = STF_TABBED_SCR2(j)*itowy
+    wy2 = wy*wy
+    do i=1, nx
+      wx = STF_TABBED_SCR(i)*itowx
       
       chi = STF_AberrationFunction(wx,wy)
-      cval = cmplx(cos(chi),-sin(chi)) ! intrinsic calculation method
+      cval = cmplx(cos(chi),-sin(chi))
       wave(i,j) = cval*wave(i,j)
       
     end do
@@ -2400,13 +1879,14 @@ END SUBROUTINE STF_AberrateWaveFourier
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE STF_ApplyObjectiveAperture(wave,ndimx,ndimy,samplingx,samplingy,acx, acy)
-! function: applies aberrations to the given wave function
+SUBROUTINE STF_ApplyObjectiveAperture(wave, nx, ny, sampx, sampy, acx, acy)
+! function: applies aberrations to the given wave function in Fourier
+!           space representation.
 ! -------------------------------------------------------------------- !
-! parameter: complex*8 :: wave(ndimy,ndimx)
-!            integer*4 :: ndimx,ndimy : wave dimension
-!            real*4 :: samplingx,samplingy : wave result sampling x & y
-!            real*4 :: acx, acy : aperture center x & y
+! parameter: complex*8 :: wave(nx, ny) :: wavefunction Fourier coeffs.
+!            integer*4 :: nx, ny :: dimensions
+!            real*4 :: sampx,sampy :: sampling rates x & y [nm/pix]
+!            real*4 :: acx, acy :: aperture center x & y [rad]
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -2415,12 +1895,12 @@ SUBROUTINE STF_ApplyObjectiveAperture(wave,ndimx,ndimy,samplingx,samplingy,acx, 
 ! DECLARATION
   integer*4, parameter :: subnum = 3600
   
-  complex*8 :: wave(ndimy,ndimx)
-  integer*4 :: ndimx,ndimy
-  real*4 :: samplingx,samplingy, acx, acy
+  complex*8, intent(inout) :: wave(nx,ny)
+  integer*4, intent(in) :: nx, ny
+  real*4, intent(in) :: sampx, sampy, acx, acy
   
-  integer*4 :: i, j, ndim2x, ndim2y
-  real*4 :: wx, wy, wx2, wap
+  integer*4 :: i, j, nx2, ny2
+  real*4 :: wx, wy, wy2, wap
   real*4 :: itogx, itogy, itowx, itowy
   real*4 :: anglethresh, threshwidth, rval, power
 ! ------------
@@ -2434,32 +1914,25 @@ SUBROUTINE STF_ApplyObjectiveAperture(wave,ndimx,ndimy,samplingx,samplingy,acx, 
     return
   end if
 ! save data size
-  call STF_SETTAB_SCR(ndimx)
-  call STF_SETTAB_SCR2(ndimy)
-  !STF_dim = ndim
-  ndim2x = int(ndimx/2)
-  ndim2y = int(ndimy/2)
-  !STF_sampling = sampling
-! set Fourier-space sampling
-  !STF_itog = 0.5/sampling/real(ndim2)
-  !STF_itow = STF_itog*STF_lamb
-  itogx = 0.5/samplingx/real(ndim2x)
+  call STF_SETTAB_SCR(nx, ny)
+  nx2 = (nx - modulo(nx,2)) / 2
+  ny2 = (ny - modulo(ny,2)) / 2
+  itogx = 1.0 / (sampx*real(nx))
   itowx = itogx*STF_lamb
-  itogy = 0.5/samplingy/real(ndim2y)
+  itogy = 1.0 / (sampy*real(ny))
   itowy = itogy*STF_lamb
-  !wave = cmplx(0.0,0.0)
   anglethresh = max(STF_caperture*STF_RELANGTHRESH,0.25*(itowx+itowy))
   threshwidth = 0.5*(itowx+itowy)*STF_APSMOOTHPIX
 ! ------------
 
 
 ! ------------
-  do j=1,ndimx
-    wx = STF_TABBED_SCR(j)*itowx-acx
-    wx2 = wx*wx
-    do i=1,ndimy
-      wy = STF_TABBED_SCR2(i)*itowy-acy
-      wap = wx2 + wy**2
+  do j=1, ny
+    wy = STF_TABBED_SCR2(j)*itowy - acy ! theta_y [rad]
+    wy2 = wy*wy
+    do i=1, nx
+      wx = STF_TABBED_SCR2(i)*itowx - acx ! theta_x [rad]
+      wap = wy2 + wx**2
       
       call STF_TABBED_SIGMOID(sqrt(wap),anglethresh,threshwidth,rval)
       power = 1.0-rval
@@ -2477,6 +1950,126 @@ SUBROUTINE STF_ApplyObjectiveAperture(wave,ndimx,ndimy,samplingx,samplingy,acx, 
   return
 
 END SUBROUTINE STF_ApplyObjectiveAperture
+!**********************************************************************!
+
+
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE STF_ApertureFunction(kx, ky, kcx, kcy, klim, val)
+! function: calculates a sharp aperture function value for a given
+!           k-space coordinate and aperture radius.
+! -------------------------------------------------------------------- !
+! parameter:
+! (input)
+!  real*4 :: kx, ky ! k-space coordinate [1/nm]
+!  real*4 :: kcx, kxy ! k-space coordinate of the aperture center [1/nm]
+!  real*4 :: klim ! size of the aperture (radius) [1/nm]
+! (output)
+!  real*4 :: val ! aperture value
+! -------------------------------------------------------------------- !
+
+  implicit none
+
+! ------------
+! DECLARATION
+  integer*4, parameter :: subnum = 3900
+  real*4, intent(in) :: kx, ky ! k-space coordinate [1/nm]
+  real*4, intent(in) :: kcx, kcy ! k-space coordinate of the aperture center [1/nm]
+  real*4, intent(in) :: klim ! size of the aperture (radius) [1/nm]
+  real*4, intent(out) :: val ! aperture value
+  real*4 :: dkx, dky, dkm ! k-space decenter [1/nm]
+! ------------
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > STF_ApertureFunction: INIT."
+  val = 0.0
+! ------------
+
+! ------------
+  if (klim > 0.0) then
+    dkx = kx - kcx
+    dky = ky - kcy
+    dkm = sqrt(dkx*dkx+dky*dky)
+    if (dkm <= klim) val = 1.0
+  end if
+! ------------
+
+! ------------
+!  write(unit=*,fmt=*) " > STF_ApertureFunction: EXIT."
+  return
+
+END SUBROUTINE STF_ApertureFunction
+!**********************************************************************!
+
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE STF_ApertureFunctionS(kx, ky, kcx, kcy, klim, ax, ay, s, val)
+! function: calculates an aperture function value for a given
+!           k-space coordinate and aperture radius to be used on
+!           a discrete grid. The aperture edge is smoothed over a
+!           range of s pixels also for non-isotropic k-space samplings.
+! -------------------------------------------------------------------- !
+! parameter:
+! (input)
+!  real*4 :: kx, ky ! k-space coordinate [1/nm]
+!  real*4 :: kcx, kxy ! k-space coordinate of the aperture center [1/nm]
+!  real*4 :: klim ! size of the aperture (radius) [1/nm]
+!  real*4 :: ax, ay ! size of the real-space grid [nm]
+!                   ! 1/ax, 1/ay are the Fourier-space sampling rates
+!  real*4 :: s ! smoothness of the aperture edge [pixels]
+! (output)
+!  real*4 :: val ! aperture value
+! -------------------------------------------------------------------- !
+
+  implicit none
+
+! ------------
+! DECLARATION
+  integer*4, parameter :: subnum = 4000
+  real*4, intent(in) :: kx, ky ! k-space coordinate [1/nm]
+  real*4, intent(in) :: kcx, kcy ! k-space coordinate of the aperture center [1/nm]
+  real*4, intent(in) :: klim ! size of the aperture (radius) [1/nm]
+  real*4, intent(in) :: ax, ay ! size of the real-space grid [nm]
+                   ! 1/ax, 1/ay are the Fourier-space sampling rates
+  real*4, intent(in) :: s ! smoothness of the aperture edge [pixels]
+  real*4, intent(out) :: val ! aperture value
+  real*4 :: dkx, dky, dkm ! k-space decenter [1/nm]
+  real*4 :: dpx, dpy, dpm ! Fourier pixel decenter
+  real*4 :: dlr ! relative length of the decenter w.r.t. aperture radius
+  real*4 :: dlpx, dlpy, dpl ! relative distances to exact aperture edge
+! ------------
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > STF_ApertureFunctionS: INIT."
+  val = 0.0
+  if (klim <= 0.0) return
+  dkx = kx - kcx
+  dky = ky - kcy
+  dkm = sqrt(dkx*dkx+dky*dky)
+! ------------
+
+! ------------
+  if (dkm > 0.0) then ! handle default case (beam is somewhere in aperture area)
+    dpx = dkx*ax
+    dpy = dky*ay
+    dpm = sqrt(dpx*dpx + dpy*dpy) ! aperture edge distance with respect to kx,ky
+    dlr = klim/dkm
+    dlpx = dkx*dlr*ax ! rescale to aperture edge pixel distance along x
+    dlpy = dky*dlr*ay ! rescale to aperture edge pixel distance along y
+    dpl = sqrt(dlpx*dlpx + dlpy*dlpy) ! pixel distance to aperture edge
+    val = (1. - tanh((dpm - dpl)*STF_pi/s))*0.5 ! aperture value
+  else ! handle on-axis case
+    val = 1.0 ! ... always transmit this beam
+  endif
+! ------------
+
+! ------------
+!  write(unit=*,fmt=*) " > STF_ApertureFunctionS: EXIT."
+  return
+
+END SUBROUTINE STF_ApertureFunctionS
 !**********************************************************************!
 
 
@@ -2596,7 +2189,7 @@ END MODULE STEMfunctions
 
 ! ------------
 ! DECLARATION
-!  integer*4, parameter :: subnum = 3900
+!  integer*4, parameter :: subnum = 4100
 !
 ! ------------
 

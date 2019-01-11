@@ -14,6 +14,7 @@ copy "%FPATH%LICENSE" "%LPATH%" /Y
 echo - subfolder [common] ...
 copy "%FPATH%common\*.txt" "%LPATH%common\" /Y
 copy "%FPATH%common\*.f" "%LPATH%common\" /Y
+copy "%FPATH%common\*.in" "%LPATH%common\" /Y
 copy "%FPATH%common\*.f90" "%LPATH%common\" /Y
 echo - subfolder [celslc] ...
 copy "%FPATH%celslc\*.txt" "%LPATH%celslc\" /Y

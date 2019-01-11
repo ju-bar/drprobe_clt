@@ -1,9 +1,9 @@
 !**********************************************************************!
 !**********************************************************************!
 !                                                                      !
-!    File     :  MultiSlice.F90                                        !
+!    File     :  MultiSlice.f90                                        !
 !                                                                      !
-!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2018   !
+!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2019   !
 !                                                                      !
 !**********************************************************************!
 !                                                                      !
@@ -11,13 +11,16 @@
 !    -----------------                                                 !
 !                                                                      !
 !    Purpose  : Implementation of a multi-slice algorithm              !
-!    Version  :  1.0.0, May 07, 2007                                   !
-!                1.1.0, Sept. 01, 2010                                 !
-!                1.2.0, March 08, 2017                                 !
-!                1.3.0, June 21, 2017                                  !
-!                1.3.1, June 26, 2017                                  !
-!                1.3.2, Nov 09, 2017                                   !
-!    To Link  : FFTs.f                                                 !
+!    Version  : 1.0.0, May 07, 2007                                    !
+!               1.1.0, Sept. 01, 2010                                  !
+!               1.2.0, March 08, 2017                                  !
+!               1.3.0, June 21, 2017                                   !
+!               1.3.1, June 26, 2017                                   !
+!               1.3.2, Nov 09, 2017                                    !
+!               1.4.0, Jan 08, 2019                                    !
+!                                                                      !
+!   Linked Libs: libfftwf-3.3.lib                                      !
+!   Includes   : fftw3.f03.in                                          !
 !                                                                      !
 !**********************************************************************!
 !                                                                       
@@ -65,12 +68,17 @@ MODULE MultiSlice
 
 ! Use MS as acronym for public parameters funcs and subs!
     
-! Global module dependencies
-!   USE ...
-    
+  ! Global module dependencies
+  use, intrinsic :: iso_c_binding   
+   
   implicit none
+
+  ! Declare internal data types
+  integer, parameter :: C_FFTW_R2R_KIND = C_INT ! missing declare in fftw3 include
   
-  ! declare internal data types
+  INCLUDE 'fftw3.f03.in'
+  
+  
 
   ! accessibility of subroutines or functions
 !  private :: MS_***
@@ -78,16 +86,15 @@ MODULE MultiSlice
   private :: MS_TABBED_SIGMOID
   private :: MS_ALLOCSTATICS
   private :: MS_DEALLOCSTATICS
-  private :: MS_SETTAB_USC
   private :: MS_SETTAB_SCR
-  private :: MS_SETTAB_USC2
-  private :: MS_SETTAB_SCR2
+  private :: MS_SETTAB_USC
 !  private :: MS_PropWaveElastic
   
 !  public :: MS_***
   public :: MS_INIT
   public :: MS_UNINIT
   public :: MS_FFT
+  public :: MS_FFT_WORK
 !  public :: MS_SetAnnularDetector
   public :: MS_SetIncomingWave
   public :: MS_ShiftWave
@@ -101,8 +108,7 @@ MODULE MultiSlice
   public :: MS_Stop
   public :: MS_CalculateNextSlice
   public :: MS_ApplyPSpatialCoh
-  !public :: MS_Calculate
-  public :: MS_GetCurWaveRS
+!  public :: MS_Calculate
   
 
 !  declare module global (but private) variables, params and arrays
@@ -146,23 +152,6 @@ MODULE MultiSlice
   integer*4, public :: MS_VERBO_EXPORT
   DATA MS_VERBO_EXPORT /0/
   
-! Max FFT size
-  !integer*4, public, parameter :: FFT_BOUND = 8192
-  !integer*4, public, parameter :: FFT_NYQ = 4096
-  !integer*4, public, parameter :: FFT_BOUND = 4096
-  !integer*4, public, parameter :: FFT_NYQ = 2048
-  !integer*4, public, parameter :: FFT_BOUND = 2048
-  !integer*4, public, parameter :: FFT_NYQ = 1024
-  
-  integer*4, public, parameter :: FFT_BOUND_MIN = 128
-  integer*4, public, parameter :: FFT_BOUND_MAX = 8192
-  
-  integer*4, public :: FFT_BOUND
-  DATA FFT_BOUND /2048/
-  integer*4, public :: FFT_NYQ
-  DATA FFT_NYQ /1024/
-
-
 ! aberration power threshold
   real*4, private, parameter :: MS_POWERTHRESH_WA = 1.0E-30
   
@@ -212,9 +201,6 @@ MODULE MultiSlice
   DATA MS_caperture /30.0/
   
   
-! data array used for calculation
-  complex*8, dimension(:,:), allocatable, public :: MS_sc
-  
 ! angular function tables
   integer*4, parameter, private :: MS_ANGTAB_SIZE = 1023
 ! sigmoid function table
@@ -229,7 +215,8 @@ MODULE MultiSlice
   complex*8, dimension(:,:), allocatable, public :: MS_wave_in
   complex*8, dimension(:,:), allocatable, public :: MS_wave_in_bk
 ! current wavefunctions
-  complex*8, dimension(:,:), allocatable, public :: MS_wave, MS_wavei
+!  complex*8, dimension(:,:), allocatable, public :: MS_wave !, MS_wavei
+  complex(C_FLOAT_COMPLEX), public, pointer :: MS_wave(:,:)
 ! average wavefunctions at different exit planes
   complex*8, dimension(:,:,:), allocatable, public :: MS_wave_avg
   integer*4, public :: MS_wave_avg_num ! numer of exit-plane waves
@@ -238,11 +225,19 @@ MODULE MultiSlice
   DATA MS_wave_avg_idx /0/
   integer*4, dimension(:), allocatable, public :: MS_wave_avg_nac ! accumulations in the average
   
-! 
-  
-!! detector area -- moved to MSAparams
-!  integer*4, dimension(:,:), allocatable, public :: MS_detarea
-!  integer*4, dimension(:,:), allocatable, public :: MS_detcols
+! fftw data handlers
+  integer*4, public, dimension(2) :: MS_fft_dims
+  DATA MS_fft_dims /0, 0/
+  integer(C_INT), public :: MS_fft_flags ! fft flags (0: FFTW_MEASURE, 64: FFTW_ESTIMATE)
+  DATA MS_fft_flags /FFTW_MEASURE/
+  type(C_PTR), public :: MS_fft_planf ! module internal forward plan
+  type(C_PTR), public :: MS_fft_planb ! module internal backward plan
+  type(C_PTR), public :: MS_fft_pdata ! module internal pointers to aligned data
+  type(C_PTR), public :: MS_fft_work_planf ! module internal forward plan (working array)
+  type(C_PTR), public :: MS_fft_work_planb ! module internal backward plan (working array)
+  type(C_PTR), public :: MS_fft_work_pdata ! module internal pointers to aligned data (working array)
+  complex(C_FLOAT_COMPLEX), public, pointer :: MS_work(:,:) ! pointer to working array
+
   
 ! Multi-slice stack arrays
 ! number of different slices
@@ -269,10 +264,6 @@ MODULE MultiSlice
   integer*4, dimension(:), allocatable, public :: MS_propstack
 ! stack thickness per slice
   real*4, dimension(:), allocatable, public :: MS_slicethick
-! phase gratings (real-space)
-!  complex*8, dimension(:,:,:), allocatable, public :: MS_phasegrt
-!  complex*8, dimension(:,:,:), allocatable, public :: MS_phasegrtfe
-!  complex*8, dimension(:,:,:), allocatable, public :: MS_absorbgrt
 ! fresnel propagators (fourier-space, scrambled and transposed)
   complex*8, dimension(:,:,:), allocatable, public :: MS_propagator
 
@@ -280,23 +271,6 @@ MODULE MultiSlice
   integer*4, public :: MS_slicecur, MS_lastmaxslice
   real*4, public :: MS_calcthick
   
-!! optional export of real-space wave data after each slice
-!  integer*4, public :: MS_bkwave_export
-!  DATA MS_bkwave_export /0/ ! OFF by default, set to 1 to activate.
-!                            ! Warning: Switching ON this option will cause
-!                            !          a drastic increase of calulation time.
-!  character(len=MS_ll), public :: MS_bkwave_filenm
-!  DATA MS_bkwave_filenm /"wave"/
-  
-  
-!! optional export of real-space and fourier-space exit plane wave data
-!  integer*4, public :: MS_epwave_export
-!  DATA MS_epwave_export /0/ ! OFF by default, set to 1 to activate.
-!                            ! Warning: Switching ON this option will cause
-!                            !          an increase of calulation time.
-!  character(len=MS_ll), public :: MS_epwave_filenm
-!  DATA MS_epwave_filenm /"epw"/
-
 ! flag: export of wave function data
   integer*4, public :: MS_wave_export
   DATA MS_wave_export /0/   ! OFF by default, set to >=1 to activate.
@@ -420,7 +394,8 @@ SUBROUTINE MS_INIT()
     MS_ANGTAB_SIGMOID(m) = sigmoid(angle,0.0,1.0)
   end do
 ! ------------
-
+  
+  
 
 ! ------------
   if (MS_slicenum>0.and.MS_stacksize>0.and.MS_dimx>0.and.MS_dimy>0) then
@@ -446,61 +421,33 @@ SUBROUTINE MS_INIT()
       return
     end if
     MS_slicethick = 0.0;
-! JB 100305: phase gratings will be allocated from outsides
-!    ! phase gratings (real-space)
-!    err = 0
-!    allocate(MS_phasegrt(1:MS_dimx,1:MS_dimy,1:MS_slicenum),STAT=err)
-!    if (err/=0) then
-!      mre = real(MS_dimx)*real(MS_dimy)*real(MS_slicenum)*8.0/1024.0/1024.0
-!      write(unit=smsg,fmt='(A,F8.2,A)') "MultiSlice init, failed to allocate phase gratings ( ",mre," MB)."
-!      call MS_ERROR(trim(smsg),subnum+2)
-!      return
-!    end if
-!    MS_phasegrt = c0
-!    ! fully elastic phase gratings (real-space)
-!    err = 0
-!    allocate(MS_phasegrtfe(1:MS_dimx,1:MS_dimy,1:MS_slicenum),STAT=err)
-!    if (err/=0) then
-!      call MS_ERROR("MultiSlice init, failed to allocate fe-phase gratings.",subnum+3)
-!      return
-!    end if
-!    MS_phasegrtfe = c0
-!    ! absorption grating (real-space)
-!    err = 0
-!    allocate(MS_absorbgrt(1:MS_dimx,1:MS_dimy,1:MS_slicenum),STAT=err)
-!    if (err/=0) then
-!      call MS_ERROR("MultiSlice init, failed to allocate absorb gratings.",subnum+4)
-!      return
-!    end if
-!    MS_absorbgrt = c0
-    ! **** FRESNEL PROPAGATORS will be allocated later when slice thickness values are known
-!    ! fresnel propagators (fourier-space, scrambled and transposed)
-!    err = 0
-!    allocate(MS_propagator(1:MS_dimy,1:MS_dimx,1:MS_slicenum),STAT=err)
-!    if (err/=0) then
-!      call MS_ERROR("MultiSlice init failed.",subnum+8)
-!      return
-!    end if
-!    MS_propagator = c0
-!    ! absorbed intensity (real-space)
-!    err = 0
-!    allocate(MS_absorbed(1:MS_dimy,1:MS_dimx,1:MS_stacksize),STAT=err)
-!    if (err/=0) then
-!      call MS_ERROR("MultiSlice init, failed to allocate absorbance memory.",subnum+6)
-!      return
-!    end if
-!    MS_absorbed = c0
-    
 
     ! call here, be aware that changing MS_dim needs REINIT!
     ! Thus, no need to call MS_SETTAB_*** elsewhere    
-    call MS_SETTAB_USC(MS_dimx)
-    call MS_SETTAB_SCR(MS_dimx)
-    call MS_SETTAB_USC2(MS_dimy)
-    call MS_SETTAB_SCR2(MS_dimy)
+    call MS_SETTAB_SCR(MS_dimx, MS_dimy)
+    call MS_SETTAB_USC(MS_dimx, MS_dimy)
     
-    
-    
+    ! prepare plans for DFT
+    if (MS_fft_dims(1)/=MS_dimy .or. MS_fft_dims(2)/=MS_dimx) then
+      if ( MS_fft_dims(1)>0 .or. MS_fft_dims(2)>0 ) then
+        call fftwf_free(MS_fft_pdata)
+        call fftwf_destroy_plan(MS_fft_planf)
+        call fftwf_destroy_plan(MS_fft_planb)
+        call fftwf_free(MS_fft_work_pdata)
+        call fftwf_destroy_plan(MS_fft_work_planf)
+        call fftwf_destroy_plan(MS_fft_work_planb)
+        MS_fft_dims = (/0, 0/)
+      end if
+      MS_fft_pdata = fftwf_alloc_complex( int(MS_dimy*MS_dimx, C_SIZE_T) )
+      MS_fft_work_pdata = fftwf_alloc_complex( int(MS_dimy*MS_dimx, C_SIZE_T) )
+      call c_f_pointer(MS_fft_pdata, MS_wave, [MS_dimx,MS_dimy])
+      call c_f_pointer(MS_fft_work_pdata, MS_work, [MS_dimx,MS_dimy])
+      MS_fft_planf = fftwf_plan_dft_2d(MS_dimy, MS_dimx, MS_wave, MS_wave, FFTW_FORWARD, MS_fft_flags)
+      MS_fft_planb = fftwf_plan_dft_2d(MS_dimy, MS_dimx, MS_wave, MS_wave, FFTW_BACKWARD, MS_fft_flags)
+      MS_fft_work_planf = fftwf_plan_dft_2d(MS_dimy, MS_dimx, MS_work, MS_work, FFTW_FORWARD, MS_fft_flags)
+      MS_fft_work_planb = fftwf_plan_dft_2d(MS_dimy, MS_dimx, MS_work, MS_work, FFTW_BACKWARD, MS_fft_flags)
+      MS_fft_dims = (/ MS_dimy, MS_dimx /)
+    end if
     ! set ready state
     MS_status = 1
   else
@@ -523,16 +470,6 @@ SUBROUTINE MS_INIT()
     call MS_ERROR("MultiSlice init failed, invalid parameter:"//trim(smsg),subnum+8)
     return
   end if
-  
-! *** 2017-12-20 JB - no longer needed, detectors are handled by MSAparams
-!  ! standard detector setup
-!  call MS_SetAnnularDetector( MS_detminang, MS_detmaxang, err )
-!  if (err/=0) then
-!    call MS_ERROR("MultiSlice init, failed to setup detector.",subnum+7)
-!    return
-!  end if
-
-  !write(*,*) "postalloc",MS_status
 ! ------------
 
   return
@@ -578,21 +515,18 @@ SUBROUTINE MS_UNINIT()
   if (allocated(MS_slicethick)) then
     deallocate(MS_slicethick)
   end if
-!  if (allocated(MS_phasegrt)) then
-!    deallocate(MS_phasegrt)
-!  end if
-!  if (allocated(MS_phasegrtfe)) then
-!    deallocate(MS_phasegrtfe)
-!  end if
-!  if (allocated(MS_absorbgrt)) then
-!    deallocate(MS_absorbgrt)
-!  end if
   if (allocated(MS_propagator)) then
     deallocate(MS_propagator)
   end if
-!  if (allocated(MS_absorbed)) then
-!    deallocate(MS_absorbed)
-!  end if
+  if ( MS_fft_dims(1)>0 .or. MS_fft_dims(2)>0 ) then
+    call fftwf_free(MS_fft_pdata)
+    call fftwf_destroy_plan(MS_fft_planf)
+    call fftwf_destroy_plan(MS_fft_planb)
+    call fftwf_free(MS_fft_work_pdata)
+    call fftwf_destroy_plan(MS_fft_work_planf)
+    call fftwf_destroy_plan(MS_fft_work_planb)
+    MS_fft_dims = (/0, 0/)
+  end if
 ! ------------
 !  write(unit=*,fmt=*) " > MS_UNINIT: EXIT."
   return
@@ -632,15 +566,7 @@ SUBROUTINE MS_ALLOCSTATICS(nerr)
 
 ! ------------
 ! since these arrays are always of same size, no deallocation is required
-! if they are already allocated, use tham as is
-! --------------
-  if (.not.allocated(MS_sc)) then
-    allocate(MS_sc(FFT_BOUND,FFT_BOUND),stat=asc)
-    if (asc/=0) then
-      ierr = ierr + 1
-      asc = 0
-    end if
-  end if
+! if they are already allocated, use them as is
 ! --------------
   if (.not.allocated(MS_ANGTAB_SIGMOID)) then
     allocate(MS_ANGTAB_SIGMOID(MS_ANGTAB_SIZE),stat=asc)
@@ -651,7 +577,7 @@ SUBROUTINE MS_ALLOCSTATICS(nerr)
   end if
 ! --------------
   if (.not.allocated(MS_TABBED_SCR)) then
-    allocate(MS_TABBED_SCR(1:FFT_BOUND),stat=asc)
+    allocate(MS_TABBED_SCR(1:MS_dimx),stat=asc)
     if (asc/=0) then
       ierr = ierr + 1
       asc = 0
@@ -659,7 +585,7 @@ SUBROUTINE MS_ALLOCSTATICS(nerr)
   end if
 ! --------------
   if (.not.allocated(MS_TABBED_USC)) then
-    allocate(MS_TABBED_USC(1:FFT_BOUND),stat=asc)
+    allocate(MS_TABBED_USC(1:MS_dimx),stat=asc)
     if (asc/=0) then
       ierr = ierr + 1
       asc = 0
@@ -667,7 +593,7 @@ SUBROUTINE MS_ALLOCSTATICS(nerr)
   end if
 ! --------------
   if (.not.allocated(MS_TABBED_SCR2)) then
-    allocate(MS_TABBED_SCR2(1:FFT_BOUND),stat=asc)
+    allocate(MS_TABBED_SCR2(1:MS_dimy),stat=asc)
     if (asc/=0) then
       ierr = ierr + 1
       asc = 0
@@ -675,7 +601,7 @@ SUBROUTINE MS_ALLOCSTATICS(nerr)
   end if
 ! --------------
   if (.not.allocated(MS_TABBED_USC2)) then
-    allocate(MS_TABBED_USC2(1:FFT_BOUND),stat=asc)
+    allocate(MS_TABBED_USC2(1:MS_dimy),stat=asc)
     if (asc/=0) then
       ierr = ierr + 1
       asc = 0
@@ -683,7 +609,7 @@ SUBROUTINE MS_ALLOCSTATICS(nerr)
   end if
 ! --------------
   if (.not.allocated(MS_wave_in)) then
-    allocate(MS_wave_in(FFT_BOUND,FFT_BOUND),stat=asc)
+    allocate(MS_wave_in(MS_dimx,MS_dimy),stat=asc)
     if (asc/=0) then
       ierr = ierr + 1
       asc = 0
@@ -691,44 +617,12 @@ SUBROUTINE MS_ALLOCSTATICS(nerr)
   end if
 ! --------------
   if (.not.allocated(MS_wave_in_bk)) then
-    allocate(MS_wave_in_bk(FFT_BOUND,FFT_BOUND),stat=asc)
+    allocate(MS_wave_in_bk(MS_dimx,MS_dimy),stat=asc)
     if (asc/=0) then
       ierr = ierr + 1
       asc = 0
     end if
   end if
-! --------------
-  if (.not.allocated(MS_wave)) then
-    allocate(MS_wave(FFT_BOUND,FFT_BOUND),stat=asc)
-    if (asc/=0) then
-      ierr = ierr + 1
-      asc = 0
-    end if
-  end if
-! --------------
-  if (.not.allocated(MS_wavei)) then
-    allocate(MS_wavei(FFT_BOUND,FFT_BOUND),stat=asc)
-    if (asc/=0) then
-      ierr = ierr + 1
-      asc = 0
-    end if
-  end if
-!! --------------
-!  if (.not.allocated(MS_detarea)) then
-!    allocate(MS_detarea(FFT_BOUND,FFT_BOUND),stat=asc)
-!    if (asc/=0) then
-!      ierr = ierr + 1
-!      asc = 0
-!    end if
-!  end if
-!! --------------
-!  if (.not.allocated(MS_detcols)) then
-!    allocate(MS_detcols(3,FFT_BOUND),stat=asc)
-!    if (asc/=0) then
-!      ierr = ierr + 1
-!      asc = 0
-!    end if
-!  end if
 ! ------------
 
 ! ------------
@@ -739,7 +633,6 @@ SUBROUTINE MS_ALLOCSTATICS(nerr)
 ! ------------
 
 ! ------------
-  MS_sc = c0
   MS_ANGTAB_SIGMOID = 0.0
   MS_TABBED_SCR = 0
   MS_TABBED_USC = 0
@@ -748,9 +641,7 @@ SUBROUTINE MS_ALLOCSTATICS(nerr)
   MS_wave_in = c0
   MS_wave_in_bk = c0
   MS_wave = c0
-  MS_wavei = c0
-!  MS_detarea = 0
-!  MS_detcols = 0
+  !MS_wavei = c0
 ! ------------
 
 ! ------------
@@ -787,15 +678,6 @@ SUBROUTINE MS_DEALLOCSTATICS(nerr)
 ! ------------
 
 ! ------------
-! --------------
-  if (allocated(MS_sc)) then
-    deallocate(MS_sc,stat=asc)
-    if (asc/=0) then
-      ierr = ierr + 1
-      asc = 0
-    end if
-  end if
-! --------------
   if (allocated(MS_ANGTAB_SIGMOID)) then
     deallocate(MS_ANGTAB_SIGMOID,stat=asc)
     if (asc/=0) then
@@ -851,39 +733,8 @@ SUBROUTINE MS_DEALLOCSTATICS(nerr)
       asc = 0
     end if
   end if
-! --------------
-  if (allocated(MS_wave)) then
-    deallocate(MS_wave,stat=asc)
-    if (asc/=0) then
-      ierr = ierr + 1
-      asc = 0
-    end if
-  end if
-! --------------
-  if (allocated(MS_wavei)) then
-    deallocate(MS_wavei,stat=asc)
-    if (asc/=0) then
-      ierr = ierr + 1
-      asc = 0
-    end if
-  end if
-!! --------------
-!  if (allocated(MS_detarea)) then
-!    deallocate(MS_detarea,stat=asc)
-!    if (asc/=0) then
-!      ierr = ierr + 1
-!      asc = 0
-!    end if
-!  end if
-!! --------------
-!  if (allocated(MS_detcols)) then
-!    deallocate(MS_detcols,stat=asc)
-!    if (asc/=0) then
-!      ierr = ierr + 1
-!      asc = 0
-!    end if
-!  end if
 ! ------------
+  
 
 ! ------------
   if (ierr/=0) then
@@ -1005,10 +856,8 @@ END SUBROUTINE MS_TABBED_SIGMOID
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE MS_SETTAB_SCR(ndim)
-! function: presets scramble tab
-! -------------------------------------------------------------------- !
-! parameter: integer*4 :: ndim
+SUBROUTINE MS_SETTAB_SCR(nx, ny)
+! function: presets scramble tabs
 ! -------------------------------------------------------------------- !
 !!!!!!! BE SHURE TO CALL BEFORE USING MS_TABBED_SCR !!!!!!!!
 ! -------------------------------------------------------------------- !
@@ -1018,69 +867,83 @@ SUBROUTINE MS_SETTAB_SCR(ndim)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 500
-  integer*4 :: ndim, ndim2, ndim2m1
+  integer*4, intent(in) :: nx, ny
+  integer*4 :: n2, n2m1
   integer*4 :: i
 ! ------------
 
 ! ------------
-! INIT
-!  write(unit=*,fmt=*) " > MS_SETTAB_SCR: INIT."
-  ndim2 = ndim/2
-  ndim2m1 = ndim2-1
+! HORIZONTALS (X)
+  if (nx > 0 .and. nx <= MS_dimx) then
+    n2 = nx/2
+    n2m1 = n2-1
+    MS_TABBED_SCR = 1
+    do i=1, nx
+      MS_TABBED_SCR(i)=mod((i+n2m1),nx)-n2
+    end do
+  end if
+! ------------
+  
+! ------------
+! VERTICALS (Y)
+  if (ny > 0 .and. ny <= MS_dimy) then
+    n2 = ny/2
+    n2m1 = n2-1
+    MS_TABBED_SCR2 = 1
+    do i=1, ny
+      MS_TABBED_SCR2(i)=mod((i+n2m1),ny)-n2
+    end do
+  end if
 ! ------------
 
 ! ------------
-! parameter preset
-  MS_TABBED_SCR = 1
-  do i=1,ndim
-    MS_TABBED_SCR(i)=mod((i+ndim2m1),ndim)-ndim2
-  end do
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > MS_SETTAB_SCR: EXIT."
   return
 
 END SUBROUTINE MS_SETTAB_SCR
 !**********************************************************************!
 
 
-
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE MS_SETTAB_USC(ndim)
-! function: presets unscramble tab
+SUBROUTINE MS_SETTAB_USC(nx, ny)
+! function: presets unscramble tabs
 ! -------------------------------------------------------------------- !
-! parameter: integer*4 :: ndim
-! -------------------------------------------------------------------- !
-!!!!!!! BE SHURE TO CALL BEFORE USING MS_TABBED_USC !!!!!!!!
+!!!!!!! BE SHURE TO CALL BEFORE USING MS_TABBED_SCR !!!!!!!!
 ! -------------------------------------------------------------------- !
 
   implicit none
 
 ! ------------
 ! DECLARATION
-  integer*4, parameter :: subnum = 600
-  integer*4 :: ndim, ndim2
+  integer*4, parameter :: subnum = 500
+  integer*4, intent(in) :: nx, ny
+  integer*4 :: n2
   integer*4 :: i
 ! ------------
 
 ! ------------
-! INIT
-!  write(unit=*,fmt=*) " > MS_SETTAB_USC: INIT."
-  ndim2 = ndim/2
+! HORIZONTALS (X)
+  if (nx > 0 .and. nx <= MS_dimx) then
+    n2 = nx/2
+    MS_TABBED_USC = 1
+    do i=1, nx
+      MS_TABBED_USC(i)=mod(i-1+n2,nx)+1
+    end do
+  end if
+! ------------
+  
+! ------------
+! VERTICALS (Y)
+  if (ny > 0 .and. ny <= MS_dimy) then
+    n2 = ny/2
+    MS_TABBED_USC2 = 1
+    do i=1, ny
+      MS_TABBED_USC2(i)=mod(i-1+n2,ny)+1
+    end do
+  end if
 ! ------------
 
 ! ------------
-! parameter preset
-  MS_TABBED_USC = 1
-  do i=1,ndim
-    MS_TABBED_USC(i)=mod(i-1+ndim2,ndim)+1
-  end do
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > MS_SETTAB_USC: EXIT."
   return
 
 END SUBROUTINE MS_SETTAB_USC
@@ -1088,224 +951,23 @@ END SUBROUTINE MS_SETTAB_USC
 
 
 
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE MS_SETTAB_SCR2(ndim)
-! function: presets scramble tab
-! -------------------------------------------------------------------- !
-! parameter: integer*4 :: ndim
-! -------------------------------------------------------------------- !
-!!!!!!! BE SHURE TO CALL BEFORE USING MS_TABBED_SCR2 !!!!!!!!
-! -------------------------------------------------------------------- !
-
-  implicit none
-
-! ------------
-! DECLARATION
-  integer*4, parameter :: subnum = 10500
-  integer*4 :: ndim, ndim2, ndim2m1
-  integer*4 :: i
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > MS_SETTAB_SCR2: INIT.",ndim
-  ndim2 = ndim/2
-  ndim2m1 = ndim2-1
-! ------------
-
-! ------------
-! parameter preset
-  MS_TABBED_SCR2 = 1
-  do i=1,ndim
-    MS_TABBED_SCR2(i)=mod((i+ndim2m1),ndim)-ndim2
-  end do
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > MS_SETTAB_SCR2: EXIT."
-  return
-
-END SUBROUTINE MS_SETTAB_SCR2
-!**********************************************************************!
-
-
-
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE MS_SETTAB_USC2(ndim)
-! function: presets unscramble tab
-! -------------------------------------------------------------------- !
-! parameter: integer*4 :: ndim
-! -------------------------------------------------------------------- !
-!!!!!!! BE SHURE TO CALL BEFORE USING MS_TABBED_USC2 !!!!!!!!
-! -------------------------------------------------------------------- !
-
-  implicit none
-
-! ------------
-! DECLARATION
-  integer*4, parameter :: subnum = 10600
-  integer*4 :: ndim, ndim2
-  integer*4 :: i
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > MS_SETTAB_USC2: INIT."
-  ndim2 = ndim/2
-! ------------
-
-! ------------
-! parameter preset
-  MS_TABBED_USC2 = 1
-  do i=1,ndim
-    MS_TABBED_USC2(i)=mod(i-1+ndim2,ndim)+1
-  end do
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > MS_SETTAB_USC2: EXIT."
-  return
-
-END SUBROUTINE MS_SETTAB_USC2
-!**********************************************************************!
-
-
-
-! *** COMMENTED OUT: 2017-12-20 JB -- no longer needed
-!!**********************************************************************!
-!!**********************************************************************!
-!SUBROUTINE MS_SetAnnularDetector(r0, r1, nerr)
-!! function: Setup of an annular detector for the current slice dimension
-!! -------------------------------------------------------------------- !
-!! parameter:
-!!   INPUT:
-!!     real*4 :: r0, r1          ! detector radii [mrad]
-!!   IN/OUTPUT:
-!!     integer*4 :: nerr         ! error code
-!!                               ! 0 = success
-!! -------------------------------------------------------------------- !
-!
-!  implicit none
-!
-!! ------------
-!! DECLARATION
-!  integer*4, parameter :: subnum = 2500
-!
-!  integer*4, intent(inout) :: nerr
-!  real*4, intent(in) :: r0, r1
-!  
-!  integer*4 :: i, j, ndimx, ndim2x, ndimy, ndim2y
-!  real*4 :: itogx, itogy, itowx, itowy
-!  real*4 :: wt0, wt02, wt1, wt12, wx, wy, wx2, w2
-!! ------------
-!
-!! ------------
-!! INIT
-!!  write(unit=*,fmt=*) " > MS_SetAnnularDetector: INIT."
-!  nerr = 0
-!  ! check allocation status
-!  if (MS_status<1) then
-!    nerr = 1
-!    call MS_ERROR("Module not initialized.",subnum+nerr)
-!    return
-!  end if
-!  if (.not.(allocated(MS_detarea).and.allocated(MS_detcols))) then
-!    nerr = 2
-!    call MS_ERROR("Detector arrays not allocated.",subnum+nerr)
-!    return
-!  end if
-!  if (MS_dimx<=0.or.MS_dimy<=0) then
-!    nerr = 3
-!    call MS_ERROR("Invalid array size.",subnum+nerr)
-!    return
-!  end if
-!! ------------
-!
-!! ------------
-!! prepare parameters
-!  wt0 = MS_detminang*0.001
-!  wt02 = wt0*wt0
-!  wt1 = MS_detmaxang*0.001
-!  wt12 = wt1*wt1
-!  ndimx = MS_dimx
-!  ndim2x = ndimx/2
-!  ndimy = MS_dimy
-!  ndim2y = ndimy/2
-!  
-!  ! set Fourier-space sampling
-!  itogx = 0.5/MS_samplingx/real(ndim2x)
-!  itowx = itogx*MS_lamb
-!  itogy = 0.5/MS_samplingy/real(ndim2y)
-!  itowy = itogy*MS_lamb
-!  
-!  ! init clear array data
-!  MS_detarea(:,:) = 0
-!  MS_detcols(:,:) = 0
-!  
-!  ! loop through calculation array in fourier space
-!  do j=1, MS_dimx
-!    MS_detcols(2,j) = MS_dimy
-!    wx = itowx*MS_TABBED_SCR(j) ! get wave frequency-x
-!    wx2 = wx*wx
-!    do i=1, MS_dimy
-!      wy = itowy*MS_TABBED_SCR2(i) ! get wave frequency-y
-!      w2 = wx2+wy*wy
-!      if ((w2>=wt02).and.(w2<wt12)) then ! detector range: alpha_min <= alpha < alpha_max
-!        MS_detarea(i,j) = 1
-!        MS_detcols(1,j) = MS_detcols(1,j) + 1
-!        MS_detcols(2,j) = min(MS_detcols(2,j),i)
-!        MS_detcols(3,j) = max(MS_detcols(3,j),i)
-!      end if
-!    end do
-!  end do
-!
-!! ------------
-!!  write(unit=*,fmt=*) " > MS_SetAnnularDetector: EXIT."
-!  return
-!
-!END SUBROUTINE MS_SetAnnularDetector
-!!**********************************************************************!
-
-
 
 !**********************************************************************!
 !**********************************************************************!
 SUBROUTINE MS_SetIncomingWave(wave)
-! function: copies incoming wave data to internal memory
+! function: copies incoming wave data to internal backup memory
 ! -------------------------------------------------------------------- !
-! parameter: complex*8, dimension (MS_dimy,MS_dimx) :: wave
+! parameter: complex*8, dimension (MS_dimx, MS_dimy) :: wave
 ! -------------------------------------------------------------------- !
 
   implicit none
 
-! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 700
-  complex*8, intent(in), dimension(MS_dimy,MS_dimx) :: wave
-  integer*4 :: i, j
-  complex*8 :: cval
-! ------------
+  complex*8, intent(in), dimension(MS_dimx,MS_dimy) :: wave
 
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > MS_SetIncomingWave: INIT."
-! clear old data
-  MS_wave_in_bk(:,:) = cmplx(0.0,0.0)
-! ------------
+  MS_wave_in_bk = wave
 
-! ------------
-  do j=1, MS_dimx
-    do i=1, MS_dimy
-      cval = wave(i,j)
-      MS_wave_in_bk(i,j) = cval
-    end do
-  end do
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > MS_SetIncomingWave: EXIT."
   return
 
 END SUBROUTINE MS_SetIncomingWave
@@ -1331,9 +993,9 @@ SUBROUTINE MS_OffsetIncomingWave(dx,dy,dz)
 ! DECLARATION
   integer*4, parameter :: subnum = 800
   real*4 :: dx, dy, dz
-  real*4 :: pfac, wx, wy, w2x, w2
-  real*4 :: chi, chix, itowx, itowy, ffac
-  integer*4 :: i, j, ndimx, ndimy, ndim2x, ndim2y
+  real*4 :: pfac, wx, wy, w2y, w2
+  real*4 :: chi, chiy, itowx, itowy, ffac
+  integer*4 :: i, j, nx, ny
   complex*8 :: cval
 ! ------------
 
@@ -1342,32 +1004,31 @@ SUBROUTINE MS_OffsetIncomingWave(dx,dy,dz)
 !  write(unit=*,fmt=*) " > MS_OffsetIncomingWave: INIT."
 ! catch zero offset
   if (dx==0.0 .and. dy==0.0 .and. dz==0.0) then
-    MS_wave_in(1:MS_dimy,1:MS_dimx) = MS_wave_in_bk(1:MS_dimy,1:MS_dimx)
+    MS_wave_in = MS_wave_in_bk
     return
   end if
 ! clear old data
-  MS_wave_in(:,:) = cmplx(0.0,0.0)
+  MS_wave_in = cmplx(0.0,0.0)
 ! prepare parameters
-  ndimx = MS_dimx
-  ndim2x = ndimx/2
-  ndimy = MS_dimy
-  ndim2y = ndimy/2
+  nx = MS_dimx
+  ny = MS_dimy
 ! set Fourier-space sampling
-  itowx = 0.5/MS_samplingx/real(ndim2x)*MS_lamb
-  itowy = 0.5/MS_samplingy/real(ndim2y)*MS_lamb
+  itowx = MS_lamb / (MS_samplingx*real(nx))
+  itowy = MS_lamb / (MS_samplingy*real(ny))
   pfac = 2.0*MS_pi/MS_lamb
   ffac = 0.5*dz
 ! ------------
 
 ! ------------
-  do j=1, MS_dimx
-    wx = MS_TABBED_SCR(j)*itowx
-    chix = wx*dx
-    w2x = wx*wx
-    do i=1, MS_dimy
-      wy = MS_TABBED_SCR2(i)*itowy
-      w2 = w2x + wy*wy
-      chi = pfac*(wy*dy+chix+ffac*w2)
+! multiply shifting and defocussing phase plate
+  do j=1, ny
+    wy = MS_TABBED_SCR2(j)*itowy
+    chiy = wy*dy
+    w2y = wy*wy
+    do i=1, nx
+      wx = MS_TABBED_SCR(i)*itowx
+      w2 = w2y + wx*wx
+      chi = pfac*(wx*dx+chiy+ffac*w2)
       cval = MS_wave_in_bk(i,j)*cmplx(cos(chi),sin(-chi))
       MS_wave_in(i,j) = cval
     end do
@@ -1400,9 +1061,9 @@ SUBROUTINE MS_ShiftWave(wave,dx,dy)
   real*4, intent(in) :: dx, dy
   complex*8, intent(inout) :: wave(MS_dimx,MS_dimy)
   
-  real*4 :: pfac, wx, wy
-  real*4 :: chi, chix, itowx, itowy
-  integer*4 :: i, j, ndimx, ndimy, ndim2x, ndim2y
+  real*4 :: rsca, pfac, wx, wy
+  real*4 :: chi, chiy, itowx, itowy
+  integer*4 :: i, j, nx, ny
   complex*8 :: cval
 ! ------------
 
@@ -1413,47 +1074,39 @@ SUBROUTINE MS_ShiftWave(wave,dx,dy)
   if (dx==0.0 .and. dy==0.0) return
   if (MS_status==0) return
 ! prepare parameters
-  ndimx = MS_dimx
-  ndim2x = ndimx/2
-  ndimy = MS_dimy
-  ndim2y = ndimy/2
+  nx = MS_dimx
+  ny = MS_dimy
 ! set Fourier-space sampling
-  itowx = 0.5/MS_samplingx/real(ndim2x)*MS_lamb
-  itowy = 0.5/MS_samplingy/real(ndim2y)*MS_lamb
+  itowx = MS_lamb / (MS_samplingx*real(nx))
+  itowy = MS_lamb / (MS_samplingy*real(ny))
   pfac = 2.0*MS_pi/MS_lamb
+  rsca = 1.0 / real(nx*ny)
 ! ------------
 
 ! copy data
-  do j=1, ndimy
-    do i=1, ndimx
-      MS_sc(i,j) = wave(i,j)
-    end do
-  end do
+  MS_work = wave
 ! transform to fourier space
-  call MS_FFT(MS_sc,ndimx,ndimy,'for')
+  call fftwf_execute_dft(MS_fft_work_planf,MS_work,MS_work)
 
 ! ------------
-  do j=1, MS_dimx
-    wx = MS_TABBED_SCR(j)*itowx
-    chix = wx*dx
-    do i=1, MS_dimy
-      wy = MS_TABBED_SCR2(i)*itowy
-      chi = pfac*(wy*dy+chix)
-      cval = cmplx(cos(chi),sin(-chi))
-      MS_sc(i,j) = MS_sc(i,j)*cval
+! apply the shifting phase plate
+  do j=1, MS_dimy
+    wy = MS_TABBED_SCR2(j)*itowy
+    chiy = wy*dy
+    do i=1, MS_dimx
+      wx = MS_TABBED_SCR(i)*itowx
+      chi = pfac*(wx*dx+chiy)
+      cval = cmplx(cos(chi),sin(-chi))*rsca
+      MS_work(i,j) = MS_work(i,j)*cval
     end do
   end do
 ! ------------
 
 ! transform to real space
-  call MS_FFT(MS_sc,ndimx,ndimy,'bac')
+  call fftwf_execute_dft(MS_fft_work_planf,MS_work,MS_work)
   
 ! copy data
-  do j=1, ndimy
-    do i=1, ndimx
-      wave(i,j) = MS_sc(i,j)
-    end do
-  end do
+  wave(i,j) = MS_work(i,j)
 
 ! ------------
 !  write(unit=*,fmt=*) " > MS_ShiftWave: EXIT."
@@ -1482,13 +1135,6 @@ SUBROUTINE MS_PrepareSlice(nidx, sthick)
   integer*4, parameter :: subnum = 900
   integer*4 :: nidx
   real*4 :: sthick
-  !complex*8, dimension(MS_dimx, MS_dimy) :: sdata
-  
-  !integer*4 :: ndimx,ndimy, ndim2x,ndim2y, i, j
-  !real*4 :: pfac, wx, wy, wx2, w2, chi,itowx,itowy,itogx,itogy, power
-  !real*4 :: wthresh, wmax, ramp, rrescale, rrescalefe
-  !real*4 :: otx, oty, pt0
-  !complex*8 :: cval, cval0, cval1
 ! ------------
 
 ! ------------
@@ -1544,58 +1190,48 @@ SUBROUTINE MS_SliceApplyBuni( vbuni, ndimx, ndimy, cpot, nerr)
   integer*4 :: i, j, i1, j1 ! iterators
   integer*4 :: nx2, ny2 ! nyquist numbers
   real*4 :: itogx, itogy ! Fourier-space sampling rate of potentials
-  real*4 :: gx, gy, gx2, g2 ! spatial frequencies
-  real*4 :: dwa, dwf ! Debye-Waller factor and temp values
+  real*4 :: gx, gy, gy2, g2 ! spatial frequencies
+  real*4 :: dwa, dwf, rsca ! Debye-Waller factor and temp values
 
 ! ---------------
 ! init
   nerr = 0
   if (MS_status<1) goto 101
-  MS_sc = cmplx(0.0,0.0)
+  if (ndimx<=0 .or. ndimy<=0) goto 102
   nx2 = (ndimx-modulo(ndimx,2))/2
   ny2 = (ndimy-modulo(ndimy,2))/2
-  itogx = 1./MS_samplingx/real(ndimx)
-  itogy = 1./MS_samplingy/real(ndimy)
+  itogx = 1./(MS_samplingx*real(ndimx))
+  itogy = 1./(MS_samplingy*real(ndimy))
   dwa = -0.25 * vbuni
-  do j=1, ndimy
-    MS_sc(1:ndimx,j) = cpot(1:ndimx,j)
-  end do
+  rsca = 1.0 / real(ndimx*ndimy)
 ! ---------------
 
 ! ---------------
 ! transform the potential to Fourier space
-  call MS_FFT(MS_sc, ndimx, ndimy, 'for')
+! (using the slow variant since the case is rare and cpot must not be on wave dimensions)
+  call MS_FFT(cpot, ndimx, ndimy, 1)
 ! ---------------
 
 ! ---------------
 ! apply the DWF
 ! FT-potential is scrambled and transposed in MS_sc
-  do i=1, ndimx
-    ! get x-frequency
-    i1 = modulo(i-1+nx2,ndimx)-nx2
-    gx = itogx*real(i1)
-    gx2 = gx*gx
-    do j=1, ndimy
-      ! get y-frquency
-      j1 = modulo(j-1+ny2,ndimy)-ny2
-      gy = itogy*real(j1)
-      g2 = gx2+gy*gy
-      dwf = exp( dwa * g2 )
-      MS_sc(j,i) = MS_sc(j,i)*dwf
+  do j=1, ndimy ! get y-frequency
+    j1 = modulo(j - 1 + ny2, ndimy) - ny2
+    gy = itogy*real(j1)
+    gy2 = gy*gy
+    do i=1, ndimx ! get x-frquency
+      i1 = modulo(i - 1 + nx2, ndimx) - nx2
+      gx = itogx*real(i1)
+      g2 = gy2+gx*gx
+      dwf = exp( dwa * g2 ) * rsca
+      cpot(i,j) = cpot(i,j) * dwf
     end do
   end do
 ! ---------------
 
 ! ---------------
 ! transform the potential back to real space
-  call MS_FFT(MS_sc, ndimx, ndimy, 'bac')
-! ---------------
-
-! ---------------
-! copy result to the output array
-  do j=1, ndimy
-    cpot(1:ndimx,j) = MS_sc(1:ndimx,j)
-  end do
+  call MS_FFT(cpot, ndimx, ndimy, -1)
 ! ---------------
 
   goto 1000
@@ -1604,6 +1240,9 @@ SUBROUTINE MS_SliceApplyBuni( vbuni, ndimx, ndimy, cpot, nerr)
 ! error handling
 101 nerr = 1
   call MS_ERROR("MS_SliceApplyBuni: Module not initialized.", subnum+nerr)
+  goto 1000
+102 nerr = 2
+  call MS_ERROR("MS_SliceApplyBuni: Invalid size of potential grid.", subnum+nerr)
   goto 1000
 
 ! ---------------
@@ -1684,7 +1323,7 @@ SUBROUTINE MS_SlicePot2Pgr( ht, dz, nabf, vabf, nbuni, vbuni, &
 ! calculations
   do i=1, ndimz ! loop over all slices in the stack
     ctmp(1:ndimx,1:ndimy) = slcdat(1:ndimx,1:ndimy,i)
-! -----------------
+  ! -----------------
     if (nbuni/=0) then ! apply Debye-Waller factor
       write(unit=MS_msg,fmt=*) vbuni
       call PostDebugMessage( "Applying global Debye-Waller factors with Biso = "// &
@@ -1692,13 +1331,13 @@ SUBROUTINE MS_SlicePot2Pgr( ht, dz, nabf, vabf, nbuni, vbuni, &
       call MS_SliceApplyBuni( vbuni, ndimx, ndimy, ctmp, nerr)
       if (nerr/=0) goto 102
     end if 
-! -----------------
+  ! -----------------
 
-! -----------------
+  ! -----------------
   ! transform & transfer back
   ! here is the actual potential-to-phase-grating transformation
     slcdat(1:ndimx,1:ndimy,i) = EXP( prefac * ctmp(1:ndimx,1:ndimy) )
-! -----------------
+  ! -----------------
 
   end do ! loop (i) over all slices
 ! ---------------
@@ -1746,10 +1385,10 @@ SUBROUTINE MS_PreparePropagators()
   real*8, parameter :: dd2r = 0.1745329252D-001
   real*8, parameter :: dpi  = 3.141592653589D+000
   
-  integer*4 :: ndimx,ndimy, ndim2x,ndim2y, i, j, k, err, addid, matchid
-  real*8 :: pfac, wx, wy, wx2, w2, ux, uy, ux2, u2
+  integer*4 :: nx, ny, i, j, k, err, addid, matchid
+  real*8 :: pfac, wx, wy, wy2, w2, ux, uy, uy2, u2
   real*8 :: chi, itowx, itowy, itogx, itogy !, power
-  real*8 :: wthresh, wmax, otx, oty, pt0
+  real*8 :: wthresh, wmax, otx, oty, pt0, rsca
   complex*8 :: cval, cval0
   character(len=400) :: stmp
   real*4 :: isthick(MS_slicenum)
@@ -1761,16 +1400,14 @@ SUBROUTINE MS_PreparePropagators()
   if (MS_status<1) goto 101
   if (MS_slicenum<1) goto 102
 ! prepare parameters
-  ndimx = MS_dimx
-  ndim2x = ndimx/2
-  ndimy = MS_dimy
-  ndim2y = ndimy/2
+  nx = MS_dimx
+  ny = MS_dimy
 ! set Fourier-space sampling
-  itogx = 0.5D+0/dble(MS_samplingx)/dble(ndim2x)
+  itogx = 1.0D+0/dble(MS_samplingx*nx)
   itowx = itogx*dble(MS_lamb)
-  itogy = 0.5D+0/dble(MS_samplingy)/dble(ndim2y)
+  itogy = 1.0D+0/dble(MS_samplingy*ny)
   itowy = itogy*dble(MS_lamb)
-  wmax = min(itowx*ndim2x,itowy*ndim2y)
+  wmax = min(itowx*nx/2,itowy*ny/2)
   wthresh = dble(MS_RELAPERTURE)*wmax
   wthresh = wthresh*wthresh
   cval0 = cmplx(0.0,0.0)
@@ -1778,6 +1415,7 @@ SUBROUTINE MS_PreparePropagators()
   oty = dble(MS_objtilty)* dd2r ! object tilt y in radian
   !MS_slicethick(nidx) = sthick
   pfac = dpi/dble(MS_lamb)*dcos(dsqrt(otx*otx+oty*oty))
+  rsca = 1.0D+0/dble(nx*ny)
 ! ------------
 
 
@@ -1823,7 +1461,7 @@ SUBROUTINE MS_PreparePropagators()
 ! allocate propagator array
 ! fresnel propagators (fourier-space, scrambled and transposed)
   err = 0
-  allocate(MS_propagator(1:MS_dimy,1:MS_dimx,1:MS_propnum),STAT=err)
+  allocate(MS_propagator(1:MS_dimx,1:MS_dimy,1:MS_propnum),STAT=err)
   if (err/=0) goto 104
   MS_propagator = cval0
 ! ------------
@@ -1832,17 +1470,16 @@ SUBROUTINE MS_PreparePropagators()
 ! setup fresnel propagators
   pt0 = pfac*(otx*otx+oty*oty) ! Pi/lambda * Cos[tilt] * t^2
   do k=1, MS_propnum ! L+ all propagators
-  do j=1, ndimx ! L+ all lines ! x frequencies
-    wx = dble(MS_TABBED_SCR(j))*itowx ! wx = kx*lambda
-    wx2 = wx*wx
-    ux = wx - otx ! ux -> tilted
-    ux2 = ux*ux
-    do i=1, ndimy ! L+ all columns ! y frequencies
-      wy = dble(MS_TABBED_SCR2(i))*itowy ! wy = ky*lambda
-      w2 = wx2+wy*wy
+  do j=1, ny ! L+ all lines ! y frequencies
+    wy = dble(MS_TABBED_SCR2(j))*itowy ! wy = ky*lambda
+    wy2 = wy*wy
+    uy = wy - oty ! uy -> tilted
+    uy2 = uy*uy
+    do i=1, nx ! L+ all columns ! x frequencies
       wx = dble(MS_TABBED_SCR(i))*itowx ! wx = kx*lambda
-      uy = wy - oty ! uy -> tilted
-      u2 = ux2+uy*uy
+      w2 = wy2+wx*wx
+      ux = wx - otx ! ux -> tilted
+      u2 = uy2+ux*ux
       if (w2>wthresh) then ! hard aperture in wave frame
         MS_propagator(i,j,k) = cval0
       else
@@ -1850,7 +1487,7 @@ SUBROUTINE MS_PreparePropagators()
                                              !                                        ^Prop   ^Tilt
                                              ! The tilted propagator effectively shifts the slices
                                              ! against each other along the tilt direction.
-        cval = cmplx(dcos(chi),-dsin(chi),4)
+        cval = cmplx(dcos(chi),-dsin(chi),4)*rsca
         MS_propagator(i,j,k) = cval !cmplx(cos(chi),sin(chi),4)
       end if
     end do ! L- all columns
@@ -1858,7 +1495,7 @@ SUBROUTINE MS_PreparePropagators()
   if (MS_DEBUG_EXPORT/=0) then
     ! debug output of fresnel propagator functions
     write(unit=stmp,fmt='("fre_",I3.3,".dat")') k
-    call SaveDataC8(trim(stmp), MS_propagator(1:MS_dimy,1:MS_dimx,k),MS_dimx*MS_dimy,err)
+    call SaveDataC8(trim(stmp), MS_propagator(1:nx,1:ny,k),nx*ny,err)
   end if
   end do ! L- all propagators
 ! ------------
@@ -1904,8 +1541,8 @@ SUBROUTINE MS_PreparePropagators2()
   real*8, parameter :: dd2r = 0.1745329252D-001
   real*8, parameter :: dpi  = 3.141592653589D+000
   
-  integer*4 :: ndimx,ndimy, ndim2x,ndim2y, i, j, k, err, addid, matchid
-  real*8 :: pfac, gx, gy, gx2, g2
+  integer*4 :: nx,ny, i, j, k, err, addid, matchid
+  real*8 :: rsca, pfac, gx, gy, gy2, g2
   real*8 :: chi, itogx, itogy ! , power !, itowx, itowy, 
   real*8 :: gthresh, gmax, otx, oty !, pt0
   real*8 :: ot, od, dt, dd ! object and diffraction tilt angles and directions [rad]
@@ -1921,16 +1558,14 @@ SUBROUTINE MS_PreparePropagators2()
   if (MS_status<1) goto 101
   if (MS_slicenum<1) goto 102
 ! prepare parameters
-  ndimx = MS_dimx
-  ndim2x = ndimx/2
-  ndimy = MS_dimy
-  ndim2y = ndimy/2
+  nx = MS_dimx
+  ny = MS_dimy
 ! set Fourier-space sampling
-  itogx = 0.5D+0/dble(MS_samplingx)/dble(ndim2x)
+  itogx = 1.0D+0 / dble(MS_samplingx*nx)
 !  itowx = itogx*dble(MS_lamb)
-  itogy = 0.5D+0/dble(MS_samplingy)/dble(ndim2y)
+  itogy = 1.0D+0 / dble(MS_samplingy*ny)
 !  itowy = itogy*dble(MS_lamb)
-  gmax = min(itogx*ndim2x,itogy*ndim2y)
+  gmax = min(itogx*nx/2,itogy*ny/2)
   gthresh = dble(MS_RELAPERTURE)*gmax
   gthresh = gthresh*gthresh
   cval0 = cmplx(0.0,0.0)
@@ -1939,6 +1574,7 @@ SUBROUTINE MS_PreparePropagators2()
   !MS_slicethick(nidx) = sthick
   !pfac = dpi/dble(MS_lamb)*dcos(dsqrt(otx*otx+oty*oty))
   pfac = 2.0D+0 * dpi / dble(MS_lamb)
+  rsca = 1.0D+0 / dble(nx*ny) ! rescaling to keep the norm
   ot = dsqrt(otx*otx+oty*oty) ! object tilt magnitude [rad]
   cot = dcos(ot)
   sot = dsin(ot)
@@ -1988,7 +1624,7 @@ SUBROUTINE MS_PreparePropagators2()
 ! allocate propagator array
 ! fresnel propagators (fourier-space, scrambled and transposed)
   err = 0
-  allocate(MS_propagator(1:MS_dimy,1:MS_dimx,1:MS_propnum),STAT=err)
+  allocate(MS_propagator(1:MS_dimx,1:MS_dimy,1:MS_propnum),STAT=err)
   if (err/=0) goto 104
   MS_propagator = cval0
 ! ------------
@@ -1997,14 +1633,14 @@ SUBROUTINE MS_PreparePropagators2()
 ! setup fresnel propagators
 !  pt0 = pfac*(otx*otx+oty*oty) ! Pi/lambda * Cos[tilt] * t^2
   do k=1, MS_propnum ! L+ all propagators
-  do j=1, ndimx ! L+ all lines ! x frequencies
-    gx = dble(MS_TABBED_SCR(j))*itogx ! gx
-    gx2 = gx*gx
-    do i=1, ndimy ! L+ all columns ! y frequencies
-      gy = dble(MS_TABBED_SCR2(i))*itogy ! gy
-      g2 = gx2+gy*gy
+  do j=1, ny ! L+ all lines ! y frequencies
+    gy = dble(MS_TABBED_SCR2(j))*itogy ! gy
+    gy2 = gy*gy
+    do i=1, nx ! L+ all columns ! x frequencies
+      gx = dble(MS_TABBED_SCR(i))*itogx ! gx
+      g2 = gy2+gx*gx
       if (g2>gthresh) then ! hard aperture in wave frame
-        MS_propagator(i,j,k) = cval0 ! no transfer beyond apertureS
+        MS_propagator(i,j,k) = cval0 ! no transfer beyond aperture
       else
         !dt = 2.D+0*dasin( 0.5D+0 * dble(MS_lamb) * dsqrt(g2) ) ! |theta|
         dt = dasin( dble(MS_lamb) * dsqrt(g2) ) ! |theta|
@@ -2015,7 +1651,7 @@ SUBROUTINE MS_PreparePropagators2()
               &   1.D+0/(cot*dcos(dt) + sot*dcos(od-dd)*dsin(dt) ) &
               & - 1.D+0/cot )
         ! calculate complex phase factor to wavefunction, exp(-I*chi)
-        cval = cmplx( dcos(chi), -dsin(chi), 4)
+        cval = cmplx( dcos(chi), -dsin(chi), 4) * rsca
         ! store the phase factor
         MS_propagator(i,j,k) = cval
         !
@@ -2025,7 +1661,7 @@ SUBROUTINE MS_PreparePropagators2()
   if (MS_DEBUG_EXPORT/=0) then
     ! debug output of propagator functions
     write(unit=stmp,fmt='("pro_",I3.3,".dat")') k
-    call SaveDataC8(trim(stmp), MS_propagator(1:MS_dimy,1:MS_dimx,k),MS_dimx*MS_dimy,err)
+    call SaveDataC8(trim(stmp), MS_propagator(1:nx,1:ny,k),nx*nx,err)
   end if
   end do ! L- all propagators
 ! ------------
@@ -2102,9 +1738,12 @@ END SUBROUTINE MS_SetStack
 !**********************************************************************!
 !**********************************************************************!
 SUBROUTINE MS_FFT(cdata,nx,ny,dir)
-! function: 
-! -------------------------------------------------------------------- !
-! parameter: 
+! function: calculates a complex-to-complex 2D Fourier transform of
+!           cdata with given dimensions nx, ny in directions dir
+!           dir >=0: forwards, <0: backwards
+! remarks : The transformation never applyies a re-normalization of
+!           the data. With each call, there is a factor of
+!           sqrt(nx*ny) applied to each coefficient.
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -2112,59 +1751,37 @@ SUBROUTINE MS_FFT(cdata,nx,ny,dir)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 3400
-  integer*4, intent(in) :: nx,ny
-  complex*8, intent(inout) :: cdata(FFT_BOUND,FFT_BOUND)   
-  
-  character*(*) :: dir
-  integer*4 :: transformed
-  character(len=40) :: tdir
-  external :: ODDCC128S, ODDCC256S, ODDCC512S, ODDCC1024S
-  external :: ODDCC2048S, ODDCC4096S, ODDCC8192S
+  integer*4, intent(in) :: nx, ny, dir
+  complex*8, intent(inout) :: cdata(nx,ny)   
+! fft variables
+  type(C_PTR) :: fft_plan ! local plan
+  type(C_PTR) :: fft_pdata ! local pointers to aligned data
+  complex(C_FLOAT_COMPLEX), pointer :: work(:,:) ! pointer to working array
 ! ------------
 
 ! ------------
-! INIT
-!  write(unit=*,fmt=*) " > MS_FFT: INIT."
-  transformed = 0
-  tdir = dir
+  if (nx <= 0 .or. ny <= 0) return ! skip invalid dimensions
+  fft_pdata = fftwf_alloc_complex( int(ny*nx, C_SIZE_T) )
+  call c_f_pointer(fft_pdata, work, [nx,ny])
+  if (dir >= 0) then ! forward plan
+    fft_plan = fftwf_plan_dft_2d(ny, nx, work, work, FFTW_FORWARD, FFTW_ESTIMATE)
+  else
+    fft_plan = fftwf_plan_dft_2d(ny, nx, work, work, FFTW_BACKWARD, FFTW_ESTIMATE)
+  end if
+  work(1:nx,1:ny) = cdata(1:nx,1:ny)
 ! ------------
 
 ! ------------
-  select case (FFT_BOUND)
-  
-  case (128)
-    call ODDCC128S(cdata,nx,ny,tdir)
-    transformed = 1
-    
-  case (256)
-    call ODDCC256S(cdata,nx,ny,tdir)
-    transformed = 1
-    
-  case (512)
-    call ODDCC512S(cdata,nx,ny,tdir)
-    transformed = 1
-    
-  case (1024)
-    call ODDCC1024S(cdata,nx,ny,tdir)
-    transformed = 1
-  
-  case (2048)
-    call ODDCC2048S(cdata,nx,ny,tdir)
-    transformed = 1
-    
-  case (4096)
-    call ODDCC4096S(cdata,nx,ny,tdir)
-    transformed = 1
-    
-  case (8192)
-    call ODDCC8192S(cdata,nx,ny,tdir)
-    transformed = 1
-  
-  end select ! (MS_FFT)
+  call fftwf_execute_dft(fft_plan, work, work)
 ! ------------
 
 ! ------------
-!  write(unit=*,fmt=*) " > MS_FFT: EXIT."
+  cdata(1:nx,1:ny) = work(1:nx,1:ny)
+! clean up fft
+  call fftwf_free(fft_pdata)
+  call fftwf_destroy_plan(fft_plan)
+  
+! ------------
   return
 
 END SUBROUTINE MS_FFT
@@ -2174,7 +1791,34 @@ END SUBROUTINE MS_FFT
 
 
 
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE MS_FFT_WORK(dir)
+! function: Calculates a DFT of MS_work with direction dir
+! -------------------------------------------------------------------- !
+! parameter: integer*4 :: dir :: transform direction
+!                                >=0 : forwards
+!                                < 0 : backwards
+! -------------------------------------------------------------------- !
 
+  implicit none
+
+  integer*4, parameter :: subnum = 3450
+  integer*4, intent(in) :: dir
+
+  if (MS_fft_dims(1) > 0 .and. MS_fft_dims(2) > 0) then
+    if (dir>=0) then ! forwards fft
+      call fftwf_execute_dft(MS_fft_work_planf, MS_work, MS_work)
+    else ! backwards fft
+      call fftwf_execute_dft(MS_fft_work_planb, MS_work, MS_work)
+    end if
+  end if
+  
+  
+  return
+
+END SUBROUTINE MS_FFT_WORK
+!**********************************************************************!
 
 
 
@@ -2310,17 +1954,6 @@ SUBROUTINE MS_Stop()
   MS_slicecur = -1
 ! ------------
 
-!! ------------
-!! sub multislices for inealstic data
-!  if (MS_propagateall/=0.and.nslmax>1) then ! do it, user said so
-!    do i=1, nslmax-1
-!      nerr = MS_err_num
-!      call MS_PropWaveElastic(MS_absorbed(:,:,i),i,nslmax)
-!      if (nerr/=MS_err_num) return;
-!    end do
-!  end if
-!! ------------
-
 ! ------------
 !  write(unit=*,fmt=*) " > MS_Stop: EXIT."
   return
@@ -2385,7 +2018,8 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
 
 ! ------------
 ! transform to real space
-  call MS_FFT(MS_wave(:,:),MS_dimx,MS_dimy,"back") ! external call from SFFTs.f
+  !call MS_FFT(MS_wave(:,:),MS_dimx,MS_dimy,"back") ! external call from SFFTs.f
+  call fftwf_execute_dft(MS_fft_planb,MS_wave,MS_wave)
 ! ------------
 
 
@@ -2414,37 +2048,21 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
     end do
     
   end if
-
-! COMMENTED OUT 2017-11-08 // wave function export only after propagation !!
-!  ! optional wave export at selected slices
-!  ! this is the place to do it for STEM, before the propagator is applied
-!  if (      (MS_wave_export==1 .or. MS_wave_avg_export==1) &
-!     & .and. 0==modulo(ncurslice,MS_wave_export_pzp) ) then
-!    ! prepare file name
-!    i = index(trim(MS_wave_filenm),".",BACK=.TRUE.)
-!    if (i>0) then
-!      j = len_trim(MS_wave_filenm)
-!      write(unit=stmp,fmt='(A,"_sl",I<MS_nslid>.<MS_nslid>,".wav")') MS_wave_filenm(1:i-1), ncurslice
-!    else 
-!      write(unit=stmp,fmt='(A,"_sl",I<MS_nslid>.<MS_nslid>,".wav")') trim(MS_wave_filenm), ncurslice
-!    end if
-!    MS_wave_avg_idx = ncurslice/MS_wave_export_pzp ! this should always give an integer number
-!    call ExportWaveDirect(trim(stmp))
-!    
-!  end if
-
+! ------------
+  
 
 ! ------------
 ! transform to fourier space
-  call MS_FFT(MS_wave(:,:),MS_dimx,MS_dimy,"for") ! external call from SFFTs.f
+  !call MS_FFT(MS_wave(:,:),MS_dimx,MS_dimy,"for") ! external call from SFFTs.f
+  call fftwf_execute_dft(MS_fft_planf,MS_wave,MS_wave)
 ! ------------
 
 
 
 ! ------------
 ! apply the fresnel propagator
-  do j=1, MS_dimx
-    do i=1, MS_dimy
+  do j=1, MS_dimy
+    do i=1, MS_dimx
       MS_wave(i,j) = MS_wave(i,j)*MS_propagator(i,j,nprop)
     end do
   end do
@@ -2454,7 +2072,7 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
 
 ! ------------
 ! in the end, the wave is given in Fourier-space
-!   scrambled and transposed
+!   scrambled
 ! ------------
 !
 ! optional wave export at selected slices, version 0.52b
@@ -2677,280 +2295,6 @@ SUBROUTINE MS_ApplyPSpatialCoh(rdata,nx,ny,sx,sy,srcrad,ntype)
 
 END SUBROUTINE MS_ApplyPSpatialCoh
 !**********************************************************************!
-
-
-
-!!**********************************************************************!
-!!**********************************************************************!
-!SUBROUTINE MS_PropWaveElastic(wave,nslice1,nslice2)
-!! function: propagates given wave fully elastic starting with slice
-!!           nslice1 down to slice nslice2, uses thread data
-!! -------------------------------------------------------------------- !
-!! parameter: wave : complex*8 : wave function
-!!            nslice1, nslice2 : integer*4 : slice range
-!! -------------------------------------------------------------------- !
-!
-!  implicit none
-!
-!! ------------
-!! DECLARATION
-!  integer*4, parameter :: subnum = 1500
-!  complex*8, dimension(1:MS_dimy,1:MS_dimx) :: wave
-!  integer*4 :: nslice1, nslice2, i, j, sl, nslid, nx, ny
-!  complex*8 :: cval, c0, ctmp(FFT_BOUND,FFT_BOUND)
-!! ------------
-!
-!! ------------
-!! INIT
-!!  write(unit=*,fmt=*) " > MS_PropWaveElastic: INIT."
-!  if (MS_status<1) then
-!    call MS_ERROR("Module not initialised.",subnum+1)
-!    return
-!  end if
-!  if ((nslice1>nslice2).or.(nslice1<1).or.(nslice2>MS_stacksize)) then
-!    call MS_ERROR("Invalid slice range.",subnum+3)
-!    return
-!  end if
-!  nx = MS_dimx
-!  ny = MS_dimy
-!  c0 = cmplx(0.0,0.0)
-!  ctmp = c0
-!! ------------
-!
-!! ------------
-!! transfer data to local array
-!  do j=1, nx
-!    do i=1, ny
-!      ctmp(i,j) = wave(i,j)
-!    end do
-!  end do
-!! ------------
-!
-!! ------------
-!! loop over given slice range
-!  do sl = nslice1, nslice2
-!    ! get slice data id
-!    nslid = MS_slicestack(sl)+1
-!
-!! --------------
-!! in the beginning, the wave is given in Fourier-space
-!!   scrambled and transposed
-!! --------------
-!
-!! --------------
-!! transform to real space
-!    call MS_FFT(ctmp(:,:),nx,ny,"back") ! external call from SFFTs.f
-!! --------------
-!
-!! --------------
-!! apply the fully elastic phase grating
-!    do j=1, ny
-!      do i=1, nx
-!        cval = ctmp(i,j)
-!        ctmp(i,j) = cval*MS_phasegrtfe(i,j,nslid)
-!      end do
-!    end do
-!! --------------
-!
-!! --------------
-!! transform to fourier space
-!    call MS_FFT(ctmp(:,:),nx,ny,"for") ! external call from SFFTs.f
-!! --------------
-!
-!! --------------
-!! apply the fresnel propagator
-!    do j=1, nx
-!      do i=1, ny
-!        ctmp(i,j) = ctmp(i,j)*MS_propagator(i,j,nslid)
-!      end do
-!    end do
-!! --------------
-!
-!! --------------
-!! in the end, the wave is given in Fourier-space
-!!   scrambled and transposed
-!! --------------
-!  end do ! loop over slice range
-!! ------------
-!
-!! ------------
-!! transfer data to extern array
-!  do j=1, nx
-!    do i=1, ny
-!      wave(i,j) = ctmp(i,j)
-!    end do
-!  end do
-!! ------------
-!
-!! ------------
-!!  write(unit=*,fmt=*) " > MS_PropWaveElastic: EXIT."
-!  return
-!
-!END SUBROUTINE MS_PropWaveElastic
-!!**********************************************************************!
-
-
-
-
-!!**********************************************************************!
-!!**********************************************************************!
-!SUBROUTINE MS_Calculate(nlastslice)
-!! function: performs the multislice algorithm in one function for
-!!           a given thread with initialized data
-!! -------------------------------------------------------------------- !
-!! parameter: 
-!! -------------------------------------------------------------------- !
-!
-!  implicit none
-!
-!! ------------
-!! DECLARATION
-!  integer*4, parameter :: subnum = 1600
-!  integer*4 :: nlastslice, i, j, nslmax, nerr
-!! ------------
-!
-!! ------------
-!! INIT
-!!  write(unit=*,fmt=*) " > MS_Calculate: INIT."
-!  nslmax = nlastslice
-!! ------------
-!
-!! ------------
-!! Start the multislice
-!  nerr = MS_err_num
-!  call MS_Start()
-!  if (nerr/=MS_err_num) return;
-!! ------------
-!
-!! ------------
-!! loop over all slices the multislice
-!  do while (MS_slicecur >= 0.and. MS_slicecur<nlastslice)
-!    nerr = MS_err_num
-!    call MS_CalculateNextSlice()
-!    if (nerr/=MS_err_num) return;
-!  end do ! while (MS_slicecur >= 0)
-!! ------------
-!
-!
-!! ------------
-!! Stop the multislice
-!  nerr = MS_err_num
-!  call MS_Stop()
-!  if (nerr/=MS_err_num) return;
-!! ------------
-!
-!
-!!! ------------
-!!! sub multislices for inealstic data
-!!  if (MS_propagateall/=0.and.nslmax>1) then ! do it, user said so
-!!    do i=1, nslmax-1
-!!      nerr = MS_err_num
-!!      call MS_PropWaveElastic(MS_absorbed(:,:,i),i,nslmax)
-!!      if (nerr/=MS_err_num) return;
-!!    end do
-!!  end if
-!!! ------------
-!
-!! ------------
-!!  write(unit=*,fmt=*) " > MS_Calculate: EXIT."
-!  return
-!
-!END SUBROUTINE MS_Calculate
-!!**********************************************************************!
-
-
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE MS_GetCurWaveRS(rdata, nerr)
-! function: retrieves current wave in real space
-!           corrects for object tilt induced shift
-! -------------------------------------------------------------------- !
-! parameter:
-!       complex*8 :: rdata(MS_dimx,MS_dimy)     = RS wave result
-!       integer*4 :: nerr                       = error code (0=success)
-! -------------------------------------------------------------------- !
-
-  implicit none
-
-! ------------
-! DECLARATION
-  integer*4, parameter :: subnum = 1900
-  complex*8, intent(inout) :: rdata(MS_dimx,MS_dimy)
-  integer*4, intent(inout) :: nerr
-  integer*4 :: i, j, nx, ny
-  real*4 :: dx, dy, ot, chi, chix
-  real*4 :: itowx, itowy, pfac, wx, wy
-  complex*8 :: cval0, cval
-! ------------
-
-! ------------
-! INIT
-!  write(*,*) " > MS_GetCurWaveRS: INIT."
-  nerr = 0
-  if (MS_status<1) then
-    nerr = 1
-    call MS_ERROR("Module not initialised.",subnum+nerr)
-    return
-  end if
-! prepare parameters
-  nx = MS_dimx
-  ny = MS_dimy
-! set Fourier-space sampling
-  itowx = MS_lamb/(MS_samplingx*real(nx))
-  itowy = MS_lamb/(MS_samplingy*real(ny))
-  pfac = 2.0*MS_pi/MS_lamb
-  cval0 = cmplx(0.0,0.0)
-  nerr = 0
-! calculate back shift from object tilt simulation
-  ot = MS_calcthick
-  dx = ot * sin( MS_objtiltx * MS_rd2r )
-  dy = ot * sin( MS_objtilty * MS_rd2r )
-! ------------
-
-! ------------
-! --------------
-! copy wave data to temp array and apply phase shifts
-  do j=1, nx
-    wx = MS_TABBED_SCR(j)*itowx
-    chix = wx*dx
-    do i=1, ny
-      wy = MS_TABBED_SCR2(i)*itowy
-      chi = -pfac*(wy*dy+chix)
-      cval = MS_wave(i,j)*cmplx(cos(chi),sin(chi))
-      MS_sc(i,j) = cval ! get Fourier-space wave data
-    end do
-  end do
-! --------------
-
-! --------------
-! transform BACK from Fourier space to real space
-  call MS_FFT(MS_sc(:,:),nx,ny,"back")
-! we have now the real-space wabe function saved in sc(1:MS_dimx,1:MS_dimy)
-! --------------
-
-! --------------
-! calculate power
-  do j=1, ny
-    do i=1, nx
-      rdata(i,j) = MS_sc(i,j) ! get real-space wave data
-    end do
-  end do
-! --------------
-! ------------
-
-! ------------
-!  write(*,*) " > MS_GetCurWaveRS: EXIT."
-  return
-
-END SUBROUTINE MS_GetCurWaveRS
-!**********************************************************************!
-
-
-
-
-
-
-
 
 
 

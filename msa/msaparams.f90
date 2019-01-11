@@ -1,9 +1,9 @@
 !**********************************************************************!
 !**********************************************************************!
 !                                                                      !
-!    File     :  msaparams.F90                                         !
+!    File     :  msaparams.f90                                         !
 !                                                                      !
-!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2018   !
+!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2019   !
 !                                                                      !
 !**********************************************************************!
 !                                                                      !
@@ -12,9 +12,9 @@
 !                                                                      !
 !    Purpose  : parameters, parameter I/O and memory management for    !
 !               the program MSA (see msa.f90)                          !
-!    Version  : 1.2.3, Dec 05, 2018                                    !
-!    To Link  : MultiSlice.F90                                         !
-!               STEMfunctions.F90                                      !
+!    Version  : 1.3.0, Jan 07, 2019                                    !
+!    To Link  : MultiSlice.f90                                         !
+!               STEMfunctions.f90                                      !
 !                                                                      !
 !**********************************************************************!
 !                                                                       
@@ -104,6 +104,7 @@ MODULE MSAparams
   public :: MSP_SetAnnularDetectors
   public :: MSP_SetRectangularDetectors
 !  public :: MSP_SetCalibratedDetectors
+  public :: MSP_SetKmomentDetector
   public :: MSP_GetPGRIndex
   public :: MSP_GetNumberOfDigits
   public :: MSP_InitTextOutput
@@ -154,6 +155,10 @@ MODULE MSAparams
 !   min data division value
   real*4, public, parameter :: MSP_div0 = 1.0E-15
   
+!   fftw flag switch
+  integer*4, public :: MSP_FFTW_FLAG
+  DATA MSP_FFTW_FLAG /0/ ! FFTW_MEASURE by default (set 64 for FFTW_ESTIMATE)
+  
 !   run timing flag and variables
   integer*4, public :: MSP_runtimes
   DATA MSP_runtimes /0/ ! flags run time information  0: OFF (default) 1: ON (/rti)
@@ -202,6 +207,17 @@ MODULE MSAparams
 ! incoming beam tilt [mrad]
   real*4, public :: MSP_BeamTiltX
   real*4, public :: MSP_BeamTiltY
+  
+! k-space momentum output flag (0: off (default), 1: on)
+  integer*4, public :: MSP_Kmomout
+  DATA MSP_Kmomout /0/
+! k-space momentum maximum order
+  integer*4, public :: MSP_KmomMmax
+  DATA MSP_KmomMmax /-1/
+! k-space momentum range [mrad] (zero deactivates, default)
+  real*4, public :: MSP_KmomRange
+  DATA MSP_KmomRange /0.0/
+
   
 ! absorption parameters (only in case of potential input from slice files)
   integer*4, public :: MSP_nabf
@@ -366,37 +382,52 @@ MODULE MSAparams
   
 ! detector parameters
   integer*4, public :: MSP_detslc                           ! detector read out period [slices]
+  DATA MSP_detslc /0/
   integer*4, public :: MSP_usedetdef                        ! detector definition file, usage flag
+  DATA MSP_usedetdef /0/
   character(len=MSP_ll), public :: MSP_detfile              ! detecor definition file name
   integer*4, public :: MSP_detnum                           ! number of defined detectors
+  DATA MSP_detnum /0/
   integer*4, public :: MSP_detpln                           ! number of readout planes (for output handling)
-  integer*4, dimension(:), allocatable, public :: MSP_detplnflg ! flag list for detector readout for each object slice (0 = no readout, 1 = readout)
+  DATA MSP_detpln /0/
+! detector definitions
   real*4, dimension(:,:), allocatable, public :: MSP_detdef ! detector definitions
   character(len=MSP_ll), dimension(:), allocatable, public :: MSP_detname ! detector names
-  ! detector area data
+! detector arrays
   integer*4, public, parameter :: MSP_detrspnhdr = 3        ! size of the radial sensitivity profile header (use flag, number of data points, theta 1 pixel)
   character(len=MSP_ll), dimension(:), allocatable, public :: MSP_detrspfile ! file name defining a detector relative radial sensitivity profile
   real*4, dimension(:,:), allocatable, public :: MSP_detrspdat ! detector relative radial sensitivity profile data
   real*4, dimension(:,:), allocatable, public :: MSP_detrsphdr ! detector relative radial sensitivity profile header data
-  real*4, dimension(:,:,:), allocatable, public :: MSP_detarea ! detector area setup
-  integer*4, dimension(:,:,:), allocatable, public :: MSP_detcols ! detector column limit data
+  real*4, dimension(:), allocatable, public :: MSP_pdiftmp ! temporary probe diffraction data stream for readout (size: MS_dimx*MS_dimy)
+  real*4, dimension(:), allocatable, public :: MSP_pdettmp ! temporary detector data stream (size: MS_dimx*MS_dimy)
+  real*4, dimension(:,:), allocatable, public :: MSP_detarea ! detector area setup ! these are detector images in stream form
+  integer*4, dimension(:), allocatable, public :: MSP_detmasklen ! detector mask lengths
+  integer*4, dimension(:,:), allocatable, public :: MSP_detmask ! detector masks
   real*4, dimension(:,:), allocatable, public :: MSP_detresult ! detector readout results
-  DATA MSP_usedetdef /0/
-  DATA MSP_detnum /0/
-  DATA MSP_detpln /0/
-  DATA MSP_detslc /0/
-  ! detector image output flag
+  
+! moment analysis arrays
+  integer*4, public :: MSP_KmomNum ! Number of k-moment components calculated
+  DATA MSP_KmomNum /0/
+  real*4, dimension(:), allocatable, public :: MSP_Kmomwgt ! k-moment weights (as list of values for each grid pixel) (aperture function)
+  integer*4, public :: MSP_Kmommasklen ! k-moment mask length (aperture area in number of pixels)
+  integer*4, dimension(:), allocatable, public :: MSP_Kmommask ! k-moment mask (hash table to access MSP_Kmomwgt and MSP_pdiftmp)
+  integer*4, dimension(:,:), allocatable, public :: MSP_Kmomhash ! k-moment hash (hash table pointing back to original pixel indices)
+  real*4, dimension(:,:), allocatable, public :: MSP_Kmomgx, MSP_Kmomgy ! k-moment k-power tables
+  real*4, dimension(:,:), allocatable, public :: MSP_Kmomresult ! k-moment data (moment components, slice index)
+  
+  
+! detector image output flag
   integer*4, public :: MSP_detimg_output                    ! flag detector image output
   DATA MSP_detimg_output /0/
   
-  ! probe image and diffraction data
+! probe image and diffraction data
   real*4, dimension(:,:,:), allocatable, public :: MSP_pimg ! probe image data for each plane
   real*4, dimension(:,:,:), allocatable, public :: MSP_pdif ! probe diffraction data for each plane
   integer*4, dimension(:), allocatable, public :: MSP_pint_nac ! # accumulations of probe intensities
   integer*4, public :: MSP_pint_num ! number of probe image intensities per scan position
   DATA MSP_pint_num /0/
   
-  ! output indexing digits
+! output indexing digits
   integer*4 :: MSP_nvard, MSP_nslid, MSP_nslcd, MSP_nn1d, MSP_nn2d
   DATA MSP_nvard /3/
   DATA MSP_nslid /3/
@@ -574,6 +605,12 @@ SUBROUTINE MSP_UNINIT()
   if (allocated(MSP_detdef)) then
     deallocate(MSP_detdef,stat=nalloc)
   end if
+  if (allocated(MSP_pdiftmp)) then
+    deallocate(MSP_pdiftmp,stat=nalloc)
+  end if
+  if (allocated(MSP_pdettmp)) then
+    deallocate(MSP_pdettmp,stat=nalloc)
+  end if
   if (allocated(MSP_detname)) then
     deallocate(MSP_detname,stat=nalloc)
   end if
@@ -583,8 +620,11 @@ SUBROUTINE MSP_UNINIT()
   if (allocated(MSP_detarea)) then
     deallocate(MSP_detarea,stat=nalloc)
   end if
-  if (allocated(MSP_detcols)) then
-    deallocate(MSP_detcols,stat=nalloc)
+  if (allocated(MSP_detmask)) then
+    deallocate(MSP_detmask,stat=nalloc)
+  end if
+  if (allocated(MSP_detmasklen)) then
+    deallocate(MSP_detmasklen,stat=nalloc)
   end if
   if (allocated(MSP_detrspdat)) then
     deallocate(MSP_detrspdat,stat=nalloc)
@@ -594,6 +634,25 @@ SUBROUTINE MSP_UNINIT()
   end if
   if (allocated(MSP_detrsphdr)) then
     deallocate(MSP_detrsphdr,stat=nalloc)
+  end if
+  if (allocated(MSP_Kmomresult)) then
+    deallocate(MSP_Kmomresult,stat=nalloc)
+  end if
+  MSP_KmomNum = 0
+  if (allocated(MSP_Kmomwgt)) then
+    deallocate(MSP_Kmomwgt,stat=nalloc)
+  end if
+  if (allocated(MSP_Kmommask)) then
+    deallocate(MSP_Kmommask,stat=nalloc)
+  end if
+  if (allocated(MSP_Kmomhash)) then
+    deallocate(MSP_Kmommask,stat=nalloc)
+  end if
+  if (allocated(MSP_Kmomgx)) then
+    deallocate(MSP_Kmommask,stat=nalloc)
+  end if
+  if (allocated(MSP_Kmomgy)) then
+    deallocate(MSP_Kmommask,stat=nalloc)
   end if
 ! ------------
 
@@ -770,7 +829,7 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
 ! DECLARATION
   integer*4, parameter :: subnum = 400
   integer*4, intent(in) :: nunit
-  integer*4 :: anum, idx, anumint, i
+  integer*4 :: anum, idx, i
   real*4 :: ax, ay, rlamb
   logical :: isopen
   character*STF_aberration_longname_length :: aname
@@ -801,9 +860,8 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
   read(unit=nunit,fmt=*,err=17) STF_DEFOCUS_KERNEL_SPREAD ! (defocus spread kernel width)
   read(unit=nunit,fmt=*,err=16) STF_DEFOCUS_KERNEL_STEPS ! (defocus spread kernel steps/size)
   read(unit=nunit,fmt=*,err=16) anum ! (noa = number of aberration definitions)
-  anumint = min(anum,STF_maxaberration)
-  if (anumint>0) then
-    do i = 1, anumint
+  if (anum>0) then
+    do i = 1, anum
       read(unit=nunit,fmt=*,err=16) idx,ax,ay ! (aberration definition: (index) (aberration.x) (aberration.y) )
       call STF_SetAberration(idx+1,ax,ay)
     end do
@@ -852,13 +910,14 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
     call PostMessage(trim(MSP_stmp))
     write(unit=MSP_stmp,fmt='(A,I4)') "defocus spread kernel steps/size",STF_DEFOCUS_KERNEL_STEPS
     call PostMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,I4)') "number of aberration definitions:",anumint
+    write(unit=MSP_stmp,fmt='(A,I4)') "number of input aberrations:",anum
     call PostMessage(trim(MSP_stmp))
-    if (anumint>0) then
-      do idx = 1, anumint
-        call STF_GetAberration(idx+1,ax,ay)
-        call STF_GetAberrationLName(idx+1,aname)
-        write(unit=MSP_stmp,fmt='(A,2G12.4)') "- Set "//trim(aname)//" (nm):",ax,ay
+    if (STF_maxaberration>0) then
+      call PostMessage("list of all aberration coeffcients:")
+      do idx = 1, STF_maxaberration
+        call STF_GetAberration(idx,ax,ay)
+        call STF_GetAberrationLName(idx,aname)
+        write(unit=MSP_stmp,fmt='(A,2G12.4)') "- "//trim(aname)//" (nm):",ax,ay
         call PostMessage(trim(MSP_stmp))
       end do
     end if
@@ -1847,8 +1906,10 @@ END FUNCTION MSP_GetPGRIndex
 !**********************************************************************!
 !**********************************************************************!
 SUBROUTINE MSP_ALLOCDET(nerr)
-! function: allocates the detector arrays MSP_detarea and MSP_detcols
+! function: allocates the detector arrays MSP_detarea and MSP_detmask
 !           using the current number of detectors MSP_detnum
+!           also allocates arrays for k-moment analysis MSP_Kmomwgt and
+!           MSP_Kmommask.
 ! -------------------------------------------------------------------- !
 ! parameter:
 !   integer*4, intent(inout) :: nerr = error code
@@ -1861,100 +1922,88 @@ SUBROUTINE MSP_ALLOCDET(nerr)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 1200
-  
   integer*4, intent(inout) :: nerr
-  integer*4 :: ncur1, ncur2, nnew, nalloc
+  integer*4 :: nalloc
 ! ------------
-
 
 ! ------------
 ! INIT
 !  write(unit=*,fmt=*) " > MSP_ALLOCDET: INIT."
   nerr = 0
-  ncur1 = 0
-  ncur2 = 0
-  nnew = MSP_detnum
 ! ------------
 
+! ------------
+  if (allocated(MSP_detarea)) deallocate(MSP_detarea, stat=nalloc)
+  if (allocated(MSP_detmask)) deallocate(MSP_detmask, stat=nalloc)
+  if (allocated(MSP_detmasklen)) deallocate(MSP_detmasklen, stat=nalloc)
+  if (allocated(MSP_pdiftmp)) deallocate(MSP_pdiftmp, stat=nalloc)
+  if (allocated(MSP_pdettmp)) deallocate(MSP_pdettmp, stat=nalloc)
+  if (allocated(MSP_Kmomwgt)) deallocate(MSP_Kmomwgt, stat=nalloc)
+  if (allocated(MSP_Kmommask)) deallocate(MSP_Kmommask, stat=nalloc)
+  if (allocated(MSP_Kmomhash)) deallocate(MSP_Kmomhash, stat=nalloc)
+  if (allocated(MSP_Kmomgx)) deallocate(MSP_Kmomgx, stat=nalloc)
+  if (allocated(MSP_Kmomgy)) deallocate(MSP_Kmomgy, stat=nalloc)
+  MSP_Kmommasklen = 0
+! ------------
 
 ! ------------
-  if (allocated(MSP_detarea)) then
-    ncur1 = size(MSP_detarea,3)
+  if (MSP_detnum/=0) then ! allocate new arrays
+    write(unit=MSP_stmp,fmt='(I)') MSP_detnum
+    call PostDebugMessage( "Allocating memory for "//trim(adjustl(MSP_stmp))//" detectors.")
+    allocate(MSP_detarea(MS_dimx*MS_dimy,MSP_detnum), stat=nalloc)
+    if (nalloc/=0) goto 101
+    allocate(MSP_detmasklen(MSP_detnum), stat=nalloc)
+    if (nalloc/=0) goto 101
+    allocate(MSP_detmask(MS_dimx*MS_dimy,MSP_detnum), stat=nalloc)
+    if (nalloc/=0) goto 101
+    allocate(MSP_pdiftmp(MS_dimx*MS_dimy), stat=nalloc)
+    if (nalloc/=0) goto 101
+    allocate(MSP_pdettmp(MS_dimx*MS_dimy), stat=nalloc)
+    if (nalloc/=0) goto 101
+    MSP_detarea = 0.0
+    MSP_detmasklen = 0
+    MSP_detmask = 0
+    MSP_pdiftmp = 0.0
+    MSP_pdettmp = 0.0
+  else
+    call PostDebugMessage( "No detector arrays needed.")
   end if
-  if (allocated(MSP_detcols)) then
-    ncur2 = size(MSP_detcols,3)
-  end if
-! ------------
-
-! ------------
-  write(unit=MSP_stmp,fmt='(A,I3)') "   New number of detectors: ", nnew
-  call PostDebugMessage( trim(MSP_stmp) )
-  write(unit=MSP_stmp,fmt='(A,I3)') "   Old number of detectors 1: ", ncur1
-  call PostDebugMessage( trim(MSP_stmp) )
-  write(unit=MSP_stmp,fmt='(A,I3)') "   Old number of detectors 2: ", ncur2
-  call PostDebugMessage( trim(MSP_stmp) )
-  if ( ncur1/=nnew ) then ! the sizes do not match, we need new arrays
-    if (ncur1/=0) then
-      ! 1) deallocate existing arrays
-      deallocate(MSP_detarea, stat=nalloc)
-      if (nalloc/=0) then
-        nerr = nalloc
-        call MSP_ERROR( &
-          & "Failed to deallocate memory of old detector area arrays.", &
-          & subnum+nerr)
-        return
-      end if
-    end if
-    ncur1 = 0
-    ! 2) allocate for new arrays
-    if (nnew/=0) then
-      allocate(MSP_detarea(FFT_BOUND,FFT_BOUND,nnew), stat=nalloc)
-      if (nalloc/=0) then
-        nerr = nalloc
-        call MSP_ERROR( &
-          & "Failed to allocate memory for detector area arrays.", &
-          & subnum+nerr)
-        return
-      end if
-      ncur1 = nnew
-      MSP_detarea = 0
-    end if
-  end if
-! ------------
-
-
-! ------------
-  if ( ncur2/=nnew ) then ! the sizes do not match, we need new arrays
-    if (ncur2/=0) then
-      ! 1) deallocate existing arrays
-      deallocate(MSP_detcols, stat=nalloc)
-      if (nalloc/=0) then
-        nerr = nalloc
-        call MSP_ERROR( &
-          & "Failed to deallocate memory of old detector col arrays.", &
-          & subnum+nerr)
-        return
-      end if
-    end if
-    ncur2 = 0
-    ! 2) allocate for new arrays
-    if (nnew/=0) then
-      allocate(MSP_detcols(3,FFT_BOUND,nnew), stat=nalloc)
-      if (nalloc/=0) then
-        nerr = nalloc
-        call MSP_ERROR( &
-          & "Failed to allocate memory for detector col arrays.", &
-          & subnum+nerr)
-        return
-      end if
-      ncur2 = nnew
-      MSP_detcols = 0
-    end if
+  if (MSP_Kmomout>0) then ! allocate k-momentum arrays
+    write(unit=MSP_stmp,fmt='(I)') MSP_KmomNum
+    call PostDebugMessage( "Allocating memory for "//trim(adjustl(MSP_stmp))//" k-momentum components.")
+    allocate(MSP_Kmomwgt(MS_dimx*MS_dimy), stat=nalloc)
+    if (nalloc/=0) goto 102
+    allocate(MSP_Kmommask(MS_dimx*MS_dimy), stat=nalloc)
+    if (nalloc/=0) goto 102
+    allocate(MSP_Kmomhash(1:2,MS_dimx*MS_dimy), stat=nalloc)
+    if (nalloc/=0) goto 102
+    allocate(MSP_Kmomgx(MS_dimx,0:MSP_KmomMmax), stat=nalloc)
+    if (nalloc/=0) goto 102
+    allocate(MSP_Kmomgy(MS_dimy,0:MSP_KmomMmax), stat=nalloc)
+    if (nalloc/=0) goto 102
+    MSP_Kmomwgt = 0.0
+    MSP_detmask = 0
+    MSP_Kmomhash = 0
+    MSP_Kmomgx = 0.0
+    MSP_Kmomgy = 0.0
+  else
+    call PostDebugMessage( "No k-momentum arrays needed.")
   end if
 ! ------------
 
 ! ------------
 !  write(unit=*,fmt=*) " > MSP_ALLOCDET: EXIT."
+  return
+  
+101 continue
+  nerr = nalloc
+  call MSP_ERROR("Failed to allocate memory for detector arrays.", &
+       & subnum+nerr)
+  return
+102 continue
+  nerr = nalloc
+  call MSP_ERROR("Failed to allocate memory for k-moment arrays.", &
+       & subnum+nerr)
   return
 
 END SUBROUTINE MSP_ALLOCDET
@@ -2213,7 +2262,7 @@ SUBROUTINE MSP_WriteTextOutput(nerr)
   integer*4, parameter :: subnum = 1500
   integer*4, intent(inout) :: nerr
 
-  integer*4 :: i, k, lfu, ioerr, ndet, nslcmax, ndetect
+  integer*4 :: i, k, lfu, ioerr, ndet, nslcmax, ndetect, nkmom
   
   character(len=MSP_ll) :: sline, stmp1, stmp2
   
@@ -2229,6 +2278,11 @@ SUBROUTINE MSP_WriteTextOutput(nerr)
   if (MSP_txtout==0) return ! Do not output. Just leave.
 ! Determine the number of detectors
   ndet = max(1,MSP_detnum)
+! Determine number of k-moment components
+  nkmom = 0
+  if (MSP_Kmomout > 0 .and. MSP_KmomNum > 0) then
+    nkmom = MSP_KmomNum
+  end if
 ! Determine the number of output slices
   nslcmax = MS_stacksize
   ndetect = nslcmax
@@ -2254,13 +2308,24 @@ SUBROUTINE MSP_WriteTextOutput(nerr)
   write(unit=stmp1, fmt='(I)') MSP_ScanPixelX
   write(unit=stmp2, fmt='(I)') MSP_ScanPixelY
   write(unit=lfu, fmt='(A)') trim(adjustl(stmp1))//", "//trim(adjustl(stmp2)) ! scan pixel numbers
-  do k=1, ndet ! loop over detectors
-    do i=1, nslcmax ! loop over thickness
-      if (0/=modulo(i,ndetect)) cycle
-      write(unit=sline, fmt='(E14.6)') MSP_detresult(k,i)
-      write(unit=lfu, fmt='(A)') trim(adjustl(sline)) ! the intensity data
+  if (ndet>0) then ! write detector readout results
+    do k=1, ndet ! loop over detectors
+      do i=1, nslcmax ! loop over thickness
+        if (0/=modulo(i,ndetect)) cycle
+        write(unit=sline, fmt='(E14.6)') MSP_detresult(k,i)
+        write(unit=lfu, fmt='(A)') trim(adjustl(sline)) ! the intensity data
+      end do
     end do
-  end do
+  end if
+  if (nkmom>0) then ! write k-moment components
+    do k=1, nkmom ! loop over components
+      do i=1, nslcmax ! loop over thickness
+        if (0/=modulo(i,ndetect)) cycle
+        write(unit=sline, fmt='(E14.6)') MSP_Kmomresult(k,i)
+        write(unit=lfu, fmt='(A)') trim(adjustl(sline)) ! the k-moment data
+      end do
+    end do
+  end if
 ! ------------
 
 
@@ -2385,9 +2450,9 @@ SUBROUTINE MSP_SetAnnularDetectors(nerr)
   integer*4, intent(inout) :: nerr
   
   integer*4 :: nalloc
-  integer*4 :: i, j, k, ndimx, ndim2x, ndimy, ndim2y, m, l, i1, j1
-  real*4 :: r0, r1, a0, a1, c1, c2, itogx, itogy, itowx, itowy, itowr
-  real*4 :: wt0, wt02, wt1, wt12, wx, wy, wx2, w2, ac, wc1, wc2
+  integer*4 :: i, j, k, nx, ny, nx2, ny2, m, l, i1, j1, idy, idx
+  real*4 :: r0, r1, a0, a1, cx, cy, itogx, itogy, itowx, itowy, itowr
+  real*4 :: wt0, wt02, wt1, wt12, wx, wy, wy2, w2, ac, wcx, wcy
   real*4 :: rcur, rk, scur
   character(len=1024) :: stmp
   real*4, allocatable :: detfunc(:,:)
@@ -2410,7 +2475,7 @@ SUBROUTINE MSP_SetAnnularDetectors(nerr)
     call MSP_ERROR("Invalid slice array size.",subnum+nerr)
     return
   end if
-  if (.not.(allocated(MSP_detarea).and.allocated(MSP_detcols))) then
+  if (.not.(allocated(MSP_detarea).and.allocated(MSP_detmask).and.allocated(MSP_detmasklen))) then
     nerr = 3
     call MSP_ERROR("Memory for detector data is not allocated.",subnum+nerr)
     return
@@ -2426,166 +2491,174 @@ SUBROUTINE MSP_SetAnnularDetectors(nerr)
 ! loop through detectors
   do k=1, MSP_detnum
   
-  if (1/=nint(MSP_detdef(0,k))) cycle ! this is not an annular detector
+    if (1/=nint(MSP_detdef(0,k))) cycle ! this is not an annular detector
   
-  r0 = MSP_detdef(1,k)
-  r1 = MSP_detdef(2,k)
-  a0 = MSP_detdef(3,k)
-  a1 = MSP_detdef(4,k)
-  c1 = MSP_detdef(5,k)
-  c2 = MSP_detdef(6,k)
+    r0 = MSP_detdef(1,k)
+    r1 = MSP_detdef(2,k)
+    a0 = MSP_detdef(3,k)
+    a1 = MSP_detdef(4,k)
+    cx = MSP_detdef(5,k)
+    cy = MSP_detdef(6,k)
   
-  ! add 360° to the azimuths until both are definitely positive
-  do while (a0<0.0 .or. a1<0.0)
-    a0 = a0 + 360.0
-    a1 = a1 + 360.0
-  end do
-  
-  ! a1 should alsway be larger than a0, if not, than add 360° to a1
-  if (a0>=a1) then
-    a1 = a1 + 360.0
-  end if
-    
-  ! now bring both angles back to the first rotation cycle, at least for a0
-  do while (a0>=360.0)
-    a0 = a0 - 360.0
-    a1 = a1 - 360.0
-  end do
-  
-  if (DEBUG_EXPORT==1) then
-    write(unit=MSP_stmp,fmt='(A,I3.3,A)') &
-      & "Setting annular segment detector data for detector #",k, &
-      & " "//trim(MSP_detname(k))
-    call PostDebugMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
-      & "- inner detector radius: ", r0," (mrad)"
-    call PostDebugMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
-      & "- outer detector radius: ", r1," (mrad)"
-    call PostDebugMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
-      & "- start azimuth angle: ", a0," (deg)"
-    call PostDebugMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
-      & "- stop azimuth angle: ", a1," (deg)"
-    call PostDebugMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
-      & "- de-center x: ", c1," (mrad)"
-    call PostDebugMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
-      & "- de-center y: ", c2," (mrad)"
-    call PostDebugMessage(trim(MSP_stmp))
-    if (MSP_detrsphdr(1,k)>0.9) then
-      call PostDebugMessage("- detector radial sensitivity profile: "//trim(MSP_detrspfile(k)))
-    else
-      call PostDebugMessage("- 100% sensitivity")
-    end if
-  end if
-
-! ------------
-! prepare parameters
-  wt0 = r0*0.001
-  wt02 = wt0*wt0
-  wt1 = r1*0.001
-  wt12 = wt1*wt1
-  wc1 = c1*0.001
-  wc2 = c2*0.001
-  ndimx = MS_dimx
-  ndim2x = ndimx/2
-  ndimy = MS_dimy
-  ndim2y = ndimy/2
-  
-  ! set Fourier-space sampling
-  itogx = 0.5/MS_samplingx/real(ndim2x)
-  itowx = itogx*MS_lamb
-  itogy = 0.5/MS_samplingy/real(ndim2y)
-  itowy = itogy*MS_lamb
-  
-  ! pre-set Fourier-space sampling for the radial sensitivity profile
-  itowr = 0.0
-  if (MSP_detrsphdr(1,k)>0.9) then ! use this detector with sensitivity profile
-    itowr = 0.001*r0 / (MSP_detrsphdr(3,k) - 1.0 ) ! theta-1 / (associated pixel number - 1) ... and from mrad to rad / pixel
-  end if
-  
-  ! preset sensitivity
-  scur = 1.0
-  
-  ! loop through calculation array in fourier space
-  do j=1,ndimx
-    MSP_detcols(2,j,k) = ndimy ! set left detector column to maximum
-    wx = itowx*MS_TABBED_SCR(j) - wc1 ! get wave frequency-x
-    wx2 = wx*wx
-    do i=1, ndimy
-      wy = itowy*MS_TABBED_SCR2(i) - wc2 ! get wave frequency-y
-      w2 = wx2+wy*wy
-      ac = atan2(wy, wx)*MSP_r2d
-      ! try to find azimuthal cycle beyond a0
-      do while (ac<a0)
-        ac = ac + 360.0
-      end do
-      ! range checks on the following general interval : min <= x < max
-      if ((w2>=wt02).and.(w2<wt12).and.(ac>=a0).and.(ac<a1)) then ! check if current fourier pixel is inside the annular segement
-        if (itowr>0.0) then ! use radial sensitivity profile
-          ! get the sensitivity for this theta angle
-          rcur = max( 0.0, min( MSP_detrsphdr(2,k)-1.0, sqrt(w2)/itowr ) ) ! zero based index in the sensitivity table
-          i1 = floor(rcur) ! lower integer (index)
-          rk = rcur-real(i1) ! fraction between actual radius and integer radius
-          ! access the sensitivity curve at (i1 + 1)
-          scur = (1.0-rk)*MSP_detrspdat(i1+1,k) + rk*MSP_detrspdat(i1+2,k) ! linear interpolation of the sensitivity curve
-        end if
-        MSP_detarea(i,j,k) = scur ! set detector pixel weight to relative sensitivity
-        MSP_detcols(1,j,k) = MSP_detcols(1,j,k) + 1 ! increase pixel sum
-        MSP_detcols(2,j,k) = min(MSP_detcols(2,j,k),i) ! update minimum column index
-        MSP_detcols(3,j,k) = max(MSP_detcols(3,j,k),i) ! update maximum column index
-      end if
-    end do ! loop i
-  end do ! loop j
-
-  if (MSP_detimg_output==1) then ! export the detector function to binary file
-    if (.not.allocated(detfunc)) then
-      allocate(detfunc(MS_dimx, MS_dimy), stat=nalloc)
-      if (nalloc/=0) then
-        nerr = 5
-        call MSP_ERROR("Allocation of detector function array failed.",subnum+nerr)
-        goto 667
-      end if
-    end if
-    ! create the detector function from prepared arrays, but in non-transposed and non-scrambled order
-    do j=1, ndimy
-      j1 = MS_TABBED_SCR2(j) + ndim2y+1
-      do i=1, ndimx
-        i1 = MS_TABBED_SCR(i) + ndim2x+1
-        detfunc(i,j) = MSP_detarea(j1,i1,k)
-      end do 
+    ! add 360° to the azimuths until both are definitely positive
+    do while (a0<0.0 .or. a1<0.0)
+      a0 = a0 + 360.0
+      a1 = a1 + 360.0
     end do
-    
-    m = LEN_TRIM(MSP_outfile) ! get length of the standard output file
-    l = INDEX(trim(MSP_outfile),".",back=.TRUE.) ! search for extension point in given output file
-    if (MSP_usedetdef/=0) then ! update output file name with detetctor name
-      if (l<1) then ! no extension wanted
-        write(unit=stmp,fmt='(A)') trim(MSP_outfile)//"_detector_"//trim(MSP_detname(k))
-      else ! last extension starts at position l, insert the index string before
-        write(unit=stmp,fmt='(A)') MSP_outfile(1:l-1)//"_detector_"//trim(MSP_detname(k))//MSP_outfile(l:m)
-      end if
-    else ! keep current output file name
-      if (l<1) then ! no extension wanted
-        write(unit=stmp,fmt='(A)') trim(MSP_outfile)//"_detector"
-      else ! last extension starts at position l, insert the index string before
-        write(unit=stmp,fmt='(A)') MSP_outfile(1:l-1)//"_detector"//MSP_outfile(l:m)
-      end if
+  
+    ! a1 should alsway be larger than a0, if not, than add 360° to a1
+    if (a0>=a1) then
+      a1 = a1 + 360.0
     end if
     
-    write(unit=MSP_stmp,fmt='(A,I3.3,A)') "Saving detector function #",k," to file ["//trim(stmp)//"]."
-    call PostMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,I4,A,I4)') "- detector function: 32-bit float, size: ",MS_dimx," x ",MS_dimy
-    call PostDebugMessage(trim(MSP_stmp))
-    call SaveDataR4(trim(stmp),detfunc,MS_dimx*MS_dimy,nerr)
-    if (nerr/=0) then
-      call MSP_ERROR("Failed to save detector function.",subnum+6)
+    ! now bring both angles back to the first rotation cycle, at least for a0
+    do while (a0>=360.0)
+      a0 = a0 - 360.0
+      a1 = a1 - 360.0
+    end do
+  
+    if (DEBUG_EXPORT==1) then
+      write(unit=MSP_stmp,fmt='(A,I3.3,A)') &
+        & "Setting annular segment detector data for detector #",k, &
+        & " "//trim(MSP_detname(k))
+      call PostDebugMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
+        & "- inner detector radius: ", r0," (mrad)"
+      call PostDebugMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
+        & "- outer detector radius: ", r1," (mrad)"
+      call PostDebugMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
+        & "- start azimuth angle: ", a0," (deg)"
+      call PostDebugMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
+        & "- stop azimuth angle: ", a1," (deg)"
+      call PostDebugMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
+        & "- de-center x: ", cx," (mrad)"
+      call PostDebugMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
+        & "- de-center y: ", cy," (mrad)"
+      call PostDebugMessage(trim(MSP_stmp))
+      if (MSP_detrsphdr(1,k)>0.9) then
+        call PostDebugMessage("- detector radial sensitivity profile: "//trim(MSP_detrspfile(k)))
+      else
+        call PostDebugMessage("- 100% sensitivity")
+      end if
     end if
+
+  ! ------------
+  ! prepare parameters
+    wt0 = r0*0.001
+    wt02 = wt0*wt0
+    wt1 = r1*0.001
+    wt12 = wt1*wt1
+    wcx = cx*0.001
+    wcy = cy*0.001
+    nx = MS_dimx
+    ny = MS_dimy
+    nx2 = (nx - modulo(nx,2)) / 2
+    ny2 = (ny - modulo(ny,2)) / 2
+  
+    ! set Fourier-space sampling
+    itogx = 1.0 / (MS_samplingx*real(nx))
+    itowx = itogx*MS_lamb
+    itogy = 1.0 / (MS_samplingx*real(ny))
+    itowy = itogy*MS_lamb
+  
+    ! pre-set Fourier-space sampling for the radial sensitivity profile
+    itowr = 0.0
+    if (MSP_detrsphdr(1,k)>0.9) then ! use this detector with sensitivity profile
+      itowr = 0.001*r0 / (MSP_detrsphdr(3,k) - 1.0 ) ! theta-1 / (associated pixel number - 1) ... and from mrad to rad / pixel
+    end if
+  
+    ! preset sensitivity
+    scur = 1.0
+    MSP_detmasklen(k) = 0
+    ! loop through calculation array in fourier space
+    do j=1, ny
+      idy = (j-1)*nx ! y index offset
+      !MSP_detcols(2,j,k) = nx ! set left detector column to maximum
+      !MSP_detcols(3,j,k) = 1 ! set right detector column to minimum
+      wy = itowy*MS_TABBED_SCR2(j) - wcy ! get wave frequency-y
+      wy2 = wy*wy
+      do i=1, nx
+        idx = i + idy ! stream index
+        wx = itowx*MS_TABBED_SCR(i) - wcx ! get wave frequency-x
+        w2 = wy2+wx*wx
+        ac = atan2(wy, wx)*MSP_r2d
+        ! try to find azimuthal cycle beyond a0
+        do while (ac<a0)
+          ac = ac + 360.0
+        end do
+        ! range checks on the following general interval : min <= x < max
+        if ((w2>=wt02).and.(w2<wt12).and.(ac>=a0).and.(ac<a1)) then ! check if current fourier pixel is inside the annular segement
+          if (itowr>0.0) then ! use radial sensitivity profile
+            ! get the sensitivity for this theta angle
+            rcur = max( 0.0, min( MSP_detrsphdr(2,k)-1.0, sqrt(w2)/itowr ) ) ! zero based index in the sensitivity table
+            i1 = floor(rcur) ! lower integer (index)
+            rk = rcur-real(i1) ! fraction between actual radius and integer radius
+            ! access the sensitivity curve at (i1 + 1)
+            scur = (1.0-rk)*MSP_detrspdat(i1+1,k) + rk*MSP_detrspdat(i1+2,k) ! linear interpolation of the sensitivity curve
+          end if
+          ! this is a valid pixel and we have a sensitivity
+          MSP_detmasklen(k) = MSP_detmasklen(k) + 1 ! increase mask length
+          MSP_detarea(idx,k) = scur ! set detector pixel weight to relative sensitivity
+          MSP_detmask(MSP_detmasklen(k),k) = idx ! store index hash in mask
+          !MSP_detcols(1,j,k) = MSP_detcols(1,j,k) + 1 ! increase pixel sum
+          !MSP_detcols(2,j,k) = min(MSP_detcols(2,j,k),i) ! update minimum column index
+          !MSP_detcols(3,j,k) = max(MSP_detcols(3,j,k),i) ! update maximum column index
+        end if
+      end do ! loop i
+    end do ! loop j
+
+    if (MSP_detimg_output==1) then ! export the detector function to binary file
+      if (.not.allocated(detfunc)) then
+        allocate(detfunc(nx, ny), stat=nalloc)
+        if (nalloc/=0) then
+          nerr = 5
+          call MSP_ERROR("Allocation of detector function array failed.",subnum+nerr)
+          goto 667
+        end if
+      end if
+      ! create the detector function from prepared arrays, in non-scrambled order
+      do j=1, ny
+        j1 = MS_TABBED_SCR2(j) + ny2 + 1
+        idy = (j1-1)*nx
+        do i=1, nx
+          i1 = MS_TABBED_SCR(i) + nx2 + 1
+          idx = i1 + idy
+          detfunc(i,j) = MSP_detarea(idx,k)
+        end do 
+      end do
+    
+      m = LEN_TRIM(MSP_outfile) ! get length of the standard output file
+      l = INDEX(trim(MSP_outfile),".",back=.TRUE.) ! search for extension point in given output file
+      if (MSP_usedetdef/=0) then ! update output file name with detetctor name
+        if (l<1) then ! no extension wanted
+          write(unit=stmp,fmt='(A)') trim(MSP_outfile)//"_detector_"//trim(MSP_detname(k))
+        else ! last extension starts at position l, insert the index string before
+          write(unit=stmp,fmt='(A)') MSP_outfile(1:l-1)//"_detector_"//trim(MSP_detname(k))//MSP_outfile(l:m)
+        end if
+      else ! keep current output file name
+        if (l<1) then ! no extension wanted
+          write(unit=stmp,fmt='(A)') trim(MSP_outfile)//"_detector"
+        else ! last extension starts at position l, insert the index string before
+          write(unit=stmp,fmt='(A)') MSP_outfile(1:l-1)//"_detector"//MSP_outfile(l:m)
+        end if
+      end if
+    
+      write(unit=MSP_stmp,fmt='(A,I3.3,A)') "Saving detector function #",k," to file ["//trim(stmp)//"]."
+      call PostMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,I4,A,I4)') "- detector function: 32-bit float, size: ",nx," x ",ny
+      call PostDebugMessage(trim(MSP_stmp))
+      call SaveDataR4(trim(stmp),detfunc,nx*ny,nerr)
+      if (nerr/=0) then
+        call MSP_ERROR("Failed to save detector function.",subnum+6)
+      end if
     
     
-    deallocate(detfunc, stat=nalloc)
+      deallocate(detfunc, stat=nalloc)
     
 667 end if ! (MSP_detimg_output==1)
   
@@ -2624,7 +2697,7 @@ SUBROUTINE MSP_SetRectangularDetectors(nerr)
   integer*4, intent(inout) :: nerr
   
   integer*4 :: nalloc
-  integer*4 :: i, j, k, ndimx, ndim2x, ndimy, ndim2y, m, l, i1, j1
+  integer*4 :: i, j, k, nx, ny, nx2, ny2, m, l, i1, j1, idy, idx
   real*4 :: x0, y0, dx, dy, a0, ca, sa, r0
   real*4 :: itogx, itogy, itowx, itowy
   real*4 :: wx, wy, tx, ty
@@ -2650,7 +2723,7 @@ SUBROUTINE MSP_SetRectangularDetectors(nerr)
     call MSP_ERROR("Invalid slice array size.",subnum+nerr)
     return
   end if
-  if (.not.(allocated(MSP_detarea).and.allocated(MSP_detcols))) then
+  if (.not.(allocated(MSP_detarea).and.allocated(MSP_detmask).and.allocated(MSP_detmasklen))) then
     nerr = 3
     call MSP_ERROR("Memory for detector data is not allocated.",subnum+nerr)
     return
@@ -2667,123 +2740,132 @@ SUBROUTINE MSP_SetRectangularDetectors(nerr)
 ! loop through detectors
   do k=1, MSP_detnum
   
-  if (2/=nint(MSP_detdef(0,k))) cycle ! this is not a rectangular detector
+    if (2/=nint(MSP_detdef(0,k))) cycle ! this is not a rectangular detector
   
-  x0 = MSP_detdef(1,k)
-  y0 = MSP_detdef(2,k)
-  dx = MSP_detdef(3,k)
-  dy = MSP_detdef(4,k)
-  a0 = MSP_detdef(5,k)
+    x0 = MSP_detdef(1,k)
+    y0 = MSP_detdef(2,k)
+    dx = MSP_detdef(3,k)
+    dy = MSP_detdef(4,k)
+    a0 = MSP_detdef(5,k)
   
-  if (DEBUG_EXPORT==1) then
-    write(unit=MSP_stmp,fmt='(A,I3.3,A)') &
-      & "Setting rectangular segment detector data for detector #",k, &
-      & " "//trim(MSP_detname(k))
-    call PostDebugMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4,A,G12.4,A)') &
-      & "- offset point: ( ",x0,", ",y0,") (mrad)"
-    call PostDebugMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4,A,G12.4,A)') &
-      & "- size: (", dx,", ", dy, ") (mrad)"
-    call PostDebugMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
-      & "- orientation: ", a0," (deg)"
-    call PostDebugMessage(trim(MSP_stmp))
-  end if
+    if (DEBUG_EXPORT==1) then
+      write(unit=MSP_stmp,fmt='(A,I3.3,A)') &
+        & "Setting rectangular segment detector data for detector #",k, &
+        & " "//trim(MSP_detname(k))
+      call PostDebugMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,G12.4,A,G12.4,A)') &
+        & "- offset point: ( ",x0,", ",y0,") (mrad)"
+      call PostDebugMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,G12.4,A,G12.4,A)') &
+        & "- size: (", dx,", ", dy, ") (mrad)"
+      call PostDebugMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
+        & "- orientation: ", a0," (deg)"
+      call PostDebugMessage(trim(MSP_stmp))
+    end if
 
-! ------------
-! prepare parameters
-  ! rectangle unit vectors (matrix) = ( (  exx,  exy ), (  eyx,  eyy ) )
-  !                        inverse = ( (  eyy, -exy ), ( -eyx,  exx ) )
-  ! exx = eyy = ca = cos(a0)
-  ! exy = -eyx = sa = sin(a0)
-  r0 = MSP_d2r*a0
-  ca = cos(r0)
-  sa = sin(r0)
+  ! ------------
+  ! prepare parameters
+    ! rectangle unit vectors (matrix) = ( (  exx,  exy ), (  eyx,  eyy ) )
+    !                        inverse = ( (  eyy, -exy ), ( -eyx,  exx ) )
+    ! exx = eyy = ca = cos(a0)
+    ! exy = -eyx = sa = sin(a0)
+    r0 = MSP_d2r*a0
+    ca = cos(r0)
+    sa = sin(r0)
   
-  ndimx = MS_dimx
-  ndim2x = ndimx/2
-  ndimy = MS_dimy
-  ndim2y = ndimy/2
+    nx = MS_dimx
+    ny = MS_dimy
+    nx2 = (nx - modulo(nx,2)) / 2
+    ny2 = (ny - modulo(ny,2)) / 2
   
-  ! set Fourier-space sampling
-  itogx = 0.5/MS_samplingx/real(ndim2x)
-  itowx = itogx*MS_lamb
-  itogy = 0.5/MS_samplingy/real(ndim2y)
-  itowy = itogy*MS_lamb
+    ! set Fourier-space sampling
+    itogx = 1.0 / (MS_samplingx*real(nx))
+    itowx = itogx*MS_lamb
+    itogy = 1.0 / (MS_samplingx*real(ny))
+    itowy = itogy*MS_lamb
   
-  ! loop through calculation array in fourier space
-  do j=1, ndimx
-    MSP_detcols(2,j,k) = ndimy ! set left detector column to maximum
-    wx = itowx*MS_TABBED_SCR(j) - x0 ! get diffraction angle wx and substract rect offset
-    do i=1, ndimy
-      wy = itowy*MS_TABBED_SCR2(i) - y0 ! get diffraction angle wy and substract rect offset
-      !
-      ! decompose along the orientation vectors by
-      ! wx = tx*exx + ty*eyx
-      ! wy = tx*exy + ty*eyy
-      ! =>
-      ! tx = wx*eyy - wy*eyx = wx*ca + wy*sa
-      ! ty = wx*exy - wy*exx = wx*sa - wy*ca
-      tx = wx*ca + wy*sa
-      ty = wx*sa - wy*ca
-      !
-      ! check for position inside the rectangle
-      ! range checks on the following general interval : min <= x < max
-      if ((tx>=0.0).and.(tx<dx).and.(ty>=0.0).and.(ty<dy)) then ! yes = point is in rect
-        MSP_detarea(i,j,k) = 1 ! set detector pixel weight to 1
-        MSP_detcols(1,j,k) = MSP_detcols(1,j,k) + 1 ! increase pixel sum
-        MSP_detcols(2,j,k) = min(MSP_detcols(2,j,k),i) ! update minimum column index
-        MSP_detcols(3,j,k) = max(MSP_detcols(3,j,k),i) ! update maximum column index
-      end if
-    end do ! loop i
-  end do ! loop j
+    ! loop through calculation array in fourier space
+    MSP_detmasklen(k) = 0
+    do j=1, ny
+      idy = (j-1)*nx ! y index shift
+      !MSP_detcols(2,j,k) = nx ! set left detector column to maximum
+      !MSP_detcols(3,j,k) = 1 ! set right detector column to minimum
+      wy = itowy*MS_TABBED_SCR2(j) - y0 ! get diffraction angle wx and substract rect offset
+      do i=1, nx
+        idx = i + idy
+        wx = itowx*MS_TABBED_SCR(i) - x0 ! get diffraction angle wy and substract rect offset
+        !
+        ! decompose along the orientation vectors by
+        ! wx = tx*exx + ty*eyx
+        ! wy = tx*exy + ty*eyy
+        ! =>
+        ! tx = wx*eyy - wy*eyx = wx*ca + wy*sa
+        ! ty = wx*exy - wy*exx = wx*sa - wy*ca
+        tx = wx*ca + wy*sa
+        ty = wx*sa - wy*ca
+        !
+        ! check for position inside the rectangle
+        ! range checks on the following general interval : min <= x < max
+        if ((tx>=0.0).and.(tx<dx).and.(ty>=0.0).and.(ty<dy)) then ! yes = point is in rect
+          MSP_detmasklen(k) = MSP_detmasklen(k) + 1 ! increase number of masked pixels
+          MSP_detarea(idx,k) = 1.0 ! set detector pixel weight to 1
+          MSP_detmask(MSP_detmasklen(k),k) = idx ! store index in hash tabel / mask
+          !MSP_detcols(1,j,k) = MSP_detcols(1,j,k) + 1 ! increase pixel sum
+          !MSP_detcols(2,j,k) = min(MSP_detcols(2,j,k),i) ! update minimum column index
+          !MSP_detcols(3,j,k) = max(MSP_detcols(3,j,k),i) ! update maximum column index
+        end if
+      end do ! loop i
+    end do ! loop j
 
-  if (MSP_detimg_output==1) then ! export the detector function to binary file
-    if (.not.allocated(detfunc)) then
-      allocate(detfunc(MS_dimx, MS_dimy), stat=nalloc)
-      if (nalloc/=0) then
-        nerr = 5
-        call MSP_ERROR("Allocation of detector function array failed.",subnum+nerr)
-        goto 667
+    if (MSP_detimg_output==1) then ! export the detector function to binary file
+      if (.not.allocated(detfunc)) then
+        allocate(detfunc(nx, ny), stat=nalloc)
+        if (nalloc/=0) then
+          nerr = 5
+          call MSP_ERROR("Allocation of detector function array failed.",subnum+nerr)
+          goto 667
+        end if
       end if
-    end if
-    ! create the detector function from prepared arrays, but in non-transposed and non-scrambled order
-    do j=1, ndimy
-      j1 = MS_TABBED_SCR2(j) + ndim2y+1
-      do i=1, ndimx
-        i1 = MS_TABBED_SCR(i) + ndim2x+1
-        detfunc(i,j) = MSP_detarea(j1,i1,k)
-      end do 
-    end do
+      ! create the detector function from prepared arrays, but in non-scrambled order
+      do j=1, ny
+        j1 = MS_TABBED_SCR2(j) + ny2 + 1
+        idy = (j1-1)*nx
+        do i=1, nx
+          i1 = MS_TABBED_SCR(i) + nx2 + 1
+          idx = i1 + idy
+          !detfunc(i,j) = MSP_detarea(i1,j1,k)
+          detfunc(i,j) = MSP_detarea(idx,k)
+        end do 
+      end do
     
-    m = LEN_TRIM(MSP_outfile) ! get length of the standard output file
-    l = INDEX(trim(MSP_outfile),".",back=.TRUE.) ! search for extension point in given output file
-    if (MSP_usedetdef/=0) then ! update output file name with detetctor name
-      if (l<1) then ! no extension wanted
-        write(unit=stmp,fmt='(A)') trim(MSP_outfile)//"_detector_"//trim(MSP_detname(k))
-      else ! last extension starts at position l, insert the index string before
-        write(unit=stmp,fmt='(A)') MSP_outfile(1:l-1)//"_detector_"//trim(MSP_detname(k))//MSP_outfile(l:m)
+      m = LEN_TRIM(MSP_outfile) ! get length of the standard output file
+      l = INDEX(trim(MSP_outfile),".",back=.TRUE.) ! search for extension point in given output file
+      if (MSP_usedetdef/=0) then ! update output file name with detetctor name
+        if (l<1) then ! no extension wanted
+          write(unit=stmp,fmt='(A)') trim(MSP_outfile)//"_detector_"//trim(MSP_detname(k))
+        else ! last extension starts at position l, insert the index string before
+          write(unit=stmp,fmt='(A)') MSP_outfile(1:l-1)//"_detector_"//trim(MSP_detname(k))//MSP_outfile(l:m)
+        end if
+      else ! keep current output file name
+        if (l<1) then ! no extension wanted
+          write(unit=stmp,fmt='(A)') trim(MSP_outfile)//"_detector"
+        else ! last extension starts at position l, insert the index string before
+          write(unit=stmp,fmt='(A)') MSP_outfile(1:l-1)//"_detector"//MSP_outfile(l:m)
+        end if
       end if
-    else ! keep current output file name
-      if (l<1) then ! no extension wanted
-        write(unit=stmp,fmt='(A)') trim(MSP_outfile)//"_detector"
-      else ! last extension starts at position l, insert the index string before
-        write(unit=stmp,fmt='(A)') MSP_outfile(1:l-1)//"_detector"//MSP_outfile(l:m)
+    
+      write(unit=MSP_stmp,fmt='(A,I3.3,A)') "Saving detector function #",k," to file ["//trim(stmp)//"]."
+      call PostMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,I4,A,I4)') "- detector function: 32-bit float, size: ",nx," x ",ny
+      call PostDebugMessage(trim(MSP_stmp))
+      call SaveDataR4(trim(stmp),detfunc,nx*ny,nerr)
+      if (nerr/=0) then
+        call MSP_ERROR("Failed to save detector function.",subnum+6)
       end if
-    end if
-    
-    write(unit=MSP_stmp,fmt='(A,I3.3,A)') "Saving detector function #",k," to file ["//trim(stmp)//"]."
-    call PostMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,I4,A,I4)') "- detector function: 32-bit float, size: ",MS_dimx," x ",MS_dimy
-    call PostDebugMessage(trim(MSP_stmp))
-    call SaveDataR4(trim(stmp),detfunc,MS_dimx*MS_dimy,nerr)
-    if (nerr/=0) then
-      call MSP_ERROR("Failed to save detector function.",subnum+6)
-    end if
     
     
-    deallocate(detfunc, stat=nalloc)
+      deallocate(detfunc, stat=nalloc)
     
 667 end if ! (MSP_detimg_output==1)
   
@@ -2801,329 +2883,179 @@ END SUBROUTINE MSP_SetRectangularDetectors
 !**********************************************************************!
 
 
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE MSP_SetKmomentDetector(nerr)
+! function: Setup the integrator for k-moments of the diffraction
+!           pattern
+! -------------------------------------------------------------------- !
+! parameter:
+!   INPUT:
+!   IN/OUTPUT:
+!     integer*4 :: nerr         ! error code
+!                               ! 0 = success
+! -------------------------------------------------------------------- !
 
+  implicit none
 
-!!**********************************************************************!
-!!**********************************************************************!
-!SUBROUTINE MSP_SetCalibratedDetectors(nerr)
-!! function: Sets data for calibrated detectors
-!!           in MSP_detarea and MSP_detcols
-!!           Requires a prior allocation of the two arrays
-!! -------------------------------------------------------------------- !
-!! parameter: 
-!!  integer*4, intent(in) :: nerr = error code
-!!                                  0 = success
-!! -------------------------------------------------------------------- !
-!
-!  implicit none
-!
-!! ------------
-!! DECLARATION
-!  integer*4, parameter :: subnum = 1300
-!!
-!  integer*4, intent(inout) :: nerr
-!  
-!  logical :: file_exists
-!  integer*4 :: nalloc
-!  integer*4 :: i, j, k, ndimx, ndim2x, ndimy, ndim2y, m, l, i1, j1
-!  integer*4 :: ndimd, ndimd2, nlev
-!  real*4 :: itodw, dscl, a0, x0, y0, ci, r0, ca, sa
-!  real*4 :: itogx, itogy, itowx, itowy
-!  real*4 :: wx, wy, tx, ty, ac, di, dj, dv
-!  character(len=1024) :: stmp, dfile, dname
-!  real*4, allocatable :: detdata(:,:), detused(:,:)
-!  real*4, allocatable :: detlev(:,:), detfunc(:,:)
-!! ------------
-!
-!
-!! ------------
-!! INIT
-!!  write(unit=*,fmt=*) " > MSP_SetCalibratedDetectors: INIT."
-!  nerr = 0
-!  !if (MSP_usedetdef/=1) return
-!  !if (MSP_detnum<2) return
-!  ! check allocation status
-!  if (MS_status<1) then
-!    nerr = 1
-!    call MSP_ERROR("Multislice Module not initialized.",subnum+nerr)
-!    return
-!  end if
-!  if (MS_dimx<=0.or.MS_dimy<=0) then
-!    nerr = 2
-!    call MSP_ERROR("Invalid slice array size.",subnum+nerr)
-!    return
-!  end if
-!  if (.not.(allocated(MSP_detarea).and.allocated(MSP_detcols))) then
-!    nerr = 3
-!    call MSP_ERROR("Memory for detector data is not allocated.",subnum+nerr)
-!    return
-!  end if
-!  if (MSP_detnum<1) then
-!    nerr = 4
-!    call MSP_ERROR("No detector is defined.",subnum+nerr)
-!    return
-!  end if
-!! ------------
-!
-!
-!! ------------
-!! loop through detectors
-!  do k=1, MSP_detnum
-!  
-!  if (3/=nint(MSP_detdef(0,k))) cycle ! this is not the correct type of detector
-!  
-!  dname = trim(MSP_detname(k))
-!  dfile = trim(MSP_detstr1(k))
-!  ndimd = nint(abs(MSP_detdef(1,k)))
-!  dscl = abs(MSP_detdef(2,k))
-!  ci = abs(MSP_detdef(3,k))
-!  nlev = nint(abs(MSP_detdef(4,k)))
-!  x0 = MSP_detdef(5,k)
-!  y0 = MSP_detdef(6,k)
-!  a0 = MSP_detdef(7,k)
-!  
-!  ! parameter check
-!  ! - file exists
-!  inquire(file=trim(dfile),exist=file_exists)
-!  if (.not.file_exists) then
-!    write(unit=MSP_stmp,fmt='(A,I3.3,A)') &
-!      & "Failed to setup detector #",k,", ("//trim(dname)// &
-!      & "), file ["//trim(dfile)//"] not found."
-!    nerr = 5
-!    call MSP_ERROR(trim(MSP_stmp),subnum+nerr)
-!    cycle
-!  end if
-!  ! - reasonable file size (128 - 16384)
-!  if (ndimd<128 .or. ndimd>16384) then
-!    write(unit=stmp,fmt='(I)') ndimd
-!    write(unit=MSP_stmp,fmt='(A,I3.3,A)') &
-!      & "Failed to setup detector #",k,", ("//trim(dname)// &
-!      & "), invalid array size ("//trim(adjustl(stmp))// &
-!      & "). Valid sizes 128 ... 16384."
-!    nerr = 6
-!    call MSP_ERROR(trim(MSP_stmp),subnum+nerr)
-!    cycle
-!  end if
-!  ! - non-zero image scale
-!  if (dscl<=0.0) then
-!    nerr = 7
-!    call MSP_ERROR("Invalid detector image scale. "// &
-!      & "Expecting a non-negative number in mrad per pixel.", &
-!      & subnum+nerr)
-!    cycle
-!  end if
-!  ! - non-zero reference charge
-!  if (ci<=0.0) then
-!    nerr = 8
-!    call MSP_ERROR("Invalid reference charge parameter. "// &
-!      & "Expecting a non-negative number of electrons per pixel.", &
-!      & subnum+nerr)
-!    cycle
-!  end if
-!  ! - non-negative number of levels
-!  if (nlev<=0) nlev = 1
-!  
-!  
-!  
-!  if (DEBUG_EXPORT==1) then
-!    write(unit=MSP_stmp,fmt='(A,I3.3,A)') &
-!      & "Setting calibrated detector data for detector #",k, &
-!      & ": "//trim(dname)
-!    call PostDebugMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt='(A)') &
-!      & "- detector image file name: ["//trim(dfile)//"]"
-!    call PostDebugMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt='(A,I5,A,I5,A,I5,A)') &
-!      & "- detector image size: ",ndimd," x ",ndimd, &
-!      & ", expected file size: ", &
-!      & nint(real(4*ndimd*ndimd)/1024.0)," kB."
-!    call PostDebugMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
-!      & "- image scale: ", dscl," (mrad/pix)"
-!    call PostDebugMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
-!      & "- image ref. charge: ", ci," electrons"
-!    call PostDebugMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt='(A,I5)') &
-!      & "- used # response levels: ", nlev
-!    call PostDebugMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt='(A,G12.4)') &
-!      & "- center pixel x: ", x0
-!    call PostDebugMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt='(A,G12.4)') &
-!      & "- center pixel y: ", y0
-!    call PostDebugMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt='(A,G12.4,A)') &
-!      & "- azimuth angle wrt wave x-axis: ", a0," (deg)"
-!    call PostDebugMessage(trim(MSP_stmp))
-!  end if
-!
-!! ------------
-!! prepare parameters
-!  itodw = dscl
-!  ndimd2 = ndimd/2
-!  ! rectange unit vectors (matrix) = ( (  exx,  exy ), (  eyx,  eyy ) )
-!  !                        inverse = ( (  eyy, -exy ), ( -eyx,  exx ) )
-!  ! exx = eyy = ca = cos(a0)
-!  ! exy = -eyx = sa = sin(a0)
-!  r0 = MSP_d2r*a0
-!  ca = cos(r0)
-!  sa = sin(r0)
-!  !
-!  ndimx = MS_dimx
-!  ndim2x = ndimx/2
-!  ndimy = MS_dimy
-!  ndim2y = ndimy/2
-!  
-!  ! set Fourier-space sampling of the wave function
-!  itogx = 0.5/MS_samplingx/real(ndim2x)
-!  itowx = itogx*MS_lamb
-!  itogy = 0.5/MS_samplingy/real(ndim2y)
-!  itowy = itogy*MS_lamb
-!  
-!  ! allocate arrays for the detector image analysis
-!  if (allocated(detdata)) deallocate(detdata, stat=nalloc)
-!  if (allocated(detused)) deallocate(detused, stat=nalloc)
-!  allocate(detdata(ndimd,ndimd), detused(ndimy, ndimx), stat=nalloc)
-!  if (nalloc/=0) then
-!    nerr = 9
-!    call MSP_ERROR("Failed to allocate memory for det. image data.", &
-!      & subnum+nerr)
-!    cycle
-!  end if
-!  detdata = 0.0
-!  detused = 0.0
-!  
-!  ! load the detector data
-!  call LoadDataR4(trim(dfile),detdata,ndimd*ndimd,nerr)
-!  if (nerr/=0) then
-!    nerr = 10
-!    call MSP_ERROR("Failed to load detector image data.", &
-!      & subnum+nerr)
-!    cycle
-!  end if
-!  
-!  ! allocate array for the detector sensitivity levels
-!  if (allocated(detlev)) deallocate(detlev, stat=nalloc)
-!  allocate(detlev(1:2,0:nlev), stat=nalloc)
-!  if (nalloc/=0) then
-!    nerr = 11
-!    call MSP_ERROR("Failed to allocate memory for det. data.", &
-!      & subnum+nerr)
-!    cycle
-!  end if
-!  detlev = 0.0
-!  
-!  ! determine the detector levels
-!  ! - begin with the zero level and its variation
-!  !   we expect the corners outside the biggest circle to
-!  !   contain only zero-electron data, i.e. background counts
-!  !   => Sum up the corner intensities and get mean value
-!  !      and standard deviation (RMS)
-!  l = 0
-!  do j=1, ndimd
-!    dj = real(j-ndimd2-1)
-!    do i=1, ndimd
-!      di = real(i-ndimd2-1)
-!      if (di*di+dj*dj>real(ndimd2*ndimd2)) then
-!        l = l + 1
-!        dv = detdata(i,j)
-!        detlev(1,0) = detlev(1,0) + dv
-!        detlev(2,0) = detlev(2,0) + dv*dv
-!      end if
-!    end do
-!  end do
-!  if (l>0) then
-!    detlev(1,0) = detlev(1,0) / real(l)
-!    detlev(2,0) = sqrt( abs( detlev(2,0) / real(l) &
-!     & - detlev(1,0)*detlev(1,0) ) ) 
-!  else
-!    nerr = 12
-!    call MSP_ERROR("Failed to detect zero level at corners.", &
-!      & subnum+nerr)
-!    cycle
-!  end if
-!  
-!  
-!  ! loop through wave calculation array in fourier space
-!  do j=1, ndimx
-!    MSP_detcols(2,j,k) = ndimy ! set left detector column to maximum
-!    wx = itowx*MS_TABBED_SCR(j)
-!    ! translate to 
-!    do i=1, ndimy
-!      wy = itowy*MS_TABBED_SCR2(i)
-!      !
-!    end do ! loop i
-!  end do ! loop j
-!
-!  if (MSP_detimg_output==1) then ! export the detector function to binary file
-!    if (.not.allocated(detfunc)) then
-!      allocate(detfunc(MS_dimx, MS_dimy), stat=nalloc)
-!      if (nalloc/=0) then
-!        nerr = 5
-!        call MSP_ERROR("Allocation of detector function array failed.",subnum+nerr)
-!        goto 667
-!      end if
-!    end if
-!    ! create the detector function from prepared arrays, but in non-transposed and non-scrambled order
-!    do j=1, ndimy
-!      j1 = MS_TABBED_SCR2(j) + ndim2y+1
-!      do i=1, ndimx
-!        i1 = MS_TABBED_SCR(i) + ndim2x+1
-!        detfunc(i,j) = MSP_detarea(j1,i1,k)
-!      end do 
-!    end do
-!    
-!    m = LEN_TRIM(MSP_outfile) ! get length of the standard output file
-!    l = INDEX(trim(MSP_outfile),".",back=.TRUE.) ! search for extension point in given output file
-!    if (MSP_usedetdef/=0) then ! update output file name with detetctor name
-!      if (l<1) then ! no extension wanted
-!        write(unit=stmp,fmt='(A)') trim(MSP_outfile)//"_detector_"//trim(MSP_detname(k))
-!      else ! last extension starts at position l, insert the index string before
-!        write(unit=stmp,fmt='(A)') MSP_outfile(1:l-1)//"_detector_"//trim(MSP_detname(k))//MSP_outfile(l:m)
-!      end if
-!    else ! keep current output file name
-!      if (l<1) then ! no extension wanted
-!        write(unit=stmp,fmt='(A)') trim(MSP_outfile)//"_detector"
-!      else ! last extension starts at position l, insert the index string before
-!        write(unit=stmp,fmt='(A)') MSP_outfile(1:l-1)//"_detector"//MSP_outfile(l:m)
-!      end if
-!    end if
-!    
-!    write(unit=MSP_stmp,fmt='(A,I3.3,A)') "Saving detector function #",k," to file ["//trim(stmp)//"]."
-!    call PostMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt='(A,I4,A,I4)') "- detector function: 32-bit float, size: ",MS_dimx," x ",MS_dimy
-!    call PostDebugMessage(trim(MSP_stmp))
-!    call SaveDataR4(trim(stmp),detfunc,MS_dimx*MS_dimy,nerr)
-!    if (nerr/=0) then
-!      call MSP_ERROR("Failed to save detector function.",subnum+6)
-!    end if
-!    
-!    
-!    deallocate(detfunc, stat=nalloc)
-!    
-!667 end if ! (MSP_detimg_output==1)
-!  
-!  
-!  end do ! loop k for detectors
-!! ------------
-!
-!
-!! ------------
-!  if (allocated(detdata)) deallocate(detdata, stat=nalloc)
-!  if (allocated(detused)) deallocate(detused, stat=nalloc)
-!  if (allocated(detlev)) deallocate(detlev, stat=nalloc)
-!! ------------
-!
-!
-!! ------------
-!!  write(unit=*,fmt=*) " > MSP_SetCalibratedDetectors: EXIT."
-!  return
-!
-!END SUBROUTINE MSP_SetCalibratedDetectors
-!!**********************************************************************!
+! ------------
+! DECLARATION
+  integer*4, parameter :: subnum = 790
 
+  integer*4, intent(inout) :: nerr
+  
+  integer*4 :: nalloc
+  integer*4 :: i, j, nx, ny, nx2, ny2, m, l, i1, j1, idy, idx
+  real*4 :: r1, itogx, itogy
+  real*4 :: gt1, gx, gy, gy2, g2, gcx, gcy, gm
+  real*4 :: scur, gsx, gsy
+  character(len=1024) :: stmp
+  real*4, allocatable :: detfunc(:,:)
+! ------------
 
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > MSP_SetKmomentDetector: INIT."
+  nerr = 0
+  if (MSP_Kmomout < 1) return ! nothing to do
+  if (MS_status<1) then
+    nerr = 1
+    call MSP_ERROR("Multislice Module not initialized.",subnum+nerr)
+    return
+  end if
+  if (MS_dimx<=0.or.MS_dimy<=0) then
+    nerr = 2
+    call MSP_ERROR("Invalid slice array size.",subnum+nerr)
+    return
+  end if
+  if (.not.(allocated(MSP_Kmomwgt).and.allocated(MSP_Kmommask))) then
+    nerr = 3
+    call MSP_ERROR("Memory for k-moment data is not allocated.",subnum+nerr)
+    return
+  end if
+! ------------
+
+! ------------
+  r1 = MSP_KmomRange
+  
+  if (DEBUG_EXPORT==1) then
+    write(unit=MSP_stmp,fmt='(A,F6.1,A)') &
+      & "Using k-moment integration range of ",r1," mrad."
+    call PostDebugMessage(trim(MSP_stmp))
+  end if
+
+  gt1 = 0.001*r1/MS_lamb ! threshold theta [1/nm]
+  nx = MS_dimx
+  ny = MS_dimy
+  nx2 = (nx - modulo(nx,2)) / 2
+  ny2 = (ny - modulo(ny,2)) / 2
+  
+  ! grid size (nm)
+  gsx = MS_samplingx*real(nx)
+  gsy = MS_samplingy*real(ny)
+  
+  ! zero beam center (beam tilt)
+  gcx = 0.001*STF_beam_tiltx / MS_lamb
+  gcy = 0.001*STF_beam_tilty / MS_lamb
+  
+  ! set Fourier-space sampling (1/nm)
+  itogx = 1.0 / gsx
+  itogy = 1.0 / gsy
+  
+  ! preset sensitivity
+  scur = 1.0
+  MSP_Kmomwgt = 0.0
+  MSP_Kmommask = 0
+  MSP_Kmommasklen = 0
+  ! setup g power tables
+  MSP_Kmomgx(:,0) = 1.0
+  MSP_Kmomgy(:,0) = 1.0
+  if (MSP_KmomMmax>0) then ! more than the 0-th moment will be calculated
+    do m=1, MSP_KmomMmax ! loop over moments
+      do j=1, ny ! set y g-values to the power of m
+        gy = itogy*MS_TABBED_SCR2(j) ! get gy
+        MSP_Kmomgy(j,m) = gy * MSP_Kmomgy(j,m-1) ! set gy^m
+      end do
+      do i=1, nx ! set x g-values to the power of m
+        gx = itogx*MS_TABBED_SCR(i) ! get gx
+        MSP_Kmomgx(i,m) = gx * MSP_Kmomgx(i,m-1) ! set gx^m
+      end do
+    end do
+  end if
+  ! loop through calculation array in fourier space
+  do j=1, ny
+    idy = (j-1)*nx ! y index offset
+    gy = itogy*MS_TABBED_SCR2(j) ! get wave frequency-y
+    gy2 = gy*gy
+    do i=1, nx
+      idx = i + idy ! stream index
+      gx = itogx*MS_TABBED_SCR(i) ! get wave frequency-x
+      g2 = gy2+gx*gx
+      gm = sqrt(g2)
+      ! get aperture value
+      call STF_ApertureFunctionS(gx, gy, 0., 0., gt1, gsx, gsy, STF_APSMOOTHPIX, scur)
+      ! check aperture power threshold
+      if (scur > STF_APERTURETHRESH) then ! check if current fourier pixel is inside the integration range
+        ! this is a valid pixel and we have a sensitivity
+        MSP_Kmommasklen = MSP_Kmommasklen + 1 ! increase mask length
+        MSP_Kmomwgt(idx) = scur ! set detector pixel weight to relative sensitivity
+        MSP_Kmommask(MSP_Kmommasklen) = idx ! store index hash in mask
+        MSP_Kmomhash(1,MSP_Kmommasklen) = i ! store horizontal index
+        MSP_Kmomhash(2,MSP_Kmommasklen) = j ! store vertical index
+      end if
+    end do ! loop i
+  end do ! loop j
+
+  if (MSP_detimg_output==1) then ! export the detector function to binary file
+    if (.not.allocated(detfunc)) then
+      allocate(detfunc(nx, ny), stat=nalloc)
+      if (nalloc/=0) then
+        nerr = 5
+        call MSP_ERROR("Allocation of k-moment function array failed.",subnum+nerr)
+        goto 667
+      end if
+      detfunc = 0.0
+    end if
+    ! create the detector function from prepared arrays, in non-scrambled order
+    do j=1, ny
+      j1 = MS_TABBED_SCR2(j) + ny2 + 1
+      idy = (j1-1)*nx
+      do i=1, nx
+        i1 = MS_TABBED_SCR(i) + nx2 + 1
+        idx = i1 + idy
+        detfunc(i,j) = MSP_Kmomwgt(idx)
+      end do 
+    end do
+    
+    m = LEN_TRIM(MSP_outfile) ! get length of the standard output file
+    l = INDEX(trim(MSP_outfile),".",back=.TRUE.) ! search for extension point in given output file
+    if (l<1) then ! no extension wanted
+      write(unit=stmp,fmt='(A)') trim(MSP_outfile)//"_kmom"
+    else ! last extension starts at position l, insert the index string before
+      write(unit=stmp,fmt='(A)') MSP_outfile(1:l-1)//"_kmom"//MSP_outfile(l:m)
+    end if
+    
+    call PostMessage("Saving k-moment function to file ["//trim(stmp)//"].")
+    write(unit=MSP_stmp,fmt='(A,I4,A,I4)') "- k-moment function: 32-bit float, size: ",nx," x ",ny
+    call PostDebugMessage(trim(MSP_stmp))
+    call SaveDataR4(trim(stmp),detfunc,nx*ny,nerr)
+    if (nerr/=0) then
+      call MSP_ERROR("Failed to save k-moment function.",subnum+6)
+    end if
+    
+    deallocate(detfunc, stat=nalloc)
+    
+667 end if ! (MSP_detimg_output==1)
+  
+  if (allocated(detfunc)) deallocate(detfunc, stat=nalloc)
+! ------------
+
+! ------------
+!  write(unit=*,fmt=*) " > MSP_SetKmomentDetector: EXIT."
+  return
+
+END SUBROUTINE MSP_SetKmomentDetector
+!**********************************************************************!
 
 
 !* << CALCULATIONS & PROCESSING

@@ -1,16 +1,15 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 0.85b                                  #
+#   HOWTO use the program MSA, Version 0.90b                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2018-12-05                                                          #
+#   Date: 2019-01-10                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
 #           Forschungszentrum Jülich GmbH, 52425 Jülich, Germany              #
-#           RWTH Aachen University, 52074 Aachen, Germany                     #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
@@ -108,14 +107,14 @@ Command-line calling options for the program msa.exe:
 >     [-sr <effective source radius in nm>]
 >     [-abf <factor> apply absorption (potentials only)]
 >     [-buni <Biso in nm^2> apply DWF (potentials only)]
->     [-uuni <Uiso in A^2> apply DWF (potentials only)]
 >     [/ctem, switch to imaging TEM simulation]
 >     [/txtout, switch for text output, STEM only]
 >     [/3dout, switch for 3d data output, STEM only]
->     [/gaussap, uses a gaussian aperture profile, STEM only]
 >     [/wave, save wavefunctions]
 >     [/avwave, save average wavefunctions]
 >     [/detimg, save images of detector functions]
+>     [/lapro, use large-angle propagators]
+>     [/dftest, use estimated fft plans]
 >     [/verbose, show processing output]
 >     [/debug, show more processing output]
 >     [/silent, show no processing output]
@@ -137,93 +136,261 @@ Examples:
   - Calculation of an exit-plane wave function from a user provided wave
     msa -prm "msa.prm" -out "epw.wav" -inw "incident.wav" 1 /ctem
 
-Options:
--prm "file name": Defines the file containing parameters of the calculation
-                  microscope parameters, slice parameters, etc.
--out "file name": Defines the output file name used to save the calculation
-                  result. The result is a 4-byte floating point array for
-                  a STEM image calculation and an 8-byte complex array for
-                  a CTEM wave calculation. Suffixes may be added by MSA
-                  depending on other program parameters, such as detector
-                  names and slice indices for thickness series calculations.
--in "file name" : [optional] Defines an input image file. This option is used
-                  for the application of partial spatial coherence in STEM
-                  mode calculations only. If the file contains a sequence
-                  of images, all images will be convoluted.
--inw "file name" (integer number) : [optional] Defines an input wave function
-                  in real-space which will be used as the current incident 
-                  wave function from a specific slice number on.
--px (integer number) : [optional] Defines the x-scan position or scan column
-                  number starting with 0 up to number of scan columns -1.
--py (integer number) : [optional] Defines the y-scan position or scan row
-                  number starting with 0 up to number of scan rows -1.
--lx (integer number) : [optional] Defines the last x-scan position (scan
-                  column) number starting from 0 up to # scan columns -1
-                  to be calculated, in this case -px defines the first scan
-                  column to be calculated.
--ly (integer number) : [optional] Defines the last y-scan position (scan
-                  row) number starting from 0 up to # scan rows -1 to be
-                  calculated, in this case -py defines the first scan row
-                  to be calculated.
--foc (float value) : [optional] Defines the probe or image wave defocus in
-                  nanometers. Overrides the value set in the parameter file.
--tx (float value) : [optional] Defines the x beam tilt in mrad.
-                  Overrides the value set in the parameter file.
--ty (float value) : [optional] Defines the y beam tilt in mrad.
-                  Overrides the value set in the parameter file.
--otx (float value) : [optional] Defines the x object tilt in mrad.
-                  Overrides the value set in the parameter file.
--oty (float value) : [optional] Defines the y object tilt in mrad.
-                  [optional] the value set in the parameter file.
--sr (float value) : [optional] Defines the half-width of the effective
-                  geometrical source profile in nm. Overrides the value set
-                  in the parameter file. Half-width definitions depend on the
-                  source profile chosen in the parameter file.
--abf (float value) : [optional] Applies a fractional absorption potential.
-                  Only when the slice files are given with potential data,
-                  not possible in case of phase grating data.
--buni (float value) : [optional] Applies a universal Debye-Waller factor.
-                  The float value is the isotropic Debye-Waller parameter
-                  (Biso) in nm^2.
-                  Only when the slice files are given with potential data,
-                  not possible in case of phase grating data.
--uuni (float value) : [optional] Applies a universal Debye-Waller factor.
-                  The float value is the isotropic Debye-Waller parameter
-                  (Uiso) in A^2.
-                  Only when the slice files are given with potential data,
-                  not possible in case of phase grating data.
-/ctem : [optional] Activates CTEM mode calculating a coherent(!) wave function.
-                  Image aberrations can be applied to the exit-plane wave
-                  function. STEM image calculations are carried out when
-                  omitting the /ctem parameter (default).
-/txtout : [optional] STEM mode only. Outputs the simulation result in form of
-                  a text file, which includes a header and lists of data.
-                  See section 4 for an explanation of the text file format.
-/3dout : [optional] STEM mode only. The output of results result is in
-                  4-byte floating point arrays. The third dimension represents
-                  the thickness series. One file is generated for each detector
-                  and a respective suffix with the detector name is appended.
-/gaussap : [optional] Applies a gaussian illumination aperture in STEM mode
-                  leading to a larger delocalization of the incident probe.
-                  The 1/e width of the applied Gaussian is defined by the
-                  aperture size parameter in mrad.
-/wave : [optional] Activates wave export at selected slices. Wavefunctions
-                  are saved to file name = name of output file. The file name
-                  is extended with ".wav". Index suffixes are added to denote
-                  the scan pixel, the object slice and the frozen phonon
-                  variation index.
-/avwave : [optional] Activates the output of an average wavefunctions over
-                  multiple frozen lattice calculations.
-/debug : [optional] Activates additional debug output to the console.
-/verbose : [optional] Activates additional program output to the console.
-/detimg : [optional] Images representing the applied detector functions in
-                  Diffraction space are saved to files.
-/lapro : [optional] Use large-angle propagators
-                  exp(-2*Pi/Lambda*(1/cos(theta)-1)) instead of the default
-                  Fresnel propagators exp(-I*Pi*Lambda*q^2).
-                  
-More experimental and undocumented options are hidden in the history of
-changes (section 7).
+
+Detailed explanation of program options:
+
+-prm "file name"
+
+	Defines the file containing parameters of the calculation microscope
+	parameters, slice parameters, etc.
+
+
+-out "file name"
+
+	Defines the output file name used to save the calculation result.
+	The result is an array of 32-bit floats for a STEM image calculation
+	and an array 64-bit complex values for a CTEM wave calculation.
+	Suffixes may be added to the file name depending on other program
+	parameters, such as detector names and slice indices for thickness
+	series calculations.
+
+
+-in "file name" [optional]
+	
+	Defines an input image file. This option is used for the application
+	of partial spatial coherence in STEM mode calculations only. If the
+	file contains a sequence of images, all images will be convoluted.
+
+
+-inw "file name" (integer number) [optional]
+
+	Defines an input wave function in real-space which will be used as
+	the current incident wave function from a specific slice number on.
+	No scan	shift or defocus will be applied to the input wave function.
+	For saving computation time, the complementary option -inwft can be
+	used provided that the input file delivers the wave function by
+	Fourier coefficients.
+
+
+-px (integer number) [optional]
+
+	Defines the x-scan position or scan column number starting with 0 up
+	to number of scan columns -1.
+
+
+-py (integer number) [optional]
+
+	Defines the y-scan position or scan row number starting with 0 up to
+	number of scan rows -1.
+	
+	
+-lx (integer number) [optional]
+
+	Defines the last x-scan position (scan column) number starting from
+	0 up to # scan columns -1 to be calculated, in this case -px defines
+	the first scan column to be calculated.
+
+
+-ly (integer number) [optional]
+
+	Defines the last y-scan position (scan row) number starting from 0
+	up to # scan rows -1 to be calculated, in this case -py defines the
+	first scan row to be calculated.
+
+
+-foc (float value) [optional]
+
+	Defines the probe or image wave defocus in nanometers. Overrides the
+	value set in the parameter file.
+
+
+-tx (float value) [optional]
+
+	Defines the x component of incident beam tilt in mrad. Overrides the
+	value set in the parameter file.
+
+
+-ty (float value) [optional]
+
+	Defines the y component of incident beam tilt in mrad. Overrides the
+	value set in the parameter file.
+
+
+-otx (float value) [optional]
+
+	Defines the x component of object tilt in mrad. Overrides the value
+	set in the parameter file.
+
+
+-oty (float value) [optional]
+
+	Defines the y component of object tilt in mrad. Overrides the value
+	set in the parameter file.
+
+
+-sr (float value) [optional]
+
+	Defines the half-width of the effective geometrical source profile
+	in nm. Overrides the value set in the parameter file.
+
+
+-abf (float value) [optional]
+
+	Applies a fractional absorption potential. Requires that the slice
+	files provide potential data, not possible if phase grating data
+	is provided.
+
+
+-buni (float value) [optional]
+
+	Applies a universal Debye-Waller factor to the projected slice
+	potentials. The float value is the isotropic Debye-Waller parameter
+	(Biso) in nm^2.  Alternatively, the option -uuni can be used to
+	define vibration amplitude (Uiso) values in in Å^2. Requires that
+	the slice files	provide potential data, not possible if phase
+	grating data is	provided.
+
+
+/ctem [optional]
+
+	Activates CTEM mode calculating a coherent(!) wave function.
+    STEM image calculations are carried out if this switch is not
+	present.
+
+
+/txtout [optional]
+
+	STEM mode only. Outputs the simulation result in form of a text
+	file, which includes a header and lists of data. See section 4 for
+	an explanation of the text file format.
+
+
+/3dout [optional]
+
+	STEM mode only. The output of results is in 32-bit floating point
+	arrays. The third dimension represents the thickness series. One
+	file is generated for each detector and a respective suffix with
+	the detector name is appended. This applies to STEM images only,
+	not to diffraction images, probe images, or wave functions.
+
+
+/wave [optional]
+
+	Activates wave function export at selected slices. Wave functions
+	are saved to file name equal to the name of output files. The file
+	name is extended with ".wav". Index suffixes are added to denote
+	the scan pixel, the object slice and the frozen phonon variation
+	index.
+
+
+/avwave [optional]
+
+	Activates the output of an average wave functions over multiple 
+	frozen-lattice calculations. The switch refers to a real-space
+	representation of the wave function. Alternatively, you may use
+	the switch /avwaveft to generate Fourier-space output. A suffix
+	"_avg" is added to the output file name.
+
+
+/detimg [optional]
+
+	Images representing the applied detector functions in Fourier
+	space are saved to files.
+
+
+/lapro [optional]
+
+	Force using large-angle propagators instead of the default Fresnel
+	propagators.
+
+
+/dftest [optional]
+
+	Use FFTW_ESTIMATE instead of FFTW_MEASURE as FFT planner flag.
+	This may be advantageous for small scale calculations.
+
+
+/verbose [optional]
+
+	Activates additional program output to the console.
+
+
+/debug [optional]
+
+	Activates additional debug output to the console.
+
+
+/silent [optional]
+
+	Deactivates all program output to the console.
+
+
+
+Additional and experimental options (not tested):
+
+
+-kmom (integer value) (float value) [optional]
+
+	Output 32-bit k-space momentum images for each integral moment of
+	teh order 0 up to the first integer parameter. The second parameter
+	defines the maximum range of moment integration in mrad. Output
+	moment images contain all (m+1) components of moments of a given
+	order m.
+	Moment form: m = order, l = component {0, ... , m+1}
+	<k^m_l> = Sum[kx^(m-l) ky^l I(kx,ky)]_{kx,ky} / <I_tot>
+	<I_tot> = Sum[I(kx,ky)]_{kx,ky}
+	A suffix "_com<m>" is added to the output file names, where	<m>
+	specifes the moment order. (STEM only)
+
+
+-vtx (integer number) [optional]
+
+	Generates a vortex probe of given orbital angular momentum to be
+	used as incident electron probe. (STEM only)
+
+
+/gaussap [optional]
+
+	Applies a gaussian illumination aperture in STEM mode leading to a
+	larger delocalization of the incident probe. The 1/e width of the
+	applied Gaussian is defined by the aperture size parameter in mrad
+	given in the parameter file.
+
+
+/pimg
+
+	Activates output of probe image intensities.
+	A suffix "_pimg" is added to the output file name. (STEM only)
+	A second suffix "_tot" is added to identify total intensity output.
+	In combination with the Switch /avwave or /avwaveft further
+	diffraction patterns are generated for the elastic wave function
+	(suffix "_ela") and the thermal-diffuse scattering (suffix "_tds").
+
+
+/pdif
+
+	Activates output of probe diffraction patterns.
+	A suffix "_pdif" is added to the output file name. (STEM only)
+	A second suffix "_tot" is added to identify total intensity output.
+	In combination with the Switch /avwave or /avwaveft further
+	diffraction patterns are generated for the elastic wave function
+	(suffix "_ela") and the thermal-diffuse scattering (suffix "_tds").
+
+
+/epc
+
+	Activates explicit averaging over the partial coherence parameters
+	focus spread and source size for STEM probe intensity and diffraction
+	image simulations. Combining this switch with /avwave or /avwaveft
+	will lead to wrong "average"/"elastic" wave functions and consequently
+	wrong images of the elastic and TDS channel.
+
+
+/rti
+
+	Activates run-time console output at certain stages of the calculation.
+
+
                   
 #-----------------------------------------------------------------------------#
 
@@ -564,6 +731,25 @@ EXAMPLE 3: TEM SIMULATION OF A FULLY PERIODIC OBJECT WITHOUT FL CALCULATION
 7) History of changes
 
 
+190111: JB: Version 0.90(beta)
+- Replaced FFTPACK Fourier transform routines by FFTW3 routines. All routines
+  affected by the changed Fourier space indexing resulting from this change
+  have been adopted. Fourier space maps are no longer transposed. Norms of
+  ouput may have changed and need to be checked carefully by calling programs.
+  By intention all probe intensity output should be normalized with respect to
+  an incident probe current of 1. CTEM wave functions should be normalized 
+  corresponding to a plane wave with amplitude 1. Faster initialization of
+  the FFTW routines can be forced with the optional switch /dftest, which
+  sets the planner flag to FFWT_ESTIMATE instead of the default FFTW_MEASURE.
+  For building from the sources you will need to obtain a copy of "libfftw3f".
+- Implemented the option -kmom (max. moment) (range) for calculating
+  momentum integral moments (e.g. center-of-mass) images from probe diffraction
+  data. The parameter (max. moment) specifies the maximum order of the moment
+  integration over the k-space and (range) specifies the circular integration
+  area in mrad. Output images are generated for each moment, containg all
+  components in (m+1)-tuple format, where m is the order of the moment.
+- Implemented better diffraction detector integration, which shouldn't produce
+  numerical summation errors for large detectors with the same speed.
 181205: JB: Version 0.85b
 - Fixed a bug in the probe aberration input reading. This should have
   been a problem since version 0.80b (171213).
@@ -713,10 +899,6 @@ EXAMPLE 3: TEM SIMULATION OF A FULLY PERIODIC OBJECT WITHOUT FL CALCULATION
   The switch is used to select between different detector definition formats:
   1: Annular segment (as used before v0.61)
   2: Rectangular segment (defined by two diagonal corner points)
-  3: Experimental detector data (defined by a detector shape image (possibly
-     also #electrons used to acquire the image for later use with other
-     experimental beam currents and dwell times ) )
-  WARNING: FUNCTIONALITY NOT TESTED!
 120414, JB: Version 0.60b
 - Modified the console text output.
 - Implemented the option to insert a wave function which is used for further

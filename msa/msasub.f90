@@ -1,7 +1,7 @@
 !**********************************************************************!
 !**********************************************************************!
 !                                                                      !
-!    File     :  msasub.F90                                            !
+!    File     :  msasub.f90                                            !
 !                                                                      !
 !    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2018   !
 !                                                                      !
@@ -72,7 +72,6 @@
 !    SUBROUTINE DetectorReadout(rdata, ndet, nret)
 ! OUT    SUBROUTINE DetectorReadoutSpecial(rdata, rlost, nret)
 !    SUBROUTINE ApplySpatialCoherence()
-!    SUBROUTINE AberrateWave()
 !    SUBROUTINE MSACalculate()
 !    SUBROUTINE STEMMultiSlice()
 !    SUBROUTINE CTEMMultiSlice()
@@ -400,58 +399,6 @@ SUBROUTINE Outroduce()
 
 END SUBROUTINE Outroduce
 !**********************************************************************!
-
-
-
-
-
-
-
-
-!**********************************************************************!
-!
-! subroutine CheckLicense
-!
-! quietly check license
-!
-! INPUT: none
-!
-! IN/OUTPUT: none
-!
-subroutine CheckLicense()
-
-  implicit none
-  
-  integer*4, parameter :: noff = 46
-  integer*4, parameter :: n3 = 62
-  integer*4, parameter :: n5 = 70
-  integer*4, parameter :: n2 = 71
-  integer*4, parameter :: n4 = 0
-  integer*4, parameter :: n1 = 52
-  integer*4, parameter :: n7 = 67 
-  integer*4, parameter :: n6 = 69
-  
-  logical :: fex
-  
-  character(len=100) :: f0
-  character(len=7) :: f1
-  character(len=400) :: f2
-  
-  f0 = "C:\"
-  f1 = "       "
-  f0 = trim(f0)//"windows\"
-  write(unit=f1,fmt='(7a1)') char(n1+noff),char(n2+noff),char(n3+noff),&
-     &         char(n4+noff),char(n5+noff),char(n6+noff),char(n7+noff)
-  f0 = trim(f0)//"system32\"
-  f2 = trim(f0)//trim(f1)
-  
-  inquire(file=trim(f2),exist=fex)
-  
-  if (.not.fex) stop
-
-  return
-  
-end subroutine CheckLicense
 
 
 
@@ -1209,17 +1156,17 @@ SUBROUTINE ExplainUsage()
   call PostSureMessage("    [-sr <effective source radius in nm>]")
   call PostSureMessage("    [-abf <factor> apply absorption (potentials only)]")
   call PostSureMessage("    [-buni <Biso in nm^2> apply DWF (potentials only)]")
-  call PostSureMessage("    [-uuni <Uiso in A^2> apply DWF (potentials only)]")
   call PostSureMessage("    [/ctem, switch to imaging TEM simulation]")
   call PostSureMessage("    [/txtout, switch for text output, STEM only]")
   call PostSureMessage("    [/3dout, switch for 3d data output, STEM only]")
-  call PostSureMessage("    [/gaussap, uses a gaussian aperture profile, STEM only]")
   call PostSureMessage("    [/wave, save wavefunctions]")
   call PostSureMessage("    [/avwave, save average wavefunctions]")
   call PostSureMessage("    [/detimg, save images of detector functions]")
   call PostSureMessage("    [/lapro, use large-angle propagators]")
+  call PostSureMessage("    [/dftest, use estimated fft plans]")
   call PostSureMessage("    [/verbose, show processing output]")
   call PostSureMessage("    [/debug, show more processing output]")
+  call PostSureMessage("    [/silent, show no processing output]")
   call PostSureMessage("    [] = optional parameter")
   call Outroduce()
 ! ------------
@@ -1301,6 +1248,10 @@ SUBROUTINE ParseCommandLine()
   MSP_nbuni = 0
   MSP_Buni = 0.01
   MSP_use_fre = 1
+  MSP_FFTW_FLAG = 0
+  MSP_Kmomout = 0
+  MSP_KmomMmax = -1
+  MSP_KmomRange = 0.0
   do
     i = i + 1
     if (i>cnt) exit
@@ -1717,7 +1668,7 @@ SUBROUTINE ParseCommandLine()
       MSP_Buni = MSP_Buni * 78.9568352 * 0.01 ! from U [A^2] to B [nm^2]
       MSP_nbuni = 1
       
-    ! CREATE A VORTEX PROBE (STEM ONLY) (added 2017-10-17 JB as hidden option)
+    ! CREATE A VORTEX PROBE (STEM ONLY) (added 2017-10-17 JB)
     case ("-vtx")
       nfound = 1
       i = i + 1
@@ -1735,6 +1686,41 @@ SUBROUTINE ParseCommandLine()
         call ExplainUsage()
         call CriticalError("Failed to recognize vortex angular orbital momentum.")
       end if
+      
+    ! Calculate k-moments (STEM ONLY) (added 2019-01-11 JB)
+    case ("-kmom")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error.")
+      end if
+      call get_command_argument (i, buffer, len, status)
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error.")
+      end if
+      read(unit=buffer,fmt=*,iostat=status) MSP_KmomMmax
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Failed to recognize k-moment maximum order.")
+      end if
+      i = i + 1
+      if (i>cnt) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error.")
+      end if
+      call get_command_argument (i, buffer, len, status)
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error.")
+      end if
+      read(unit=buffer,fmt=*,iostat=status) MSP_KmomRange
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Failed to recognize k-moment integration range (mrad).")
+      end if
+      MSP_Kmomout = 1
 
     ! ACTIVATE OUTPUT TO A TEXT LIST FILE
     case ("/txtout")
@@ -1810,6 +1796,10 @@ SUBROUTINE ParseCommandLine()
       nfound = 1
       MSP_use_fre = 0
       
+    case ("/dftest")
+      nfound = 1
+      MSP_FFTW_FLAG = 64
+      
     case ("/rti")
       nfound = 1
       MSP_runtimes = 1
@@ -1843,6 +1833,22 @@ SUBROUTINE ParseCommandLine()
   end if
   if (nout==0) then
     call PostWarning("No output file specified, using default output file name ["//trim(MSP_outfile)//"]")
+  end if
+  if (MSP_ctemmode==1 .and. MSP_Kmomout>0) then
+    call PostWarning("K-moment analysis not supported in CTEM mode. Option -kmom is ignored.")
+    MSP_Kmomout = 0
+  end if
+  if (MSP_Kmomout>0) then
+    if (MSP_KmomMmax < 0) then
+      call PostWarning("K-moment maximum order is smaller than zero. Option -kmom is ignored.")
+      MSP_Kmomout = 0
+    else
+      MSP_KmomNum = (MSP_KmomMmax+2) * (MSP_KmomMmax+1) / 2
+    end if
+    if (MSP_KmomRange <= 0.0) then
+      call PostWarning("K-moment integration range is smaller than zero. Option -kmom is ignored.")
+      MSP_Kmomout = 0
+    end if
   end if
 ! ------------
 
@@ -2030,17 +2036,20 @@ SUBROUTINE LoadParameters(sprmfile)
   end if
   
   ! allocate the detection result array
-  if (allocated(MSP_detresult)) then
-    deallocate(MSP_detresult,stat=nalloc)
-    if (nalloc/=0) then
-      call CriticalError("Failed to deallocate memory of previous detector array.")
-    end if
-  end if
+  if (allocated(MSP_detresult)) deallocate(MSP_detresult,stat=nalloc)
   allocate(MSP_detresult(MSP_detnum,MS_stacksize), stat=nalloc)
   if (nalloc/=0) then
     call CriticalError("Failed to allocate detector array.")
   end if
   MSP_detresult = 0.0
+  
+  ! allocate the k-momentum result array
+  if (allocated(MSP_Kmomresult)) deallocate(MSP_Kmomresult,stat=nalloc)
+  allocate(MSP_Kmomresult(MSP_KmomNum,MS_stacksize), stat=nalloc)
+  if (nalloc/=0) then
+    call CriticalError("Failed to allocate k-moment array.")
+  end if
+  MSP_Kmomresult = 0.0
 ! ------------
 
 
@@ -2251,7 +2260,7 @@ SUBROUTINE SetGlobalCellParams()
   
   
 
-! ------------
+  ! ------------
   ! At this point we have valid slice data. 
   ! Now we need to index the slice data in MSP_SLC_setup
   ! This is an important step.
@@ -2273,56 +2282,12 @@ SUBROUTINE SetGlobalCellParams()
   write(unit=MSP_stmp,fmt='(A,I3)') &
      &    "   SLC setup: total number of phase gratings: ",MSP_SLC_num
   call PostDebugMessage(trim(MSP_stmp))
-! ------------
 
 
-! COMMENTED OUT ON 2017-12-12 for version 0.80b
-! * redundant loading
-!! ------------
-!! load & check params -> generate global slice parameters
-!  do i=1, MS_slicenum
-!    call PostMessage("Start reading slice parameters:")
-!    ! generate slice file name
-!    call GetSliceFileName(i,1,sfilename,nerr)
-!    call EMS_SLI_loadparams(trim(sfilename),nx,ny,nv,ht,szx,szy,szz,nerr)
-!    if (nerr/=0) then
-!      call CriticalError("Failed to load from EMS SLI file ["//trim(sfilename)//"].")
-!    end if
-!    call PostMessage("   file ["//trim(sfilename)//"].")
-!    write(unit=MSP_stmp,fmt=*) "   data dim x:",nx
-!    call PostMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt=*) "   data dim y:",ny
-!    call PostMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt=*) "   number of variants in slice file: ",nv
-!    call PostMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt=*) "   cell size x [nm]:",szx
-!    call PostMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt=*) "   cell size y [nm]:",szy
-!    call PostMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt=*) "   cell size z [nm]:",szz
-!    call PostMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt=*) "   cell high-tension [kV]:",ht
-!    call PostMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt=*) "Finished reading slice parameters."
-!    call PostMessage(trim(MSP_stmp))
-!    ! accumulate min and max values of the main slice parameters
-!    maxnx = max(maxnx,nx)
-!    maxny = max(maxny,ny)
-!    maxht = max(maxht,ht)
-!    minnx = min(minnx,nx)
-!    minny = min(minny,ny)
-!    minht = min(minht,ht)
-!    maxszx = max(maxszx,szx)
-!    maxszy = max(maxszy,szy)
-!    minszx = min(minszx,szx)
-!    minszy = min(minszy,szy)
-!  end do
-  !
-  !
-  if ( nx>FFT_BOUND_MAX .or. nx<=0 .or. ny>FFT_BOUND_MAX .or. ny<=0 ) then
-    ierr = 6
-    goto 99
-  end if
+  !if ( nx>FFT_BOUND_MAX .or. nx<=0 .or. ny>FFT_BOUND_MAX .or. ny<=0 ) then
+  !  ierr = 6
+  !  goto 99
+  !end if
   if ( szx<=0.0 .or. szy<=0.0 ) then
     ierr = 7
     goto 99
@@ -2634,15 +2599,14 @@ SUBROUTINE PrepareWavefunction()
 
 ! ------------
 ! DECLARATION
-  integer*4 :: nerr, i, j, nalloc
-  real*4 :: rpower, rpowscale
+  integer*4 :: nerr, nalloc
   complex*8, allocatable :: cdata(:,:)
 ! ------------
 
 ! ------------
 ! INIT
 !  write(unit=*,fmt=*) " > PrepareWavefunction: INIT."
-  allocate(cdata(MS_dimy,MS_dimx),stat=nalloc)
+  allocate(cdata(MS_dimx,MS_dimy),stat=nalloc)
   if (nalloc/=0) then
     call CriticalError("Failed to allocate memory for incident wavefunction.")
   end if
@@ -2655,26 +2619,18 @@ SUBROUTINE PrepareWavefunction()
   STF_beam_tiltx = MSP_BeamTiltX
   STF_beam_tilty = MSP_BeamTiltY
   if (MSP_ctemmode==1) then ! PLANE WAVE FOR TEM
-    call STF_PreparePlaneWaveFourier(MS_dimx,MS_dimy,MS_samplingx,MS_samplingy)
+    call STF_PreparePlaneWaveFourier(cdata,MS_dimx,MS_dimy,MS_samplingx,MS_samplingy)
   else ! STEM
     if (MSP_Vortex==0) then ! DEFAULT STEM PROBE
-      call STF_PrepareProbeWaveFourier(MS_dimx,MS_dimy,MS_samplingx,MS_samplingy)
+      call STF_PrepareProbeWaveFourier(cdata,MS_dimx,MS_dimy,MS_samplingx,MS_samplingy)
     else ! STEM VORTEX PROBE (added 2017-10-17 by JB)
-      call STF_PrepareVortexProbeWaveFourier(MSP_Vortex,MS_dimx,MS_dimy,MS_samplingx,MS_samplingy)
+      call STF_PrepareVortexProbeWaveFourier(cdata,MSP_Vortex,MS_dimx,MS_dimy,MS_samplingx,MS_samplingy)
     end if
   end if
   if (nerr/=STF_err_num) then
     if (allocated(cdata)) deallocate(cdata, stat=nalloc)
     call CriticalError("Failed to create wavefunction.")
   end if
-! normalize to power=1.0 and transfer to dummy memory
-  rpower = STF_PreparedWavePower
-  rpowscale = sqrt(1.0/rpower) !/real(nx*ny))
-  do j=1, MS_dimx
-    do i=1, MS_dimy
-      cdata(i,j) = rpowscale*STF_sc(i,j)
-    end do
-  end do
 ! --------------
 
 ! ------------
@@ -2711,6 +2667,7 @@ SUBROUTINE InsertExternalWavefunction()
 !   - loads the input wave function data from file
 !   - Fourier-Transforms the data (depends on MSP_extinwform)
 !   - copies the FS data to the MS-module backup wave
+!   - Fourier-space data is expected to be in scrambled form
 !
 !   Use MS_OffsetIncomingWave(0.0,0.0,0.0) ONCE before running the
 !   modified multislice
@@ -2723,22 +2680,26 @@ SUBROUTINE InsertExternalWavefunction()
   use MSAparams
 
   implicit none
-
+  
 ! ------------
 ! DECLARATION
-  integer*4 :: nerr, j, nlfu, nalloc
-  complex*8, allocatable :: cdata(:,:), cdataft(:,:)
+  integer*4 :: nerr, nx, ny, nlfu, nalloc
+  complex*8, allocatable :: cdata(:,:)
+  real*4 :: rsca
 ! ------------
 
 ! ------------
 ! INIT
 !  write(unit=*,fmt=*) " > InsertExternalWavefunction: INIT."
-  if (.not.allocated(MS_sc)) goto 101
+  if (MS_status<1) goto 101
+  nx = MS_dimx
+  ny = MS_dimy
+  if (nx <= 0 .or. ny <= 0) goto 106
 ! allocate memory for loading the wave function
-  allocate( cdata(MS_dimx,MS_dimy), cdataft(MS_dimy, MS_dimx), stat=nalloc)
+  allocate( cdata(nx,ny), stat=nalloc)
   if (nalloc/=0) goto 102
   cdata = cmplx(0.0,0.0)
-  cdataft = cmplx(0.0,0.0)
+  rsca = 1.0 / sqrt(real(nx*ny))
 ! ------------
 
 
@@ -2750,14 +2711,8 @@ SUBROUTINE InsertExternalWavefunction()
   open(unit=nlfu, file=trim(MSP_inwfile), form="binary", access="sequential", &
      & iostat=nerr, status="old", action="read", share='DENYWR' )
   if (nerr/=0) goto 103
-  
-  if (MSP_extinwform==0) then
-  ! load real space wave function
-    read(unit=nlfu,iostat=nerr) cdata
-  else
-  ! load Fourier space wave function
-    read(unit=nlfu,iostat=nerr) cdataft
-  end if
+! load wave function
+  read(unit=nlfu,iostat=nerr) cdata
 ! handle loading error
   if (nerr/=0) goto 104
 ! close the input file  
@@ -2768,77 +2723,229 @@ SUBROUTINE InsertExternalWavefunction()
 ! ------------
 ! Apply FT in case of a real-space input
   if (MSP_extinwform==0) then
-    MS_sc = cmplx(0.0,0.0)
-    do j=1, MS_dimy
-      MS_sc(1:MS_dimx,j) =  cdata(1:MS_dimx,j)
-    end do
+    MS_work(1:nx,1:ny) = cdata(1:nx,1:ny)
   ! transform the data to Fourier space
-    call MS_FFT(MS_sc,MS_dimx,MS_dimy,'for')
+    call MS_FFT_WORK(1)
   ! transfer the loaded data to the result array
-    do j=1, MS_dimx
-      cdataft(1:MS_dimy,j) =  MS_sc(1:MS_dimy,j)
-    end do
+    cdata(1:nx,1:ny) =  MS_work(1:nx,1:ny) * rsca
   end if
 ! ------------
 
 ! ------------
 ! transfer the wave data to multislice module (backup)
   nerr = MS_err_num
-  call MS_SetIncomingWave(cdataft)
+  call MS_SetIncomingWave(cdata)
   if (nerr/=MS_err_num) goto 105
 ! ------------
 
 ! ------------
 !  write(unit=*,fmt=*) " > InsertExternalWavefunction: EXIT."
-99 continue
-  if (allocated(cdata)) deallocate(cdata,stat=nalloc) 
-  if (allocated(cdataft)) deallocate(cdataft,stat=nalloc) 
-  return
+  goto 1000
 
 ! error handling
 101 continue
-  if (allocated(cdata)) deallocate(cdata,stat=nalloc) 
-  if (allocated(cdataft)) deallocate(cdataft,stat=nalloc) 
   call CriticalError("Multislice module is not initialized.")
-  return
+  goto 1000
 102 continue
-  if (allocated(cdata)) deallocate(cdata,stat=nalloc) 
-  if (allocated(cdataft)) deallocate(cdataft,stat=nalloc) 
   call CriticalError("Allocation of memory for input wave failed.")
-  return
+  goto 1000
 103 continue
-  if (allocated(cdata)) deallocate(cdata,stat=nalloc) 
-  if (allocated(cdataft)) deallocate(cdataft,stat=nalloc) 
   write(unit=MSP_stmp,fmt='(I)') nerr
   call CriticalError("Failed to connect to file ["// &
      & trim(MSP_inwfile)//"] - Code ("//trim(adjustl(MSP_stmp))//").")
-  return
+  goto 1000
 104 continue
-  if (allocated(cdata)) deallocate(cdata,stat=nalloc) 
-  if (allocated(cdataft)) deallocate(cdataft,stat=nalloc) 
   write(unit=MSP_stmp2,fmt='(I)') nerr
   write(unit=MSP_stmp,fmt='(A,I4,A,I4,A)') &
-     &    "Failed to read all ",MS_dimx,"x",MS_dimy, &
+     &    "Failed to read all ",nx," x ",ny, &
      &    " 64-bit complex*8 data values - Code("//trim(adjustl(MSP_stmp2))//")."
   call CriticalError(trim(MSP_stmp))
-  return
+  goto 1000
 105 continue
-  if (allocated(cdata)) deallocate(cdata,stat=nalloc) 
-  if (allocated(cdataft)) deallocate(cdataft,stat=nalloc) 
   call CriticalError("Failed to save wavefunction in multislice module.")
+  goto 1000
+106 continue
+  write(unit=MSP_stmp,fmt='(A,I4,A,I4,A)') &
+     &    "Invalid size of the wavefunction array (",nx," x ",ny,")."
+  call CriticalError(trim(MSP_stmp))
+  goto 1000
+  
+! final exit
+1000 continue
+  if (allocated(cdata)) deallocate(cdata,stat=nalloc) 
   return
 
 END SUBROUTINE InsertExternalWavefunction
 !**********************************************************************!
 
+  
+!**********************************************************************!
+! straight summation on single precision accumulator
+!**********************************************************************!
+SUBROUTINE FSTRSUM(a, n, s)
+  IMPLICIT NONE
+  ! interface
+  real*4, intent(inout) :: a(n) ! reference to data array 
+  integer*4, intent(in) :: n ! number of items (32 bit should be sufficient)
+  real*4, intent(out) :: s ! result of summation
+  ! locals
+  integer*4 :: i
+  ! init
+  s = 0.0
+  ! summation
+  do i=1, n
+    s = s + a(i)
+  end do
+  return
+END SUBROUTINE FSTRSUM
+  
+!**********************************************************************!
+! straight summation on double precision accumulator
+!**********************************************************************!
+SUBROUTINE DSTRSUM(a, n, s)
+  IMPLICIT NONE
+  ! interface
+  real*4, intent(inout) :: a(n) ! reference to data array 
+  integer*4, intent(in) :: n ! number of items (32 bit should be sufficient)
+  real*4, intent(out) :: s ! result of summation
+  ! locals
+  integer*4 :: i
+  real*8 :: stmp
+  ! init
+  stmp = 0.0
+  ! summation with type cast
+  do i=1, n
+    stmp = stmp + dble(a(i))
+  end do
+  ! copy result with type cast
+  s = real(stmp, kind=4)
+  return
+END SUBROUTINE DSTRSUM
+  
 
+!**********************************************************************!
+! strided 2-fold butterfly summation
+! ! Warning: This routine may modify the input a.
+! ! Make a backup of the data or provide a copy if you still need it!
+!**********************************************************************!
+SUBROUTINE FDNCS2M(a, n, s)
+  IMPLICIT NONE
+  ! parameters
+  integer*4, parameter :: nbuf = 4096
+  integer*4, parameter :: nlim = 32
+  ! interface
+  real*4, intent(inout) :: a(n) ! reference to data array 
+  integer*4, intent(in) :: n ! number of items (32 bit should be sufficient)
+  real*4, intent(out) :: s ! result of summation
+  ! workers
+  integer*4 :: itmp, idx, idxn0, nalloc ! indices and helpers
+  integer*4 :: nc, n2, n1, n0 ! stride sizes
+  integer*4 :: ntmp ! number of strides through buffer
+  real*4 :: r ! rest value
+  real*4, allocatable :: dst(:) ! allocatble temp data
+  ! init
+	s = 0.0
+	if (n <= 0) return ! handle invalid n
+  if (n == 1) then
+    s = a(1)
+    return
+  end if
+  if (n == 2) then
+    s = a(1) + a(2)
+    return
+  end if
+  if (n < nlim) then ! small array size, do simple sim
+    call FSTRSUM(a,n,s)
+    return
+  end if
+  ! - calculate number of strides through the buffer
+	ntmp = int(ceiling((dble(n) / dble(nbuf))))
+	if (ntmp > 1) then ! there will be more than one stride -> array larger than buffer length
+		allocate(dst(ntmp), stat=nalloc) ! allocate new destination buffer
+    dst = 0.0 ! preset dst with zeroes
+    if (0/=nalloc) return
+  else ! array smaller than or equal to the stride buffer, butterfly on size n
+		r = 0.0
+    n2 = 2
+    n1 = 1
+    do while (n2 <= n) ! butterfly on size n
+			do idx=n2, n, n2
+				a(idx) = a(idx) + a(idx - n1)
+			end do
+			if (n1 <= modulo(n,n2)) then ! handle left-over component
+				r = r + a(idx - n1)
+			end if
+			n1 = n2
+			n2 = n2 + n2
+		end do
+		s = a(n1) + r
+		return ! done
+  end if
+  n0 = 0
+  itmp = 1
+	do while (n0 < n) ! loop over strides (n > nbuf)
+		nc = min(nbuf, n - n0) ! number of items to take for in this stride
+		if (nc == nbuf) then ! working on full buffer length. This is repeated ntmp-1 times
+			n2 = 2 ! init
+      n1 = 1
+			do while (n2 <= nbuf) ! butterfly on size nbuf
+        do idx=n2, nbuf, n2
+          idxn0 = n0+idx
+					a(idxn0) = a(idxn0) + a(idxn0 - n1)
+				end do
+				n1 = n2
+				n2 = n2 + n2
+			end do
+			dst(itmp) = a(n0 + n1) ! store intermediate result in stride slot of destination
+    else ! working on reduced buffer length (not power of two), this happens only once!
+			if (nc > 0) then
+        if (nc == 1) then ! roll-out for 1
+          dst(itmp) = a(n0+1)
+        else if (nc == 2) then ! roll-out for 2
+          dst(itmp) = a(n0+1) + a(n0+2)
+        else if (nc < nlim) then ! small array case
+          call FSTRSUM(a(n0+1:n0+nc),nc,s) ! straight sum on size nc
+        else ! larger array case (nc)
+          r = 0.0
+          n2 = 2
+          n1 = 1
+          do while (n2 <= nc) ! butterfly on size nc
+			      do idx=n2, nc, n2
+              idxn0 = n0+idx
+				      a(idxn0) = a(idxn0) + a(idxn0 - n1)
+			      end do
+			      if (n1 <= modulo(nc,n2)) then ! handle left-over component
+				      r = r + a(n0 + idx - n1)
+			      end if
+			      n1 = n2
+			      n2 = n2 + n2
+		      end do
+		      dst(itmp) = dst(itmp) + a(n0 + n1) + r
+        end if
+      end if
+    end if
+		n0 = n0 + nbuf
+		itmp = itmp + 1
+	end do
+	if (ntmp > 1) then ! recurse if more than one buffer stride happened, this should always happen here
+		call FDNCS2M(dst, ntmp, s) ! sum on dst buffer
+		deallocate(dst, stat=nalloc) ! release dst buffer memory
+	end if
+	return
+END SUBROUTINE FDNCS2M
+!**********************************************************************!
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE DetectorReadout(rdata, ndet, nret)
-! SUBROUTINE: 
+SUBROUTINE DetectorReadout(rdata, ndat, nret)
+! SUBROUTINE: Performs readout of all detectors and k-moment
+!             integration.
+!             The output array rdata is a list of integrated detector
+!             values. There is no integration done here. The values
+!             are set and not summed to rdata.
 ! -------------------------------------------------------------------- !
-! parameter: 
+! parameter:  rdata (real*4) expect one item per detector and k-moment
+!             component, output
 ! -------------------------------------------------------------------- !
 
   use MultiSlice
@@ -2848,41 +2955,108 @@ SUBROUTINE DetectorReadout(rdata, ndet, nret)
 
 ! ------------
 ! DECLARATION
-  integer*4 :: nret, ndet, i, j, k, i0, i1
-  real*4 :: dval, rval, rdata(ndet)
-  complex*8 :: cval
+  real*4, intent(out) :: rdata(1:ndat)
+  integer*4, intent(in) :: ndat
+  integer*4, intent(out) :: nret
+  integer*4 :: ndet, nkmom, nx, ny, i, j, k, l, m, nmlen, idy, idx, nalloc
+  real*4 :: rval, gxk, gyl
 ! ------------
 
 ! ------------
 ! INIT
 !  write(unit=*,fmt=*) " > DetectorReadout: INIT."
   nret = 1
+  ndet = MSP_detnum
+  nkmom = MSP_KmomNum
+  nalloc = 0
+  nx = MS_dimx
+  ny = MS_dimy
   if (0==MS_status) then
     call CriticalError("DetectorReadout: module not initialized.")
     return ! skip if data array not ready
   end if
+  if (0>=nx .or. 0>=ny) then ! invalid size of diffraction grid
+    call CriticalError("DetectorReadout: invalid grid size.")
+    return
+  end if
+  if (0>=ndet .and. 0>=nkmom) then ! no detectors and no other integrating readout
+    nret = 0
+    return ! nothing to readout, leave rdata as is
+  end if
+  if (ndat < ndet+nkmom) then
+    call CriticalError("DetectorReadout: conflict between number of "// &
+       & "detectors and size of provided output array.")
+    return
+  end if
+  if (.not.allocated(MSP_pdiftmp)) then ! allocate temp readout buffer
+    allocate(MSP_pdiftmp(MS_dimx*MS_dimy), stat=nalloc)
+    if (nalloc/=0) then
+      call CriticalError("DetectorReadout: allocation failed.")
+      return ! skip if data array not ready
+    end if
+  end if
+  if (.not.allocated(MSP_pdettmp)) then ! allocate temp readout buffer
+    allocate(MSP_pdettmp(MS_dimx*MS_dimy), stat=nalloc)
+    if (nalloc/=0) then
+      call CriticalError("DetectorReadout: allocation failed.")
+      return ! skip if data array not ready
+    end if
+  end if
 ! ------------
-
+  
+  
 ! ------------
+! calculate the diffraction data stream used by all detectors and integrators below
+  do j=1, ny
+    idy = (j-1)*nx
+    do i=1, nx
+      idx = i + idy
+      MSP_pdiftmp(idx) = real(MS_wave(i,j)*conjg(MS_wave(i,j))) ! get power of wave function as stream of data
+    end do
+  end do
+! reset output array
   rdata = 0.0
-  do k=1, ndet
-    if ( 0 == nint(MSP_detdef(0,k)) ) cycle
-    
-    do j=1, MS_dimx
-      if (MSP_detcols(1,j,k)==0) cycle
-      i0 = MSP_detcols(2,j,k)
-      i1 = MSP_detcols(3,j,k)
-      do i=i0, i1
-        dval = MSP_detarea(i,j,k)
-        if (dval/=0.0) then
-          cval = MS_wave(i,j) ! get Fourier-space wave data
-          rval = real(cval*conjg(cval)) ! get power
-          rdata(k) = rdata(k) + rval*dval
+! default STEM detectors
+  if (ndet>0) then
+    ! readout all integrating detectors
+    do k=1, ndet 
+      nmlen = MSP_detmasklen(k)
+      if ( 0 == nint(MSP_detdef(0,k)) .or. 0 >= nmlen) cycle ! skip empty or undefined detector
+      do i=1, nmlen ! readout each masked Fourier pixel
+        idx = MSP_detmask(i,k) ! get stream index
+        MSP_pdettmp(i) = MSP_pdiftmp(idx) * MSP_detarea(idx,k) ! store detected intensity
+      end do
+      !call FDNCS2M(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a 2-fold butterfly
+      call DSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
+      rdata(k) = rval 
+    end do
+  end if
+! k-space moments
+  if (nkmom>0) then
+    ! readout k-moments
+    idy = 0
+    nmlen = MSP_Kmommasklen ! assuming everything is OK with MSP_Kmommasklen
+    ! accumulate sums
+    do m=0, MSP_KmomMmax ! loop from 0 to maximum order of moments
+      do l=0, m ! loop through all 2d components of moment k
+        idy = idy + 1
+        k = m - l ! second parameter power
+        do i=1, nmlen ! readout each masked Fourier pixel
+          idx = MSP_Kmommask(i) ! get stream index
+          gxk = MSP_Kmomgx(MSP_kmomhash(1,i),k) ! get gx^k
+          gyl = MSP_Kmomgy(MSP_kmomhash(2,i),l) ! get gy^l
+          MSP_pdettmp(i) = gxk * gyl * MSP_pdiftmp(idx) * MSP_Kmomwgt(idx) ! store detected intensity
+        end do
+        !call FDNCS2M(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a 2-fold butterfly
+        call DSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
+        rdata(ndet+idy) = rval ! store result in the channels behind the default detectors
+        if (m>0) then ! normalize by the 0-th moment rdata(ndet+1)
+          rdata(ndet+idy) = rdata(ndet+idy) / rdata(ndet+1)
         end if
       end do
     end do
-    
-  end do
+  end if
+! set success code
   nret = 0
 ! ------------
 
@@ -2893,222 +3067,6 @@ SUBROUTINE DetectorReadout(rdata, ndet, nret)
 END SUBROUTINE DetectorReadout
 !**********************************************************************!
 
-
-
-!!**********************************************************************!
-!!**********************************************************************!
-!SUBROUTINE DetectorImgExport(ndet, nret)
-!! SUBROUTINE: 
-!! -------------------------------------------------------------------- !
-!! parameter: 
-!! -------------------------------------------------------------------- !
-!
-!  use MultiSlice
-!  use MSAparams
-!  
-!  implicit none
-!
-!! ------------
-!! DECLARATION
-!  integer*4 :: nthread, nret, ndet, i, j, k, n, i0, i1
-!  real*4 :: rval
-!! ------------
-!
-!! ------------
-!! INIT
-!!  write(unit=*,fmt=*) " > DetectorImgExport: INIT."
-!  nret = 1
-!  if (0==MS_status) then
-!    call CriticalError("DetectorReadout: module not initialized.")
-!    return ! skip if data array not ready
-!  end if
-!! ------------
-!
-!! ------------
-!  rdata = 0.0
-!  call PostMessage("Exporting detector segment images.")
-!  
-!!  if (MSP_usedetdef==1) then ! collect for all detectors
-!  do k=1, ndet
-!    
-!    do j=1, MS_dimx
-!      if (MSP_detcols(1,j,k)==0) cycle
-!      i0 = MSP_detcols(2,j,k)
-!      i1 = MSP_detcols(3,j,k)
-!      do i=i0, i1
-!        if (MSP_detarea(i,j,k)==1) then
-!          cval = MS_wave(i,j) ! get Fourier-space wave data
-!          rval = real(cval*conjg(cval)) ! get power
-!          rdata(k) = rdata(k) + rval
-!        end if
-!      end do
-!    end do
-!    
-!  end do
-!  
-!!  write(*,*) rdata
-!  
-!!  else ! collect for the standard detector
-!!  
-!!    do j=1, MS_dimx
-!!      if (MS_detcols(1,j)==0) cycle
-!!      i0 = MS_detcols(2,j)
-!!      i1 = MS_detcols(3,j)
-!!      do i=i0, i1
-!!        if (MS_detarea(i,j)==1) then
-!!          cval = MS_wave(i,j) ! get Fourier-space wave data
-!!          rval = real(cval*conjg(cval)) ! get power
-!!          rdata(1) = rdata(1) + rval
-!!        end if
-!!      end do
-!!    end do
-!!  end if
-!!  end if ! (MS_excludeelastic==0)
-!  
-!!! INELASTICALLY SCATTERED WAVE
-!!  if (MS_useinelastic/=0) then
-!!  if (DEBUG_EXPORT==1) then
-!!    write(unit=*,fmt=*) " > Collecting inelastically scattered wave power."
-!!  end if
-!!! do loop over all slices and collect inelastically scattered intensities
-!!! all waves are already in fourier space
-!!  n = min(MS_lastmaxslice-1,MS_stacksize)
-!!  if (n>0) then
-!!    do k=1, n
-!!      do j=1, MS_dimx
-!!        if (MS_detcols(1,j)==0) cycle
-!!        i0 = MS_detcols(2,j)
-!!        i1 = MS_detcols(3,j)
-!!        do i=i0, i1
-!!          if (MS_detarea(i,j)==1) then
-!!            cval = MS_absorbed(i,j,k)
-!!            rval = real(cval*conjg(cval)) ! get power
-!!            rdata = rdata + rval
-!!          end if
-!!        end do
-!!      end do
-!!    end do
-!!  end if
-!!! done
-!!  end if ! (MS_useinalestic/=0)
-!  nret = 0
-!! ------------
-!
-!! ------------
-!!  write(unit=*,fmt=*) " > DetectorImgExport: EXIT."
-!  return
-!
-!END SUBROUTINE DetectorImgExport
-!!**********************************************************************!
-
-
-
-!!**********************************************************************!
-!!**********************************************************************!
-!SUBROUTINE DetectorReadoutSpecial(rdata, rlost, nret)
-!! SUBROUTINE: SPECIAL VERSION which tracks also lost power
-!! -------------------------------------------------------------------- !
-!! parameter: 
-!! -------------------------------------------------------------------- !
-!
-!  use MultiSlice
-!  use MSAparams
-!  
-!  implicit none
-!
-!! ------------
-!! DECLARATION
-!  integer*4 :: nret, i, j, k, n
-!  integer*4 :: ndimx, ndim2x, ndimy, ndim2y
-!  real*4 :: rval, rdata, rlost, rtotal
-!  complex*8 :: cval
-!! ------------
-!
-!! ------------
-!! INIT
-!!  write(unit=*,fmt=*) " > DetectorReadoutSpecial: INIT."
-!  nret = 1
-!  if (0==MS_status) then
-!    call CriticalError("DetectorReadoutSpecial: module not initialized.")
-!    return ! skip if data array not ready
-!  end if
-!! ------------
-!
-!! ------------
-!  rdata = 0.0
-!  rtotal = 0.0
-!! ELASTICALLY SCATTERED WAVE
-!! *** We have to integrate the wave data in Fourierspace
-!! do loop in transposed order and don't forget to (un)scramble
-!!  if (MS_excludeelastic==0) then
-!  call PostMessage("Collecting elastically scattered wave power.")
-!  ! consider elastic data in result and power sum
-!  do j=1, MS_dimx
-!    do i=1, MS_dimy
-!      cval = MS_wave(i,j) ! get Fourier-space wave data
-!      rval = real(cval*conjg(cval)) ! get power
-!      rtotal = rtotal + rval
-!      if (MS_detarea(i,j)==1) rdata = rdata + rval
-!    end do
-!  end do
-!!  else ! if (MS_excludeelastic/=0)
-!!  ! consider elastic data in power sum only
-!!  do j=1, MS_dimx
-!!    do i=1, MS_dimy
-!!      cval = MS_wave(i,j) ! get Fourier-space wave data
-!!      rval = real(cval*conjg(cval)) ! get power
-!!      rtotal = rtotal + rval
-!!    end do
-!!  end do
-!!  end if ! (MS_excludeelastic==0)
-!  
-!!! INELASTICALLY SCATTERED WAVE
-!!  if (MS_useinelastic/=0) then
-!!  if (DEBUG_EXPORT==1) then
-!!    write(unit=*,fmt=*) " > Collecting inelastically scattered wave power."
-!!  end if
-!!! do loop over all slices and collect inelastically scattered intensities
-!!! all waves are already in fourier space
-!!! consider inelastic data in result and power sum
-!!  n = min(MS_lastmaxslice-1,MS_stacksize)
-!!  if (n>0) then
-!!    do k=1, n
-!!      do j=1, MS_dimx
-!!        do i=1, MS_dimy
-!!          cval = MS_absorbed(i,j,k)
-!!          rval = real(cval*conjg(cval)) ! get power
-!!          rtotal = rtotal + rval
-!!          if (MS_detarea(i,j)==1) rdata = rdata + rval
-!!        end do
-!!      end do
-!!    end do
-!!  end if ! (n>0)
-!!  else ! (MS_useinelastic/=0)
-!!  ! consider inelastic data in power sum only
-!!  n = min(MS_lastmaxslice-1,MS_stacksize)
-!!  if (n>0) then
-!!    do k=1, n
-!!      do j=1, MS_dimx
-!!        do i=1, MS_dimy
-!!          cval = MS_absorbed(i,j,k)
-!!          rval = real(cval*conjg(cval)) ! get power
-!!          rtotal = rtotal + rval
-!!        end do
-!!      end do
-!!    end do
-!!  end if
-!!! done
-!!  end if ! (MS_useinalestic/=0)
-!  rlost = 1.0-rtotal
-!  nret = 0
-!! ------------
-!
-!! ------------
-!!  write(unit=*,fmt=*) " > DetectorReadoutSpecial: EXIT."
-!  return
-!
-!END SUBROUTINE DetectorReadoutSpecial
-!!**********************************************************************!
 
 
 
@@ -3260,143 +3218,6 @@ END SUBROUTINE ApplySpatialCoherence
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE AberrateWave()
-! function: 
-! -------------------------------------------------------------------- !
-! parameter: 
-! -------------------------------------------------------------------- !
-
-  use STEMfunctions
-  use MultiSlice
-
-  implicit none
-
-! ------------
-! DECLARATION
-  integer*4 :: i, j, nerr
-  complex*8, allocatable, dimension(:,:) :: wave
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > AberrateWave: INIT."
-  if (0==MS_status) then
-    call CriticalError("AberrateWave: module not initialized.")
-  end if
-  allocate(wave(MS_dimy,MS_dimx),stat=nerr)
-  if (nerr/=0) then
-    call CriticalError("AberrateWave: Memory allocation failed.")
-  end if
-! ------------
-
-! ------------
-  do j=1, MS_dimx
-    do i=1, MS_dimy
-      wave(i,j) = MS_wave(i,j)
-    end do
-  end do
-! ------------
-
-! ------------
-  nerr = STF_err_num
-  call STF_AberrateWaveFourier(wave,MS_dimx,MS_dimy,MS_samplingx,MS_samplingy)
-  if (nerr/=STF_err_num) then
-    if (allocated(wave)) deallocate(wave,stat=nerr)
-    call CriticalError("Failed to apply aberrations.")
-  end if
-! ------------
-
-! ------------
-  do j=1, MS_dimx
-    do i=1, MS_dimy
-      MS_wave(i,j) = wave(i,j)
-    end do
-  end do
-! ------------
-
-! ------------
-  if (allocated(wave)) deallocate(wave,stat=nerr)
-!  write(unit=*,fmt=*) " > AberrateWave: EXIT."
-  return
-
-END SUBROUTINE AberrateWave
-!**********************************************************************!
-
-
-
-
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE ApplyObjAp()
-! function: 
-! -------------------------------------------------------------------- !
-! parameter: 
-! -------------------------------------------------------------------- !
-
-  use STEMfunctions
-  use MultiSlice
-  
-
-  implicit none
-
-! ------------
-! DECLARATION
-  integer*4 :: i, j, nerr
-  complex*8, allocatable, dimension(:,:) :: wave
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > AberrateWave: INIT."
-  if (0==MS_status) then
-    call CriticalError("ApplyObjAp: module not initialized.")
-  end if
-  allocate(wave(MS_dimy,MS_dimx),stat=nerr)
-  if (nerr/=0) then
-    call CriticalError("ApplyObjAp: Memory allocation failed.")
-  end if
-! ------------
-
-! ------------
-  do j=1, MS_dimx
-    do i=1, MS_dimy
-      wave(i,j) = MS_wave(i,j)
-    end do
-  end do
-! ------------
-
-! ------------
-  nerr = STF_err_num
-  call STF_ApplyObjectiveAperture(wave,MS_dimx,MS_dimy, &
-     &                                 MS_samplingx,MS_samplingy,&
-     &                                 MS_objtiltx*MS_rd2r,MS_objtilty*MS_rd2r)
-  if (nerr/=STF_err_num) then
-    if (allocated(wave)) deallocate(wave,stat=nerr)
-    call CriticalError("Failed to apply aberrations.")
-  end if
-! ------------
-
-! ------------
-  do j=1, MS_dimx
-    do i=1, MS_dimy
-      MS_wave(i,j) = wave(i,j)
-    end do
-  end do
-! ------------
-
-! ------------
-  if (allocated(wave)) deallocate(wave,stat=nerr)
-!  write(unit=*,fmt=*) " > ApplyObjAp: EXIT."
-  return
-
-END SUBROUTINE ApplyObjAp
-!**********************************************************************!
-
-
-
-
-!**********************************************************************!
-!**********************************************************************!
 SUBROUTINE MSACalculate()
 
   use MultiSlice
@@ -3446,217 +3267,6 @@ END SUBROUTINE MSACalculate
 
 
 
-!!**********************************************************************!
-!!**********************************************************************!
-!SUBROUTINE DoMultiSlice()
-!! function: 
-!! -------------------------------------------------------------------- !
-!! parameter: 
-!! -------------------------------------------------------------------- !
-!
-!  use MultiSlice
-!  use MSAparams
-!
-!  implicit none
-!
-!! ------------
-!! DECLARATION
-!  integer*4 :: nz, nerr, nznum, i, j, j1, i1, ndet, nalloc, nv, nvar, nvarnum
-!  real*4 :: scansampx, scansampy, scanposx, scanposy
-!  real*4 :: dzcurr, zstep, zoffset, zpow, zrescale, fafac, fascal, vrescale
-!  real*4 :: ffac
-!  real*4, allocatable :: rtmpresult(:), tempsum(:)
-!!  real*4 :: rtmp(1:MS_dimx,1:MS_dimy)
-!! ------------
-!
-!! ------------
-!! INIT
-!!  write(unit=*,fmt=*) " > DoMultiSlice: INIT."
-!  ndet = 1
-!  if (MSP_usedetdef==1.and.MSP_detnum>1) then
-!    ndet = MSP_detnum
-!  end if
-!  allocate(rtmpresult(ndet),tempsum(ndet),stat=nalloc)
-!  scansampx = 0.0
-!  if (MSP_SF_sizex>0.0.and.MSP_SF_ndimx>1) then
-!    scansampx = MSP_SF_sizex/real(MSP_SF_ndimx)
-!  end if
-!  scansampy = 0.0
-!  if (MSP_SF_sizey>0.0.and.MSP_SF_ndimy>1) then
-!    scansampy = MSP_SF_sizey/real(MSP_SF_ndimy)
-!  end if
-!  scanposx = MSP_SF_offsetx + MSP_SF_rotcos*MSP_ScanPixelX*scansampx - MSP_SF_rotsin*MSP_ScanPixelY*scansampy
-!  scanposy = MSP_SF_offsety + MSP_SF_rotcos*MSP_ScanPixelY*scansampy + MSP_SF_rotsin*MSP_ScanPixelX*scansampx
-!!  if (MSP_ctemmode==0.and.DEBUG_EXPORT>0) then
-!!    write(unit=MSP_stmp,fmt=*) "Collecting data for ",ndet," detectors."
-!!    call PostMessage(trim(MSP_stmp))
-!!    write(unit=MSP_stmp,fmt=*) "Scan shift rel. to supercell origin [nm]:",scanposx,scanposy
-!!    call PostMessage(trim(MSP_stmp))
-!!  end if
-!! ------------
-!
-!! ------------
-!  nznum = 1
-!  zstep = 0.0
-!  zoffset = 0.0
-!  zrescale = 1.0
-!  zpow = 0.0
-!  fafac = 0.0
-!  fascal = 0.0
-!  if (MSP_ctemmode==1) then
-!    scanposx = 0.0
-!    scanposy = 0.0
-!    MSP_PC_temporal = 0
-!  end if
-!  if ( (MSP_PC_temporal/=0).and.(STF_defocusspread<=0.0) ) then
-!    call PostWarning("Specified defocus spread is invalid.")
-!    call PostWarning("Explicit focal averaging switched off.")
-!    MSP_PC_temporal = 0
-!  end if
-!  if ( (MSP_PC_temporal/=0).and.(STF_DEFOCUS_KERNEL_STEPS<=1) ) then
-!    call PostWarning("Specified defocus kernal step is invalid.")
-!    call PostWarning("Explicit focal averaging switched off.")
-!    MSP_PC_temporal = 0
-!  end if
-!  if (MSP_PC_temporal/=0) then
-!    nznum = STF_DEFOCUS_KERNEL_STEPS
-!    zoffset = -STF_DEFOCUS_KERNEL_SPREAD*STF_defocusspread
-!    zstep = -2.0*zoffset / real( nznum-1 )
-!    fafac = -1.0/STF_defocusspread/STF_defocusspread
-!    write(unit=MSP_stmp,fmt=*) "Performing explicit focal averaging:"
-!    call PostMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt=*) "  focal range [nm]: +/-",STF_DEFOCUS_KERNEL_SPREAD*STF_defocusspread
-!    call PostMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt=*) "  number of steps:",nznum
-!    call PostMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt=*) "  focal change per step [nm]:",zstep
-!    call PostMessage(trim(MSP_stmp))
-!  end if
-!! ------------
-!
-!
-!! ------------
-!  rtmpresult = 0.0
-!  tempsum = 0.0
-!  MSP_TheResult = 0.0
-!  nvarnum = max(1,nint(real(MSP_FL_varcalc)/real(nznum))) ! number of variant calculations per focus spread loop
-!  vrescale = 1.0/real(nvarnum)
-!  
-!  do nz=1, nznum
-!    
-!    ! OFFSET THE BACKUP WAVE AND GENERATE ACTIVE INCOMING WAVE
-!    dzcurr = zoffset + zstep*real(nz-1)
-!    nerr = MS_err_num
-!    call MS_OffsetIncomingWave(scanposx,scanposy,dzcurr)
-!    if (nerr/=MS_err_num) then
-!      call CriticalError("Failed to apply scanshift and defocus to incoming wave.")
-!    end if
-!    if (MSP_ctemmode==0.and.DEBUG_EXPORT>0) then
-!      call PostMessage("Scanshift and defocus applied to incoming wave.")
-!      write(unit=MSP_stmp,fmt=*) "- Scanshift: ",scanposx,scanposy
-!      call PostMessage(trim(MSP_stmp))
-!      write(unit=MSP_stmp,fmt=*) "- Defocus  : ",dzcurr
-!      call PostMessage(trim(MSP_stmp))
-!!      do j=1, MS_dimy
-!!      j1=MS_TABBED_USC2(j)
-!!      do i=1, MS_dimx
-!!      i1=MS_TABBED_USC(i)
-!!      rtmp(i,j)=cabs(MS_wave_in(j1,i1))**2
-!!      end do
-!!      end do
-!!      write(unit=*,fmt=*) " > Saving input FS power."
-!!      call SaveDataR4("wave_fspowin.dat",rtmp(1:MS_dimy,1:MS_dimx),MS_dimx*MS_dimy,nerr)
-!    end if
-!    
-!    do nv = 1, nvarnum ! variants loop per focus spread cycle
-!    
-!      ! PERFORM FULL MULTISLICE WITH CURRENT WAVE
-!      nerr = MS_err_num
-!      call MSACalculate()
-!      if (nerr/=MS_err_num) then
-!        call CriticalError("Failed to perform multislice algorithm with current wave.")
-!      end if
-!      nvar = nvar + 1 ! increase number of applied variants
-!    
-!    
-!    
-!      ! COLLECT DATA FROM DETECTOR
-!      if (MSP_ctemmode==0) then
-!        call DetectorReadout(rtmpresult, ndet, nerr)
-!        if (nerr/=0) then
-!          call CriticalError("Failed readout detector.")
-!        end if
-!    
-!        ffac = exp(fafac*dzcurr*dzcurr)*vrescale;
-!	    fascal = fascal + ffac;
-!	    tempsum = tempsum + rtmpresult*ffac; ! sum up data
-!	    if (DEBUG_EXPORT>0) then
-!          write(unit=MSP_stmp,fmt='(A,<ndet>G13.5)') "- Current detector readout:",rtmpresult
-!          call PostMessage(trim(MSP_stmp))
-!          write(unit=MSP_stmp,fmt='(A,G13.5)')       "- Current focal weight    :",ffac
-!          call PostMessage(trim(MSP_stmp))
-!          write(unit=MSP_stmp,fmt='(A,<ndet>G13.5)') "- Current total result    :",tempsum
-!          call PostMessage(trim(MSP_stmp))
-!        end if
-!      end if
-!    
-!    end do ! variants loop
-!
-!  end do ! focus spread loop
-!! ------------
-!
-!! ------------
-!! rescale result
-!  if (MSP_ctemmode==0) then
-!    zrescale = 1.0/fascal
-!    
-!    if (MSP_usedetdef==1) then
-!      MSP_detresult = tempsum*zrescale
-!      if (DEBUG_EXPORT>0) then
-!        write(unit=MSP_stmp,fmt='(A,<ndet>G13.5)') "Final results:",MSP_detresult
-!        call PostMessage(trim(MSP_stmp))
-!      end if
-!    else
-!      MSP_TheResult = tempsum(1)*zrescale
-!      if (DEBUG_EXPORT>0) then
-!        write(unit=MSP_stmp,fmt='(A,G13.5)') "Final result:",MSP_TheResult
-!        call PostMessage(trim(MSP_stmp))
-!      end if
-!    end if
-!!    do j=1, MS_dimy
-!!    j1=MS_TABBED_USC2(j)
-!!    do i=1, MS_dimx
-!!    i1=MS_TABBED_USC(i)
-!!    rtmp(i,j)=cabs(MS_wave(j1,i1))**2
-!!    end do
-!!    end do
-!!    write(unit=*,fmt=*) " > Saving FS power."
-!!    call SaveDataR4("wave_fspow.dat",rtmp(1:MS_dimy,1:MS_dimx),MS_dimx*MS_dimy,nerr)
-!  end if
-!! ------------
-!
-!
-!! ------------
-!! apply imaging aberrations
-!  if (MSP_ctemmode==1) then
-!    call PostMessage("Applying wave aberrations on imaging side.")
-!    call AberrateWave()
-!    
-!!    call SaveDataC8("wave_abrr.dat",MS_wave(1:MS_dimy,1:MS_dimx),MS_dimx*MS_dimy,nerr)
-!  end if
-!! ------------
-!
-!! ------------
-!  deallocate(rtmpresult,tempsum,stat=nalloc)
-!! ------------
-!
-!! ------------
-!!  write(unit=*,fmt=*) " > DoMultiSlice: EXIT."
-!  return
-!
-!END SUBROUTINE DoMultiSlice
-!!**********************************************************************!
-
 
 
 !**********************************************************************!
@@ -3676,7 +3286,7 @@ SUBROUTINE STEMMultiSlice()
 
 ! ------------
 ! DECLARATION
-  integer*4 :: nz, nerr, nznum, i, j, ndet, nalloc, nslcidx
+  integer*4 :: nz, nerr, nznum, i, j, ndet, nkmom, ndat, nalloc, nslcidx
   integer*4 :: nv, nvc, nvar, nvarnum, nvartot, nvdigits
   integer*4 :: nslc, ndetect, ncalcslc
   real*4 :: scansampx, scansampy, scanposx, scanposy
@@ -3691,11 +3301,11 @@ SUBROUTINE STEMMultiSlice()
 ! ------------
 ! INIT
 !  write(unit=*,fmt=*) " > STEMMultiSlice: INIT."
-!  ndet = 1
-!  if (MSP_usedetdef==1.and.MSP_detnum>1) then
   ndet = MSP_detnum
-!  end if
-  allocate(rtmpresult(ndet),stat=nalloc)
+  nkmom = 0
+  if (MSP_Kmomout>0) nkmom = MSP_KmomNum
+  ndat = ndet + nkmom
+  allocate(rtmpresult(ndat),stat=nalloc)
   scansampx = 0.0
   if (MSP_SF_sizex>0.0.and.MSP_SF_ndimx>1) then
     scansampx = MSP_SF_sizex/real(MSP_SF_ndimx)
@@ -3710,12 +3320,6 @@ SUBROUTINE STEMMultiSlice()
   scanposy =   MSP_SF_offsety &
      &       + MSP_SF_rotcos*MSP_ScanPixelY*scansampy &
      &       + MSP_SF_rotsin*MSP_ScanPixelX*scansampx
-!  if (MSP_ctemmode==0.and.DEBUG_EXPORT>0) then
-!    write(unit=MSP_stmp,fmt=*) "Collecting data for ",ndet," detectors."
-!    call PostMessage(trim(MSP_stmp))
-!    write(unit=MSP_stmp,fmt=*) "Scan shift rel. to supercell origin [nm]:",scanposx,scanposy
-!    call PostMessage(trim(MSP_stmp))
-!  end if
 ! ------------
 
 ! ------------
@@ -3763,6 +3367,7 @@ SUBROUTINE STEMMultiSlice()
 ! ------------
 ! init multi-slice core
   MSP_detresult = 0.0
+  MSP_Kmomresult = 0.0
   rtmpresult = 0.0
   MSP_TheResult = 0.0
   nvarnum = max(1,nint(real(MSP_FL_varcalc)/real(nznum))) ! number of variant calculations per focus spread loop
@@ -3787,10 +3392,7 @@ SUBROUTINE STEMMultiSlice()
     else
       if (MSP_ExplicitPSC==0) then ! explicit focal kernel is used
         call MS_OffsetIncomingWave(scanposx, scanposy, dzcurr)
-        if (nerr/=MS_err_num) then
-          if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
-          call CriticalError("Failed to shift incoming wavefunction.")
-        end if
+        if (nerr/=MS_err_num) goto 11
         if (DEBUG_EXPORT>0) then
           if (MSP_use_extinwave==1) then
             call PostMessage("Inserted wavefunction was applied.")
@@ -3823,10 +3425,7 @@ SUBROUTINE STEMMultiSlice()
           call MSP_GetRandomProbeShift(STF_srcradius, dxcurr, dycurr)
         end if
         call MS_OffsetIncomingWave(scanposx+dxcurr,scanposy+dycurr,dzcurr)
-        if (nerr/=MS_err_num) then
-          if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
-          call CriticalError("Failed to shift incoming wavefunction.")
-        end if
+        if (nerr/=MS_err_num) goto 11
         if (DEBUG_EXPORT>0) then
           call PostMessage("Offset applied to probe wavefunction.")
           write(unit=MSP_stmp,fmt='(A,2G13.4)') "- scan shift: ",scanposx, scanposy
@@ -3875,8 +3474,8 @@ SUBROUTINE STEMMultiSlice()
       ! determine current scaling factor for summation over foci and over variants
       ffac = exp(fafac*dzcurr*dzcurr)*vrescale
       ! write(*,*) ffac, exp(fafac*dzcurr*dzcurr), vrescale
-	  ! .. and sum up the applied weights for later rescaling to 1.0
-	  fascal = fascal + ffac;
+	    ! .. and sum up the applied weights for later rescaling to 1.0
+	    fascal = fascal + ffac;
       
       do while (MS_slicecur >= 0.and. MS_slicecur<MS_stacksize)
         nerr = MS_err_num ! backup error
@@ -3893,22 +3492,21 @@ SUBROUTINE STEMMultiSlice()
         
         if (0==modulo(ncalcslc,ndetect)) then ! detection?
           ! COLLECT DATA FROM DETECTOR
-          call DetectorReadout(rtmpresult, ndet, nerr)
-          if (nerr/=0) then
-            if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
-            call CriticalError("Failed to readout detector.")
-          else
-            ! sum up weighted data depending on slice number and detector number
-	        MSP_detresult(1:ndet,ncalcslc) = MSP_detresult(1:ndet,ncalcslc) + rtmpresult*ffac
-            !
+          call DetectorReadout(rtmpresult, ndat, nerr)
+          if (nerr/=0) goto 12
+          ! sum up weighted data depending on slice number and detector number
+	        MSP_detresult(1:ndet,ncalcslc) = MSP_detresult(1:ndet,ncalcslc) + rtmpresult(1:ndet)*ffac
+          if (nkmom>0) then
+            MSP_Kmomresult(1:nkmom,ncalcslc) = MSP_Kmomresult(1:nkmom,ncalcslc) + rtmpresult(ndet+1:ndet+nkmom)*ffac
+          end if
+          !
 	        if (DEBUG_EXPORT>0) then
 	          write(unit=MSP_stmp,fmt='(A,I4,A)') "- Detection after ",ncalcslc," slices."
-              call PostMessage(trim(MSP_stmp))
-              write(unit=MSP_stmp,fmt='(A,<ndet>G13.5)') "- Current detector readout:",rtmpresult
-              call PostMessage(trim(MSP_stmp))
-              write(unit=MSP_stmp,fmt='(A,<ndet>G13.5)') "- Current total result    :",MSP_detresult(1:ndet,ncalcslc)
-              call PostMessage(trim(MSP_stmp))
-            end if
+            call PostMessage(trim(MSP_stmp))
+            write(unit=MSP_stmp,fmt='(A,<ndet>G13.5)') "- Current detector readout:",rtmpresult(1:ndet)
+            call PostMessage(trim(MSP_stmp))
+            write(unit=MSP_stmp,fmt='(A,<ndet>G13.5)') "- Current total result    :",MSP_detresult(1:ndet,ncalcslc)
+            call PostMessage(trim(MSP_stmp))
           end if
           !
         end if ! detector readout
@@ -3933,7 +3531,10 @@ SUBROUTINE STEMMultiSlice()
 ! ------------
 ! rescale result
   zrescale = 1.0/fascal
-  MSP_detresult = MSP_detresult*zrescale
+  MSP_detresult = MSP_detresult * zrescale
+  if (nkmom>0) then
+    MSP_Kmomresult = MSP_Kmomresult * zrescale
+  end if
 ! ------------
 
 
@@ -3944,14 +3545,25 @@ SUBROUTINE STEMMultiSlice()
 
 
 ! ------------
+! normal/successful exit
   if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > STEMMultiSlice: EXIT."
   return
   
-16 call CriticalError("Failed to perform multislice algorithm with current wave.")
+! ------------
+! failure exits
+11 continue
+  if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
+  call CriticalError("Failed to shift incoming wavefunction.")
+  return
+
+12 continue
+  if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
+  call CriticalError("Failed to readout detectors.")
+  return
+
+16 continue
+  if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
+  call CriticalError("Failed to perform multislice algorithm.")
   return
 
 END SUBROUTINE STEMMultiSlice
@@ -4016,15 +3628,6 @@ SUBROUTINE CTEMMultiSlice()
       call CriticalError("Failed to perform multislice algorithm with current wave.")
     end if
 
-! >> Image aberrations sould be applied by the tool WAVIMG. <<
-!    call PostMessage("Applying wave aberrations on imaging side.")
-!    call AberrateWave()
-!    call PostMessage("Applying objective aperture.")
-!    call ApplyObjAp()
-    
-    ! the wave function export is always done in MS_CalculateNextSlice
-    !call ExportWave(nv,trim(MSP_outfile))
-    
   end do ! variants loop
   MS_wave_filenm = MS_wave_filenm_bk ! reset wave file name
 ! ------------
@@ -4115,9 +3718,9 @@ SUBROUTINE ExportSTEMData(sfile)
 ! ------------
 ! DECLARATION
   character*(*), intent(in) :: sfile
-  integer*4 :: lfu, nerr, i, k, l, m, datapos, ndet
+  integer*4 :: lfu, nerr, i, ic, j, k, l, m, datapos, ndet, ncomp
   integer*4 :: ndetect
-  integer*4 :: ndatanum, ndataplane
+  integer*4 :: ndatanum, idataplane
   logical :: fex
   character(len=1024) :: stmp, spfile, sdfile
 ! ------------
@@ -4134,7 +3737,7 @@ SUBROUTINE ExportSTEMData(sfile)
   ! determine number of scan points
   ndatanum = MSP_SF_ndimx*MSP_SF_ndimy
   ! preset plane offset for 3d data stacks
-  ndataplane = 0
+  idataplane = 0
   !
   if (datapos<=0.or.datapos>ndatanum) then
     call CriticalError("ExportSTEMData: Invalid datafile position.")
@@ -4143,21 +3746,17 @@ SUBROUTINE ExportSTEMData(sfile)
 
 
 ! ------------
+!  STEM DETECTOR OUTPUT
+! ------------
   ! get number of detectors
   ndet = max(1,MSP_detnum)
-  
-  ! determine detetcion slice index
+  ! determine detection slice index
   ndetect = MS_stacksize ! preset detection switch to last slice
   if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize)
-  
-   
-! ------------
   ! loop over detectors
   do k=1, ndet
-  
+    ! prepare the output file name
     sdfile = trim(sfile) ! default preset
-    
-! --------------
     if (MSP_usedetdef/=0) then ! update output file name with detector name
       m = LEN_TRIM(sfile) ! get length of the standard output file
       l = INDEX(sfile,".",back=.TRUE.) ! search for extension point in given output file
@@ -4169,9 +3768,7 @@ SUBROUTINE ExportSTEMData(sfile)
     else ! keep current output file name
       sdfile = trim(sfile)
     end if
-! --------------
-    
-! ------------
+    ! write data to file
     if (MSP_3dout == 1) then ! prepare for output to 3d data file
       !
       ! BEGIN OF 3D FILE OUTPUT
@@ -4193,18 +3790,18 @@ SUBROUTINE ExportSTEMData(sfile)
       end if
       ! - write to the file ... 
       ! preset plane offset for 3d data stacks
-      ndataplane = 0
+      idataplane = 0
       do i=1, MS_stacksize ! loop over all slices
         if (0/=modulo(i,ndetect)) cycle ! skip this slice 
         !
         ! - write the data at correct position
-        write(unit=lfu,rec=(datapos+ndataplane*ndatanum),iostat=nerr) MSP_detresult(k,i)
+        write(unit=lfu,rec=(datapos+idataplane*ndatanum),iostat=nerr) MSP_detresult(k,i)
         if (nerr/=0) then
           call CriticalError("ExportSTEMData: Failed to write data.")
         end if
         !
         ! increase the plane offset index by one for the next cycle
-        ndataplane = ndataplane + 1
+        idataplane = idataplane + 1
         ! - report per export plane
         write(unit=MSP_stmp,fmt='(A,G13.5,A)') "- Saved "// &
      &      trim(MSP_detname(k))//" signal: ", MSP_detresult(k,i), &
@@ -4274,10 +3871,147 @@ SUBROUTINE ExportSTEMData(sfile)
     end if ! SWITCH 3d output or single plane files
 
   end do ! k-loop over detectors
+  call PostMessage("Finished detector signal export.")
+! ------------
+  
+! ------------
+!  k-MOMENT DETECTOR OUTPUT
+!  This is an experimental mode
+!  - datapos and ndatanum are modified
+!  - for each momentum order, ncomp = order+1 components are stored as ncomp-tuples per scan position
+! ------------
+  if (MSP_Kmomout>0) then
+    call PostMessage("Integrated k-space momentum output.")
+    ! loop over all moment orders
+    j = 0 ! offset of current order in result array
+    do k=0, MSP_KmomMmax ! ... from zero to m_max
+      ncomp = k+1 ! number of components in current order
+      datapos = ncomp*MSP_ScanPixelX + MSP_ScanPixelY*ncomp*MSP_SF_ndimx ! offset of current data in the thickness plane
+      ndatanum = ncomp*MSP_SF_ndimx*MSP_SF_ndimy ! number of data per thickness plane
+      ! prepare the output file name
+      write(unit=stmp,fmt=*) k ! order to string
+      sdfile = trim(sfile) ! default preset
+      m = LEN_TRIM(sfile) ! get length of the standard output file
+      l = INDEX(sfile,".",back=.TRUE.) ! search for extension point in given output file
+      if (l<1) then ! no extension wanted
+        write(unit=sdfile,fmt='(A)') trim(sfile)//"_kmom"//trim(adjustl(stmp))
+      else ! last extension starts at position l, insert the index string before
+        write(unit=sdfile,fmt='(A)') sfile(1:l-1)//"_kmom"//trim(adjustl(stmp))//sdfile(l:m)
+      end if
+      ! write data to file
+      if (MSP_3dout == 1) then ! prepare for output to 3d data file
+        !
+        ! BEGIN OF 3D FILE OUTPUT
+        !
+        ! check existence of current output file
+        inquire(file=trim(sdfile),exist=fex)
+        if (.not.fex) then ! doesn't exist, create new
+          call CreateSTEMFile(trim(sdfile),ndatanum*MSP_detpln,nerr)
+          if (nerr/=0) call CriticalError("Output file creation failed.")
+        end if
+        ! open the file for writing all data to it
+        ! - get logical unit
+        call GetFreeLFU(lfu,20,100)
+        ! - open file shared access
+        open(unit=lfu, file=trim(sdfile), form="binary", access="direct", &
+       &     iostat=nerr, status="old", action="write", recl=4, share='DENYNONE' )
+          if (nerr/=0) then
+            call CriticalError("ExportSTEMData: Failed to open file ["//trim(sdfile)//"].")
+        end if
+        ! - write to the file ... 
+        ! preset plane offset for 3d data stacks
+        idataplane = 0
+        do i=1, MS_stacksize ! loop over all slices
+          if (0/=modulo(i,ndetect)) cycle ! skip this slice 
+          ! - write the data at correct position
+          do ic=1, ncomp
+            write(unit=lfu,rec=(ic+datapos+idataplane*ndatanum),iostat=nerr) MSP_Kmomresult(j+ic,i)
+            if (nerr/=0) then
+              call CriticalError("ExportSTEMData: Failed to write data.")
+            end if
+          end do
+          !
+          ! increase the plane offset index by one for the next cycle
+          idataplane = idataplane + 1
+          ! - report per export plane
+          write(unit=MSP_stmp,fmt='(A,<ncomp>G13.5,A)') "- Saved moment("// &
+       &      trim(adjustl(stmp))//") data: ", MSP_Kmomresult(j+1:j+ncomp,i), &
+       &      " to file ["//trim(sdfile)//"]."
+          call PostMessage(trim(MSP_stmp))
+          !
+        end do ! i-loop over slices
+        !
+        ! - close the file
+        close(unit=lfu)
+        !
+        ! END OF 3D FILE OUTPUT
+        !
+      else ! perpare for output to 2D files (one per export plane)
+        !
+        ! BEGIN OF SINGLE PLANE FILE OUTPUT
+        !
+        ! loop over all slices
+        do i=1, MS_stacksize
+          if (0/=modulo(i,ndetect)) cycle ! skip this slice
+          spfile = trim(sdfile) ! default preset
+          ! - modify file name with slice index
+          if (MSP_detslc>0) then ! append slice index to file name
+            ! - update output file name
+            m = LEN_TRIM(sdfile) ! get length of the standard output file
+            l = INDEX(sdfile,".",back=.TRUE.) ! search for extension point in given output file
+            if (l<1) then ! no extension wanted
+              write(unit=spfile,fmt='(A,I<MSP_nslid>.<MSP_nslid>)') trim(sdfile)//"_sl",i
+            else ! last extension starts at position l, insert the index string before
+              write(unit=spfile,fmt='(A,I<MSP_nslid>.<MSP_nslid>,A)') sdfile(1:l-1)//"_sl",i,spfile(l:m)
+            end if
+            ! - check existence of current output file
+            inquire(file=trim(spfile),exist=fex)
+            if (.not.fex) then ! doesn't exist, create new (single plane file)
+              call CreateSTEMFile(trim(spfile),ndatanum,nerr)
+              if (nerr/=0) call CriticalError("Output file creation failed.")
+            end if
+          end if
+          ! write data record to current output file
+          ! - get logical unit
+          call GetFreeLFU(lfu,20,100)
+          ! - open file shared access
+          open(unit=lfu, file=trim(spfile), form="binary", access="direct", &
+       &     iostat=nerr, status="old", action="write", recl=4, share='DENYNONE' )
+          if (nerr/=0) then
+            call CriticalError("ExportSTEMData: Failed to open file ["//trim(spfile)//"].")
+          end if
+          !
+          ! - write the data at correct position
+          do ic=1, ncomp
+            write(unit=lfu,rec=ic+datapos,iostat=nerr) MSP_Kmomresult(j+ic,i)
+            if (nerr/=0) then
+              call CriticalError("ExportSTEMData: Failed to write data.")
+            end if
+          end do
+          !
+          ! - close logical file unit
+          close(unit=lfu)
+          ! - report
+          write(unit=MSP_stmp,fmt='(A,<ncomp>G13.5,A)') "- Saved moment("// &
+       &      trim(adjustl(stmp))//") data: ", MSP_Kmomresult(j+1:j+ncomp,i), &
+       &      " to file ["//trim(spfile)//"]."
+          call PostMessage(trim(MSP_stmp))
+
+        end do ! i-loop over slices
+        !
+        ! END OF SINGLE PLANE FILE OUTPUT
+        !
+      end if ! SWITCH 3d output or single plane files 
+      !
+      ! update offset
+      j = j + ncomp
+      !
+    end do ! loop k over momentum orders
+  end if
 ! ------------
 
 ! ------------
-  call PostMessage("Finished detector signal export.")
+
 !  write(unit=*,fmt=*) " > ExportSTEMData: EXIT."
   return
 
@@ -4311,7 +4045,7 @@ SUBROUTINE InitProbeIntegration()
 
 ! ------------
 ! DECLARATION
-  integer*4 :: nerr, i, n1, n2
+  integer*4 :: nerr, i, nx, ny
   integer*4 :: ndetect
   integer*4 :: nepw
 ! ------------
@@ -4324,8 +4058,8 @@ SUBROUTINE InitProbeIntegration()
   ndetect = MS_stacksize ! preset detection switch to last slice
   if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize) ! periodic readout
   nepw = 0
-  n1 = MS_dimx
-  n2 = MS_dimy
+  nx = MS_dimx
+  ny = MS_dimy
 ! ------------
 
 ! ------------
@@ -4340,7 +4074,7 @@ SUBROUTINE InitProbeIntegration()
 ! Allocate the array holding the integrated probe intensities
   if (MSP_pimgmode/=0) then ! array is already allocated
     if (allocated(MSP_pimg)) deallocate(MSP_pimg,stat=nerr) ! deallocate
-    allocate(MSP_pimg(1:n1, 1:n2, 0:nepw),stat=nerr) ! allocate
+    allocate(MSP_pimg(1:nx, 1:ny, 0:nepw),stat=nerr) ! allocate
     if (nerr/=0) then
       call CriticalError("InitProbeIntegration: Failed to allocate memory.")
     end if
@@ -4348,7 +4082,7 @@ SUBROUTINE InitProbeIntegration()
   end if
   if (MSP_pdifmode/=0) then ! array is already allocated
     if (allocated(MSP_pdif)) deallocate(MSP_pdif,stat=nerr) ! deallocate
-    allocate(MSP_pdif(1:n2, 1:n1, 0:nepw),stat=nerr) ! allocate
+    allocate(MSP_pdif(1:nx, 1:ny, 0:nepw),stat=nerr) ! allocate
     if (nerr/=0) then
       call CriticalError("InitProbeIntegration: Failed to allocate memory.")
     end if
@@ -4499,12 +4233,12 @@ SUBROUTINE ExportProbeIntensity(sfile)
   character(len=*), intent(in) :: sfile
   character(len=MSP_ll) :: isfile, sexpfile
   integer*4 :: nintout, nwavavg, ntransform
-  integer*4 :: nerr, nalloc, i, j, k
+  integer*4 :: nx, ny, nerr, nalloc, i, j, k
   integer*4 :: islc
   integer*4 :: ndetect
-  real*4 :: rnorm, pint
+  real*4 :: rnorm, pint, rsca
   real*4, dimension(:,:), allocatable :: pimg, pela, ptds
-  complex*8, dimension(:,:), allocatable :: wave, work
+  complex*8, dimension(:,:), allocatable :: wave !, work
   external :: SaveDataC8, SaveDataR4 ! (sfile,dat,n,nerr) this file
   !external :: AppendDataC8, AppendDataR4 ! (sfile,dat,n,nerr) this file
   external :: sinsertslcidx ! (idx,idxlen,sfnin,sfnadd,sfnext,sfnout) this file
@@ -4516,9 +4250,13 @@ SUBROUTINE ExportProbeIntensity(sfile)
   nwavavg = 0 ! init without average wave function data: 0 -> none, 1 -> Fourier space, 2 -> real space
   nintout = 0 ! intensity output request strength: 0 -> none, 1 -> Fourier space, 2 -> real space, 3 -> both
   ntransform = 0 ! init without the need to transform data: 0 -> no, 1 -> yes
+  nx = MS_dimx
+  ny = MS_dimy
+  if (nx <= 0 .or. ny <= 0) return ! no valid setup
   if (MS_pint_export<=0) return ! no valid setup
   if (MSP_pdifmode>0) nintout = 1
   if (MSP_pimgmode>0) nintout = nintout + 2
+  rsca = 1.0 / real(nx*ny) ! for DFT renormalizations
   !
   ! Determine periodic detection slice index.
   ndetect = MS_stacksize ! preset detection switch to last slice
@@ -4548,14 +4286,11 @@ SUBROUTINE ExportProbeIntensity(sfile)
 ! OUTPUT OF PROBE INTENSITIES IN REAL SPACE
   if (MSP_pimgmode==1) then
     ! allocations
-    allocate(pimg(MS_dimx,MS_dimy), stat=nalloc)
+    allocate(pimg(nx,ny), stat=nalloc)
     if (nwavavg>0) then
-      allocate(wave(MS_dimx,MS_dimy), stat=nalloc)
-      allocate(pela(MS_dimx,MS_dimy), stat=nalloc)
-      allocate(ptds(MS_dimx,MS_dimy), stat=nalloc)
-      if (nwavavg==1) then ! wave data is in Fourier space, need to transform
-        allocate(work(FFT_BOUND,FFT_BOUND), stat=nalloc)
-      end if
+      allocate(wave(nx,ny), stat=nalloc)
+      allocate(pela(nx,ny), stat=nalloc)
+      allocate(ptds(nx,ny), stat=nalloc)
     end if
     do k=0, MSP_pint_num ! Loop over all exit-planes.
       islc = k*ndetect ! = periodic readout slice number / exit-plane
@@ -4564,31 +4299,25 @@ SUBROUTINE ExportProbeIntensity(sfile)
       rnorm = 1.0/real(MSP_pint_nac(k))
       !
       ! get total intensity
-      pimg(1:MS_dimx,1:MS_dimy) = MSP_pimg(1:MS_dimx,1:MS_dimy,k) * rnorm
+      pimg(1:nx,1:ny) = MSP_pimg(1:nx,1:ny,k) * rnorm
       ! prepare file name for total intensity image
       call sinsertslcidx(islc,MS_nslid,trim(isfile),"_pimg_tot",".dat",sexpfile)
       call PostMessage("  Writing total probe image intensity to file ["//trim(sexpfile)//"].")
-      call SaveDataR4(trim(sexpfile), pimg, MS_dimx*MS_dimy, nerr) ! save
+      call SaveDataR4(trim(sexpfile), pimg, nx*ny, nerr) ! save
       ! 
       if (nwavavg>0) then
         ! get elastic and tds images
         if (nwavavg==1) then ! wave data is in Fourier space, need to transform
-          work = cmplx(0.0,0.0)
-          do j=1, MS_dimx
-            work(1:MS_dimy,j) = MS_wave_avg(1:MS_dimy,j,k) * rnorm
-          end do
-          call MS_FFT(work,MS_dimx,MS_dimy,'backwards')
-          do j=1, MS_dimy
-            wave(1:MS_dimx,j) = work(1:MS_dimx,j)
-          end do
+          MS_work(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny,k) * rnorm
+          ! call MS_FFT(work,MS_dimx,MS_dimy,'backwards')
+          call MS_FFT_WORK(-1)
+          wave(1:nx,1:ny) = MS_work(1:nx,1:ny) * sqrt(rsca) ! renormalize after iDFT
         else ! wave data is in real space, just copy
-          do j=1, MS_dimy
-            wave(1:MS_dimx,j) = MS_wave_avg(1:MS_dimx,j,k) * rnorm
-          end do
+          wave(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny,k) * rnorm
         end if
         ! calculate elastic image
-        do j=1, MS_dimy
-          do i=1, MS_dimx
+        do j=1, ny
+          do i=1, nx
             pint = real( wave(i,j)*conjg(wave(i,j)) )
             pela(i,j) = pint
           end do
@@ -4596,12 +4325,12 @@ SUBROUTINE ExportProbeIntensity(sfile)
         ! prepare file name for elastic intensity image
         call sinsertslcidx(islc,MS_nslid,trim(isfile),"_pimg_ela",".dat",sexpfile)
         call PostMessage("  Writing elastic probe image intensity to file ["//trim(sexpfile)//"].")
-        call SaveDataR4(trim(sexpfile), pela, MS_dimx*MS_dimy, nerr) ! save
+        call SaveDataR4(trim(sexpfile), pela, nx*ny, nerr) ! save
         ptds = pimg - pela
         ! prepare file name for tds intensity image
         call sinsertslcidx(islc,MS_nslid,trim(isfile),"_pimg_tds",".dat",sexpfile)
         call PostMessage("  Writing TDS probe image intensity to file ["//trim(sexpfile)//"].")
-        call SaveDataR4(trim(sexpfile), ptds, MS_dimx*MS_dimy, nerr) ! save
+        call SaveDataR4(trim(sexpfile), ptds, nx*ny, nerr) ! save
       end if
       !
     end do ! k=0, MS_pint_num
@@ -4609,7 +4338,6 @@ SUBROUTINE ExportProbeIntensity(sfile)
     ! deallocate
     if (allocated(pimg)) deallocate(pimg, stat=nalloc)
     if (allocated(wave)) deallocate(wave, stat=nalloc)
-    if (allocated(work)) deallocate(work, stat=nalloc)
     if (allocated(pela)) deallocate(pela, stat=nalloc)
     if (allocated(ptds)) deallocate(ptds, stat=nalloc)
     !
@@ -4621,14 +4349,11 @@ SUBROUTINE ExportProbeIntensity(sfile)
 ! OUTPUT OF PROBE INTENSITIES IN FOURIER SPACE
   if (MSP_pdifmode==1) then
     ! allocations
-    allocate(pimg(MS_dimy,MS_dimx), stat=nalloc)
+    allocate(pimg(nx,ny), stat=nalloc)
     if (nwavavg>0) then
-      allocate(wave(MS_dimy,MS_dimx), stat=nalloc)
-      allocate(pela(MS_dimy,MS_dimx), stat=nalloc)
-      allocate(ptds(MS_dimy,MS_dimx), stat=nalloc)
-      if (nwavavg==2) then ! wave data is in real space, need to transform
-        allocate(work(FFT_BOUND,FFT_BOUND), stat=nalloc)
-      end if
+      allocate(wave(nx,ny), stat=nalloc)
+      allocate(pela(nx,ny), stat=nalloc)
+      allocate(ptds(nx,ny), stat=nalloc)
     end if
     do k=0, MSP_pint_num ! Loop over all exit-planes.
       islc = k*ndetect ! = periodic readout slice number / exit-plane
@@ -4637,31 +4362,25 @@ SUBROUTINE ExportProbeIntensity(sfile)
       rnorm = 1.0/real(MSP_pint_nac(k))
       !
       ! get total intensity
-      pimg(1:MS_dimy,1:MS_dimx) = MSP_pdif(1:MS_dimy,1:MS_dimx,k) * rnorm
+      pimg(1:nx,1:ny) = MSP_pdif(1:nx,1:ny,k) * rnorm
       ! prepare file name for total intensity image
       call sinsertslcidx(islc,MS_nslid,trim(isfile),"_pdif_tot",".dat",sexpfile)
       call PostMessage("  Writing total probe diffraction intensity to file ["//trim(sexpfile)//"].")
-      call SaveDataR4(trim(sexpfile), pimg, MS_dimx*MS_dimy, nerr) ! save
+      call SaveDataR4(trim(sexpfile), pimg, nx*ny, nerr) ! save
       ! 
       if (nwavavg>0) then
         ! get elastic and tds images
         if (nwavavg==2) then ! wave data is in real space, need to transform
-          work = cmplx(0.0,0.0)
-          do j=1, MS_dimy
-            work(1:MS_dimx,j) = MS_wave_avg(1:MS_dimx,j,k) * rnorm
-          end do
-          call MS_FFT(work,MS_dimx,MS_dimy,'forwards')
-          do j=1, MS_dimx
-            wave(1:MS_dimy,j) = work(1:MS_dimy,j)
-          end do
+          MS_work(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny,k) * rnorm
+          ! call MS_FFT(work,MS_dimx,MS_dimy,'forwards')
+          call MS_FFT_WORK(1)
+          wave(1:nx,1:ny) = MS_work(1:nx,1:ny) * sqrt(rsca) ! renormalize after DFT
         else ! wave data is in Fourier space, just copy
-          do j=1, MS_dimx
-            wave(1:MS_dimy,j) = MS_wave_avg(1:MS_dimy,j,k) * rnorm
-          end do
+          wave(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny,k) * rnorm
         end if
         ! calculate elastic image
-        do j=1, MS_dimx
-          do i=1, MS_dimy
+        do j=1, ny
+          do i=1, nx
             pint = real( wave(i,j)*conjg(wave(i,j)) )
             pela(i,j) = pint
           end do
@@ -4669,12 +4388,12 @@ SUBROUTINE ExportProbeIntensity(sfile)
         ! prepare file name for elastic intensity image
         call sinsertslcidx(islc,MS_nslid,trim(isfile),"_pdif_ela",".dat",sexpfile)
         call PostMessage("  Writing elastic probe diffraction intensity to file ["//trim(sexpfile)//"].")
-        call SaveDataR4(trim(sexpfile), pela, MS_dimx*MS_dimy, nerr) ! save
+        call SaveDataR4(trim(sexpfile), pela, nx*ny, nerr) ! save
         ptds = pimg - pela
         ! prepare file name for tds intensity image
         call sinsertslcidx(islc,MS_nslid,trim(isfile),"_pdif_tds",".dat",sexpfile)
         call PostMessage("  Writing TDS probe diffraction intensity to file ["//trim(sexpfile)//"].")
-        call SaveDataR4(trim(sexpfile), ptds, MS_dimx*MS_dimy, nerr) ! save
+        call SaveDataR4(trim(sexpfile), ptds, nx*ny, nerr) ! save
       end if
       !
     end do ! k=0, MS_pint_num
@@ -4682,7 +4401,6 @@ SUBROUTINE ExportProbeIntensity(sfile)
     ! deallocate
     if (allocated(pimg)) deallocate(pimg, stat=nalloc)
     if (allocated(wave)) deallocate(wave, stat=nalloc)
-    if (allocated(work)) deallocate(work, stat=nalloc)
     if (allocated(pela)) deallocate(pela, stat=nalloc)
     if (allocated(ptds)) deallocate(ptds, stat=nalloc)
     !
@@ -4723,7 +4441,7 @@ SUBROUTINE InitWaveAvg()
 
 ! ------------
 ! DECLARATION
-  integer*4 :: nerr, i, n1, n2
+  integer*4 :: nerr, i, nx, ny
   integer*4 :: ndetect
   integer*4 :: nepw
 ! ------------
@@ -4736,12 +4454,8 @@ SUBROUTINE InitWaveAvg()
   ndetect = MS_stacksize ! preset detection switch to last slice
   if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize) ! periodic readout
   nepw = 0
-  n1 = MS_dimx
-  n2 = MS_dimy
-  if (MS_wave_export_form==1) then ! Fourier space export
-    n1 = MS_dimy
-    n2 = MS_dimx
-  end if
+  nx = MS_dimx
+  ny = MS_dimy
 ! ------------
 
 ! ------------
@@ -4763,7 +4477,7 @@ SUBROUTINE InitWaveAvg()
   end if
   if (.not.allocated(MS_wave_avg)) then ! array not allocated
   ! alloation with an extra array for the incoming wavefunction, index 0 at dimension 3
-    allocate(MS_wave_avg(1:n1, 1:n2, 0:nepw),stat=nerr)
+    allocate(MS_wave_avg(1:nx, 1:ny, 0:nepw),stat=nerr)
     allocate(MS_wave_avg_nac(0:nepw),stat=nerr)
     if (nerr/=0) then
       call CriticalError("InitWaveAvg: Failed to allocate memory.")
@@ -4909,7 +4623,7 @@ SUBROUTINE ExportWaveAvg(sfile)
 ! DECLARATION
   character(len=*), intent(in) :: sfile
   character(len=MSP_ll) :: isfile, sexpfile
-  integer*4 :: nerr, k, n1, n2
+  integer*4 :: nerr, k, nx, ny
   integer*4 :: islc
   integer*4 :: ndetect
   real*4 :: rnorm
@@ -4922,8 +4636,8 @@ SUBROUTINE ExportWaveAvg(sfile)
 ! ------------
 ! INIT
 !  write(unit=*,fmt=*) " > ExportWaveAvg: INIT."
-  n1 = MS_dimx
-  n2 = MS_dimy
+  nx = MS_dimx
+  ny = MS_dimy
   if (MS_wave_avg_export<=0 .or. MS_wave_avg_export>1) return ! no valid setup
   if (.not.allocated(MS_wave_avg)) return ! no data
   !
@@ -4931,13 +4645,11 @@ SUBROUTINE ExportWaveAvg(sfile)
     call PostMessage("Average wavefunction export (real space).")
   else
     call PostMessage("Average wavefunction export (Fourier space).")
-    n1 = MS_dimy
-    n2 = MS_dimx
   end if
   ! determine periodic detection slice index
   ndetect = MS_stacksize ! preset detection switch to last slice
   if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize) ! periodic readout
-  allocate(wave(1:n1,1:n2), stat=nerr)
+  allocate(wave(1:nx,1:ny), stat=nerr)
   if (nerr/=0) then
     call CriticalError("ExportWaveAvg: Failed to allocate memory.")
     return
@@ -4956,11 +4668,11 @@ SUBROUTINE ExportWaveAvg(sfile)
     if (MS_wave_avg_nac(k)==0) cycle ! ignore planes which didn't recieve data
     ! normalize
     rnorm = 1.0/real(MS_wave_avg_nac(k))
-    wave(1:n1, 1:n2) = MS_wave_avg(1:n1, 1:n2, k) * rnorm
+    wave(1:nx, 1:ny) = MS_wave_avg(1:nx, 1:ny, k) * rnorm
     ! export to file
     call sinsertslcidx(islc,MS_nslid,trim(isfile),"_avg",".wav",sexpfile)
     call PostMessage("  Writing to file ["//trim(sexpfile)//"].")
-    call SaveDataC8(trim(sexpfile), wave, n1*n2, nerr)
+    call SaveDataC8(trim(sexpfile), wave, nx*ny, nerr)
     ! ...
   end do ! k=0, MS_wave_avg_num
 ! ------------
@@ -4996,10 +4708,9 @@ SUBROUTINE ExportWave(sfile)
 ! ------------
 ! DECLARATION
   character(len=*), intent(in) :: sfile
-  integer*4 :: nerr, i, j, n1, n2, nwavrs
-  real*4 :: pint
+  integer*4 :: nerr, i, j, nx, ny, nwavrs
+  real*4 :: pint, rsca
   complex*8, allocatable :: wave(:,:) !(MS_dimx,MS_dimy)
-  complex*8, allocatable :: work(:,:) !(FFT_BOUND,FFT_BOUND)
   external :: SaveDataC8
 ! ------------
 
@@ -5008,13 +4719,10 @@ SUBROUTINE ExportWave(sfile)
 !  write(unit=*,fmt=*) " > ExportWave: INIT."
   nerr = 0
   nwavrs = 0
-  n1 = MS_dimx
-  n2 = MS_dimy
-  if (MS_wave_export_form==1) then
-    n1 = MS_dimy
-    n2 = MS_dimx
-  end if
-  allocate(wave(n1,n2), stat=nerr)
+  nx = MS_dimx
+  ny = MS_dimy
+  rsca = 1.0 / real(nx*ny) ! /!\ we do not check for nx*ny > 0
+  allocate(wave(nx,ny), stat=nerr)
   if (nerr/=0) then
     call CriticalError("ExportWave: Failed to allocate memory.")
   end if
@@ -5025,29 +4733,29 @@ SUBROUTINE ExportWave(sfile)
     ! from calculation frame (MS_wave) to local frame (wave)
     if (MS_wave_export_form==1) then
       ! Fourier space export (direct copy)
-      do j=1, n2
-        wave(1:n1,j) = MS_wave(1:n1,j)
-      end do
+      wave(1:nx,1:ny) = MS_wave(1:nx,1:ny)
     else
       ! real space export (inverse FT)
-      allocate(work(FFT_BOUND,FFT_BOUND), stat=nerr)
-      if (nerr/=0) then
-        if (allocated(wave)) deallocate(wave, stat=nerr)
-        call CriticalError("ExportWave: Failed to allocate memory.")
-      end if
-      work = MS_wave
-      call MS_FFT(work,MS_dimx,MS_dimy,'backwards')
-      do j=1, n2
-        wave(1:n1,j) = work(1:n1,j)
+      ! - transfer data
+      !   for an unknown reason, the following line causes an stack overflow and access violation
+      !   MS_work(1:nx,1:ny) = MS_wave(1:nx,1:ny)
+      !   Though, the explicit assignement below element by element works.
+      do j=1, ny
+        do i=1, nx
+          MS_work(i,j) = MS_wave(i,j)
+        end do
       end do
+      ! call MS_FFT(work,MS_dimx,MS_dimy,'backwards')
+      call MS_FFT_WORK(-1)
+      wave(1:nx,1:ny) = MS_work(1:nx,1:ny) * sqrt(rsca) ! renormalize after iDFT
       nwavrs = 1
     end if
     if (MS_wave_export>0) then ! individual wave export to disk
       call PostMessage("  Writing to file ["//trim(sfile)//"].")
-      call SaveDataC8(trim(sfile), wave, n1*n2, nerr)
+      call SaveDataC8(trim(sfile), wave, nx*ny, nerr)
     end if
     if (MS_wave_avg_export>0) then ! accumulation of the elastic wave
-      MS_wave_avg(:,:,MS_wave_avg_idx) = MS_wave_avg(:,:,MS_wave_avg_idx) + wave
+      MS_wave_avg(1:nx,1:ny,MS_wave_avg_idx) = MS_wave_avg(1:nx,1:ny,MS_wave_avg_idx) + wave(1:nx,1:ny)
       MS_wave_avg_nac(MS_wave_avg_idx) = MS_wave_avg_nac(MS_wave_avg_idx) + 1
     end if
   end if
@@ -5058,19 +4766,21 @@ SUBROUTINE ExportWave(sfile)
     if (MSP_pimgmode>0) then ! real-space intensity accumulation
       if (nwavrs==0) then ! no real-space wave function generated here
         ! transform current wave function (MS_wave) to real space
-        if (.not.allocated(work)) then
-          allocate(work(FFT_BOUND,FFT_BOUND), stat=nerr)
-          if (nerr/=0) then
-            if (allocated(wave)) deallocate(wave, stat=nerr)
-            call CriticalError("ExportWave: Failed to allocate memory.")
-          end if
-        end if
-        work = MS_wave
-        call MS_FFT(work,MS_dimx,MS_dimy,'backwards')
-        ! accumulate probe image from work
+        ! - transfer data
+        !   for an unknown reason, the following line causes an stack overflow and access violation
+        !   MS_work(1:nx,1:ny) = MS_wave(1:nx,1:ny)
+        !   Though, the explicit assignement below element by element works.
+        do j=1, ny
+          do i=1, nx
+            MS_work(i,j) = MS_wave(i,j)
+          end do
+        end do
+        ! call MS_FFT(work,MS_dimx,MS_dimy,'backwards')
+        call MS_FFT_WORK(-1)
+        ! accumulate probe image from MS_work
         do j=1, MS_dimy
           do i=1, MS_dimx
-            pint = real( work(i,j)*conjg(work(i,j)) )
+            pint = real( MS_work(i,j)*conjg(MS_work(i,j)) ) * rsca ! renormalize after iDFT 
             MSP_pimg(i,j,MS_pint_idx) = MSP_pimg(i,j,MS_pint_idx) + pint
           end do
         end do
@@ -5078,7 +4788,7 @@ SUBROUTINE ExportWave(sfile)
         ! accumulate probe image from wave
         do j=1, MS_dimy
           do i=1, MS_dimx
-            pint = real( wave(i,j)*conjg(wave(i,j)) )
+            pint = real( wave(i,j)*conjg(wave(i,j)) ) ! wave should already be normalized in this case
             MSP_pimg(i,j,MS_pint_idx) = MSP_pimg(i,j,MS_pint_idx) + pint
           end do
         end do
@@ -5086,8 +4796,8 @@ SUBROUTINE ExportWave(sfile)
     end if
     if (MSP_pdifmode>0) then ! Fourier-space intensity accumulation
       ! accumulate probe diffraction pattern from MS_wave
-      do j=1, MS_dimx
-        do i=1, MS_dimy
+      do j=1, MS_dimy
+        do i=1, MS_dimx
           pint = real( MS_wave(i,j)*conjg(MS_wave(i,j)) )
           MSP_pdif(i,j,MS_pint_idx) = MSP_pdif(i,j,MS_pint_idx) + pint
         end do
@@ -5100,254 +4810,11 @@ SUBROUTINE ExportWave(sfile)
 ! ------------
 ! dealloc
   if (allocated(wave)) deallocate(wave, stat=nerr)
-  if (allocated(work)) deallocate(work, stat=nerr)
 !  write(unit=*,fmt=*) " > ExportWave: EXIT."
   return
 
 END SUBROUTINE ExportWave
 !**********************************************************************!
-
-
-!!**********************************************************************!
-!!**********************************************************************!
-!SUBROUTINE ExportWave2(nidx,sfile)
-!! function: 
-!! -------------------------------------------------------------------- !
-!! parameter: 
-!! -------------------------------------------------------------------- !
-!
-!  use MultiSlice
-!  use MSAparams
-!
-!  implicit none
-!
-!! ------------
-!! DECLARATION
-!  integer*4, intent(in) :: nidx
-!  character(len=*), intent(in) :: sfile
-!  integer*4 :: lfu, nerr, i, j, i1, j1, n2, m2, n, m
-!  complex*8, allocatable :: wave(:,:) !(MS_dimx,MS_dimy)
-!  complex*8, allocatable :: work(:,:) !(FFT_BOUND,FFT_BOUND)
-!  character(len=1000) :: sfile1, sfile2
-!! ------------
-!
-!! ------------
-!! INIT
-!!  write(unit=*,fmt=*) " > ExportWave2: INIT."
-!  call PostMessage("Exporting current wave function, real space and Fourier space.")
-!  n = MS_dimx
-!  m = MS_dimy
-!  n2 = n/2
-!  m2 = m/2
-!  ! we expect the file name to have no extension. extension and space sign are added
-!  ! "_rs.wav" and "_fs.wav"
-!  if (MSP_FL_varnum>1.and.nidx>0) then
-!    write(unit=sfile1,fmt='(A,I<MSP_nvard>.<MSP_nvard>,A)') trim(sfile)//"_fs_",nidx,".wav"
-!    write(unit=sfile2,fmt='(A,I<MSP_nvard>.<MSP_nvard>,A)') trim(sfile)//"_rs_",nidx,".wav"
-!  else
-!    sfile1 = trim(sfile)//"_fs.wav"
-!    sfile2 = trim(sfile)//"_rs.wav"
-!  end if
-!! ------------
-!
-!! ------------
-!! allocations
-!  allocate(work(FFT_BOUND,FFT_BOUND),wave(MS_dimx,MS_dimy), stat=nerr)
-!  if (nerr/=0) then
-!    call CriticalError("ExportWave2: Failed to allocate memory.")
-!  end if
-!  ! get current wave
-!  work = MS_wave
-!! ------------
-!
-!! ------------
-!! by standard the wave is in Fourier space, scrambled and transposed
-!! We want to export the Fourier-space wave also, thus unscramble and
-!! transpose the data and save it to file
-!  ! unscramble and transpose
-!  do j=1, m
-!    j1 = modulo(j-1+m2,m)+1 ! unscramble j
-!    do i=1, n
-!      i1 = modulo(i-1+n2,n)+1 ! unscramble i
-!      wave(i,j) = work(j1,i1) ! transpose
-!    end do
-!  end do
-!  ! export the fourier-space data
-!  call PostMessage("  Writing to file ["//trim(sfile1)//"].")
-!  call GetFreeLFU(lfu,20,100)
-!  call createfilefolder(trim(sfile1),nerr)
-!  open(unit=lfu, file=trim(sfile1), form='binary', access='sequential', &
-!     & iostat=nerr, status="replace", action="write", share='DENYRW' )
-!  if (nerr/=0) then
-!    call CriticalError("ExportWave2: Failed to open file ["//trim(sfile1)//"].")
-!  end if
-!  write(unit=lfu,iostat=nerr) wave
-!  if (nerr/=0) then
-!    call CriticalError("ExportWave2: Failed to write data.")
-!  end if
-!  close(unit=lfu)
-!! ------------
-!
-!! ------------
-!! Now we start with the real-space export
-!! wave is still in fourier space, thus transfer back
-!  call PostMessage("  Transforming to real space.")
-!  call MS_FFT(work,MS_dimx,MS_dimy,'backwards')
-!  do j=1, MS_dimy
-!    do i=1, MS_dimx
-!      wave(i,j) = work(i,j)
-!    end do
-!  end do
-!! export the fourier-space data
-!  call PostMessage("  Writing to file ["//trim(sfile2)//"].")
-!  call GetFreeLFU(lfu,20,100)
-!  call createfilefolder(trim(sfile2),nerr)
-!  open(unit=lfu, file=trim(sfile2), form='binary', access='sequential', &
-!     & iostat=nerr, status="replace", action="write", share='DENYRW' )
-!  if (nerr/=0) then
-!    call CriticalError("ExportWave2: Failed to open file ["//trim(sfile2)//"].")
-!  end if
-!  write(unit=lfu,iostat=nerr) wave
-!  if (nerr/=0) then
-!    call CriticalError("ExportWave2: Failed to write data.")
-!  end if
-!  close(unit=lfu)
-!! ------------
-!
-!! ------------
-!! dealloc
-!  deallocate(work,wave,stat=nerr)
-!  call PostMessage("Finished wave function export.")
-!!  write(unit=*,fmt=*) " > ExportWave2: EXIT."
-!  return
-!
-!END SUBROUTINE ExportWave2
-!!**********************************************************************!
-
-!!**********************************************************************!
-!!**********************************************************************!
-!SUBROUTINE ExportWaveDirect(sfile)
-!! function: saves the current wavefunction as is
-!! -------------------------------------------------------------------- !
-!! parameter: 
-!! -------------------------------------------------------------------- !
-!
-!  use MultiSlice
-!  use MSAparams
-!
-!  implicit none
-!
-!! ------------
-!! DECLARATION
-!  character(len=*), intent(in) :: sfile
-!  character(len=MSP_ll) :: isfile
-!  integer*4 :: lfu, nerr, i, j
-!  complex*8, allocatable :: wave(:,:) !(MS_dimx,MS_dimy)
-!  
-!! ------------
-!
-!! ------------
-!! INIT
-!!  write(unit=*,fmt=*) " > ExportWave: INIT."
-!  call PostMessage("Exporting current wavefunction.")
-!! allocations
-!  allocate(wave(MS_dimx,MS_dimy), stat=nerr)
-!  if (nerr/=0) then
-!    call CriticalError("ExportWave: Failed to allocate memory.")
-!  end if
-!  ! transferring data to correct field size
-!  do j=1, MS_dimy
-!    do i=1, MS_dimx
-!      wave(i,j) = MS_wave(i,j)
-!    end do
-!  end do
-!! ------------
-!
-!! ------------
-!  if (MS_wave_export>0) then ! individual wave export to disk
-!    call PostMessage("  Writing to file ["//trim(sfile)//"].")
-!    call GetFreeLFU(lfu,20,100)
-!    call createfilefolder(trim(sfile),nerr)
-!    open(unit=lfu, file=trim(sfile), form='binary', access='sequential', &
-!       & iostat=nerr, status="replace", action="write", share='DENYRW' )
-!    if (nerr/=0) then
-!      call CriticalError("ExportWave: Failed to open file ["//trim(isfile)//"].")
-!    end if
-!    write(unit=lfu,iostat=nerr) wave
-!    if (nerr/=0) then
-!      call CriticalError("ExportWave: Failed to write data.")
-!    end if
-!    close(unit=lfu)
-!    call PostMessage("  Finished wavefunction export.")
-!  end if
-!  if (MS_wave_avg_export>0) then ! accumulation of the elastic wave
-!    call PostMessage("  Accumulating to elastic wavefunction.")
-!    MS_wave_avg(:,:,MS_wave_avg_idx) = MS_wave_avg(:,:,MS_wave_avg_idx) + wave
-!    MS_wave_avg_nac(MS_wave_avg_idx) = MS_wave_avg_nac(MS_wave_avg_idx) + 1
-!  end if
-!! ------------
-!
-!! ------------
-!! dealloc
-!  deallocate(wave,stat=nerr)
-!!  write(unit=*,fmt=*) " > ExportWave: EXIT."
-!  return
-!
-!END SUBROUTINE ExportWaveDirect
-!!**********************************************************************!
-
-
-
-
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE SaveResult(soutfile)
-! function: 
-! -------------------------------------------------------------------- !
-! parameter: 
-! -------------------------------------------------------------------- !
-
-  use MSAparams
-  use MultiSlice
-  
-  implicit none
-
-! ------------
-! DECLARATION
-  character*(*), intent(in) :: soutfile
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > SaveResult: INIT."
-! ------------
-
-! ------------
-  if (MSP_ctemmode==0) then
-    call ExportSTEMData(soutfile)
-    ! OUT: done in MS_CalculateNextSlice, switch /wave
-!    if (MS_epwave_export==1) then
-!      call ExportWave2(0,trim(MS_epwave_filenm))
-!    end if
-  else
-    ! call ExportWave(0,soutfile) ! done in MS_CalculateNextSlice by default for CTEM mode
-  end if
-
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > SaveResult: EXIT."
-  return
-
-END SUBROUTINE SaveResult
-!**********************************************************************!
-
-
-
-
-
-
-
 
 
 
