@@ -5,7 +5,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-01-10                                                          #
+#   Date: 2019-01-11                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -128,6 +128,8 @@ Examples:
     msa -prm "msa.prm" -out "stemimage.dat" -px 50 -py 49
   - Calculation of one pixel row of a STEM image and using text file output
     msa -prm "msa.prm" -out "stemimage.dat" -py 4 /txtout
+  - Calculation a STEM image writing 3D output of thickness series
+    msa -prm "msa.prm" -out "stemimage.dat" /3dout
   - Applying partial spatial coherence to a raw STEM image
     msa -prm "msa.prm" -out "psc_stemimage.dat" -in "stemimage.dat -sr 0.06
 - CTEM mode:
@@ -357,7 +359,7 @@ Additional and experimental options (not tested):
 	given in the parameter file.
 
 
-/pimg
+/pimg [optional]
 
 	Activates output of probe image intensities.
 	A suffix "_pimg" is added to the output file name. (STEM only)
@@ -367,7 +369,7 @@ Additional and experimental options (not tested):
 	(suffix "_ela") and the thermal-diffuse scattering (suffix "_tds").
 
 
-/pdif
+/pdif [optional]
 
 	Activates output of probe diffraction patterns.
 	A suffix "_pdif" is added to the output file name. (STEM only)
@@ -377,7 +379,7 @@ Additional and experimental options (not tested):
 	(suffix "_ela") and the thermal-diffuse scattering (suffix "_tds").
 
 
-/epc
+/epc [optional]
 
 	Activates explicit averaging over the partial coherence parameters
 	focus spread and source size for STEM probe intensity and diffraction
@@ -386,7 +388,7 @@ Additional and experimental options (not tested):
 	wrong images of the elastic and TDS channel.
 
 
-/rti
+/rti [optional]
 
 	Activates run-time console output at certain stages of the calculation.
 
