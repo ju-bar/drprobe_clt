@@ -746,6 +746,8 @@ EXAMPLE 3: TEM SIMULATION OF A FULLY PERIODIC OBJECT WITHOUT FL CALCULATION
 7) History of changes
 
 190115: JB: Version 0.91
+- Option /3dout works now for all output types, wave functions, images
+  and diffraction patterns.
 - Added example data and calls for STEM image simulations to the Git
   repository.
 - Added separation of elastic and thermal-diffuse scattering for normal
