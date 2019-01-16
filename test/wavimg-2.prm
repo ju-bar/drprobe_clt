@@ -1,0 +1,28 @@
+'test/img_sl010.wav'                    ! Wave function file name string used to locate existing wave functions. Use quotation marks when the string includes space characters.
+256, 256                                ! Dimension of the wave data in pixels, <nx> = number of horizontal wave pixels, <ny> = number of vertical wave pixels.
+6.1015631E-03, 6.1015631E-03            ! Sampling rate of the wave data (<sx> = horizontal, <sy> = vertical) [nm/pix].
+300.0                                   ! TEM high-tension used for wave function calculation [kV].
+0                                       ! Image output type option: 0 = TEM image, 1 = complex image plane wave, 2 = wave amplitude, 3 = wave phase, 4 = wave real part, 5 = wave imaginary part, 6 = TEM image map of 2 variables
+'img_ctem.dat'                          ! Image output file name string. Use quotation marks when the string includes space characters.
+375, 375                                ! Image output size (<ix> = horizontal , <iy> = vertical) in number of pixels.
+0, 1, 1, 0                              ! Flag and parameters for creating integer images with optional noise. Flag <intflg> 0 = off (default), 1 = 32-bit, 2 = 16-bit, Parameter: <mean> = mean vacuum intensity, <conv> = electron to counts conversion rate, <rnoise> detector readout rms noise level in counts.
+1                                       ! Flag activating the extraction of a special image frame (0=OFF, 1=ON). The frame parameters are defined in the lines below.
+8.937E-03                               ! Image output sampling rate [nm/pix], isotropic. The parameter is used only if the Flag in line 09 is set to 1.
+0.0, 0.0                                ! Image frame offset in pixels of the input wave. The parameter is used only if the Flag in line 09 is set to 1.
+0.0                                     ! Image frame rotation in [deg] with respect to the input wave horizontal axis. The parameter is used only if the Flag in line 09 is set to 1.
+1                                       ! Coherence calculation model switch: 1 = averaging of coherent sub images explicit focal variation but quasi-coherent spatial envelope, 2 = averaging of coherent sub images with explicit focal and angular variation, 3 = quasi-coherent linear envelopes, 4 = Fourier-space synthesis with partially coherent TCC, 5: averaging of coherent sub images with explicit focal, angular, and frozen lattice variation, 6: quasi-coherent image calculation)
+1, 3.9                                  ! Flag and parameters for partial temporal coherence: <ptcflg> = flag (0=OFF, 1=ON), <f-spread> = focus spread (1/e) half width [nm]
+1, 0.2                                  ! Flag and parameters for partial spatial coherence: <pscflg> = flag (0=OFF, 1=ON), <s-conv> = beam convergence (1/e) half width [mrad]
+1, 1.0, 'test/US1000P-300keV.mtf'       ! Flag and parameters for applying the detector MTF: <mtfflag> = flag (0=OFF, 1=ON), <mtf-scale> = calculation scale of the mtf = (sampling rate experiment)/(sampling rate simulation), <mtf-file> = File name string to locate the MTF data. Use quotation marks when the string includes space characters.
+1, 0.017, 0.017, 0.0                    ! Flag and parameters for a vibration envelope: <vibflg> = flag (0=OFF, 1=ON-ISO, 2=ON-ANISO), <vibprm1>, <vibprm2> = vibration RMS amplitudes [nm], <vibprm3> = orientation [deg] of the primary vibration amplitude w.r.t. the horizontal image axis.
+2                                       ! Number of aberration definitions following this line
+1, 5.8, 0.0                             ! aberration definition (index, ax, ay) [nm]  (index list: 0=image shift, 1=defocus, 2=2-fold astigmatism, 3=coma, 4=3-fold astigm., 5=CS, 6=star aberration, 7=4-fold astigm, 8=coma(5th), 9=3-lobe aberr., 10=5-fold astigm., 11=C5, 12=w62, 13=w64, 14=w66 ...)
+5, -12.7E+03, 0.0                       ! aberration definition (index, ax, ay) [nm] .. more similar lines possible depending on value of line 18
+2500.0                                  ! Objective aperture radius [mrad]. Set to very large values to deactivate.
+0.0, 0.0                                ! Center of the objective aperture with respect to the zero beam [mrad].
+0                                       ! Number variable of loop definitions following below.
+1                                       ! Loop variable class: 1 = aberration, 2 = coherence params, 3 = wave file
+1                                       ! Loop variable identifier (e.g. aberration index)
+1                                       ! Loop variation form: 1 = ramp, 2 = oscillate, 3 = listed.
+0.0, 20.0, 21                           ! Loop variation range: [<loop-form> == 1] <range-min> = minimum variable value, <range-max> = maximum vaiable value, <num-steps> = number of loop steps (samples), [<loop-form> == 2] <range-min> = variation amplitude, <range-max> = variation frequency, <num-steps> = number of loop steps (samples)
+'_foc'                                  ! Loop identifier string used for file naming or to identify the suffix sub-string for the location of numbers in input file names, or file name of a parameter variation list.

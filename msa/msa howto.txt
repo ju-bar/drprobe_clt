@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 0.90b                                  #
+#   HOWTO use the program MSA, Version 0.91b                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-01-11                                                          #
+#   Date: 2019-01-16                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -349,6 +349,19 @@ Additional and experimental options (not tested):
 
 	Generates a vortex probe of given orbital angular momentum to be
 	used as incident electron probe. (STEM only)
+
+
+/silavwave [optional]
+
+	Activates the calculation of average wave functions over multiple 
+	frozen-lattice calculations. The switch refers to a real-space
+	representation of the wave function. Alternatively, you may use
+	the switch /silavwaveft to generate Fourier-space output. There
+	will be no output of the wave function, but the separation of
+	elastic and thermal-diffuse scattering is enabled for separate
+	output of other signal (STEM images, diffraction patterns, 
+	probe images and moments of the intensity distribution in
+	the diffraction plane.)
 
 
 /gaussap [optional]
@@ -732,8 +745,16 @@ EXAMPLE 3: TEM SIMULATION OF A FULLY PERIODIC OBJECT WITHOUT FL CALCULATION
 
 7) History of changes
 
-
-190111: JB: Version 0.90(beta)
+190115: JB: Version 0.91
+- Added example data and calls for STEM image simulations to the Git
+  repository.
+- Added separation of elastic and thermal-diffuse scattering for normal
+  STEM image intensities and k-space moment calculations.
+- Added the optional switches /silavwave and /silavwaveft to activate the
+  calculation of average wave functions without output. This enables the
+  separation of the elastic and thermal-diffuse scattering channels for
+  other output.
+190111: JB: Version 0.90
 - Replaced FFTPACK Fourier transform routines by FFTW3 routines. All routines
   affected by the changed Fourier space indexing resulting from this change
   have been adopted. Fourier space maps are no longer transposed. Norms of

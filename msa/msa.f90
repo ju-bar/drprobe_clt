@@ -1,13 +1,13 @@
 !**********************************************************************
 !
-!  PROGRAM: msa, version 0.86
+!  PROGRAM: msa, version 0.91
 !  FILE: msa.f90
 !  PURPOSE:  Entry point for the console application MSA.
 !            Multislice calculation for electron diffraction
 !
 !**********************************************************************
 !                                                                      
-!   Date: 2018-01-07                                                   
+!   Date: 2018-01-15
 !                                                                      
 !   Author: Juri Barthel                                               
 !           Ernst Ruska-Centre                                         
@@ -79,7 +79,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "0.90b 64-bit  -  2019 Jan  11  -"
+  MSP_verApp  =                   "0.91b 64-bit  -  2019 Jan  16  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -243,7 +243,9 @@ program msa
        & trim(adjustl(MSP_stmp))//", oty="//trim(adjustl(MSP_stmp2))//" deg.")
   end if
   if (MSP_ctemmode/=0) then ! by default switch the wave export ON in CTEM mode
-    if (MS_wave_export<1) MS_wave_export = 1 ! set to rea-space export by default
+    MS_wave_export = 1 ! activate wave function export by default in CTEM mode
+    MS_wave_export_form = 0 ! set to real-space export by default
+    MS_incwave_export = 1 ! also export the trivial incident wave function
     MS_wave_filenm = MSP_outfile
     MS_wave_filenm_bk = MS_wave_filenm
     MS_wave_filenm_avg = MS_wave_filenm
@@ -394,15 +396,8 @@ LH: do
     ! update wave file name (insert pixel numbers)
     if (MS_wave_export>0 .or. MS_wave_avg_export>0 .or. MS_pint_export>0) then
       MS_wave_filenm = MS_wave_filenm_bk
-      i = index(trim(MS_wave_filenm),".",BACK=.TRUE.)
-      if (i>0) then
-        j = len_trim(MS_wave_filenm)
-        write(unit=MSP_stmp, fmt='(A,I<MSP_nn1d>.<MSP_nn1d>,A,I<MSP_nn1d>.<MSP_nn1d>,A)') &
-     &    MS_wave_filenm(1:i-1)//"_px",MSP_ScanPixelX, "_py", MSP_ScanPixelY, MS_wave_filenm(i:j)
-      else 
-        write(unit=MSP_stmp, fmt='(A,I<MSP_nn1d>.<MSP_nn1d>,A,I<MSP_nn1d>.<MSP_nn1d>)') &
-     &    trim(MS_wave_filenm)//"_px",MSP_ScanPixelX, "_py", MSP_ScanPixelY
-      end if
+      call saddsuffix(trim(MS_wave_filenm), "_px", MSP_ScanPixelX, MSP_nn1d, MSP_stmp2)
+      call saddsuffix(trim(MSP_stmp2), "_py", MSP_ScanPixelY, MSP_nn1d, MSP_stmp)
       MS_wave_filenm = trim(MSP_stmp)
       MS_wave_filenm_avg = MS_wave_filenm
     end if
@@ -429,7 +424,7 @@ LH: do
     call PrepareWavefunction()
   end if
 ! ------------
-
+!
 ! <<<< CORE OF CALCULATION
 !
 ! -------------------------------------------------------------------
@@ -443,8 +438,8 @@ LH: do
 ! -------------------------------------------------------------------
 !
 ! <<<< CORE OF CALCULATION
-
-
+!
+!
   if ((DEBUG_EXPORT>0 .or. VERBO_EXPORT>0) .and. MSP_runtimes==1 ) then ! per loop run time info
     call PostRuntime("multislice calculation done", 0)
   end if
@@ -458,7 +453,7 @@ LH: do
   
 ! ------------
 ! SAVE ACCUMULATED AVERAGE WAVEFUNCTIONS
-  if (MS_wave_avg_export>=1) then
+  if (MS_wave_avg_export > 0) then
     call ExportWaveAvg(trim(MS_wave_filenm_avg))
   end if
 

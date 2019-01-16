@@ -11,13 +11,7 @@
 !    -----------------                                                 !
 !                                                                      !
 !    Purpose  : Implementation of a multi-slice algorithm              !
-!    Version  : 1.0.0, May 07, 2007                                    !
-!               1.1.0, Sept. 01, 2010                                  !
-!               1.2.0, March 08, 2017                                  !
-!               1.3.0, June 21, 2017                                   !
-!               1.3.1, June 26, 2017                                   !
-!               1.3.2, Nov 09, 2017                                    !
-!               1.4.0, Jan 08, 2019                                    !
+!    Version  : 1.4.1, Jan 15, 2019                                    !
 !                                                                      !
 !   Linked Libs: libfftwf-3.3.lib                                      !
 !   Includes   : fftw3.f03.in                                          !
@@ -284,9 +278,11 @@ MODULE MultiSlice
 
 ! flag: export of average wave function data
   integer*4, public :: MS_wave_avg_export
-  DATA MS_wave_avg_export /0/ ! OFF by default, set to >=1 to activate.
+  DATA MS_wave_avg_export /0/ ! OFF by default, set to > 0 to activate.
                             ! Warning: Switching ON this option will cause
                             !          an increase of calulation time.
+                            ! MS_wave_avg_export == 1 : accumulate and output
+                            ! MS_wave_avg_export == 2 : accumulate, no output
                             
 ! flag: export of integrated probe intensities
   integer*4, public:: MS_pint_export
@@ -1857,9 +1853,7 @@ SUBROUTINE MS_Start(istart)
   complex*8 :: c0
   integer*4, optional, intent(in) :: istart
   integer*4 :: nslice, ncurslice, nstart, nstop
-  character(len=1024) :: stmp
   external :: ExportWave
-  external :: sinsertslcidx ! (idx,idxlen,sfnin,sfnadd,sfnext,sfnout) ! msasub.f90
 ! ------------
 
 ! ------------
@@ -1884,7 +1878,6 @@ SUBROUTINE MS_Start(istart)
 ! ------------
 ! setup starting wave
   MS_wave(:,:) = MS_wave_in(:,:)
-!  MS_absorbed(:,:,:) = c0
 !
 ! setup the multi-slice index and counters
 ! (default)
@@ -1906,13 +1899,9 @@ SUBROUTINE MS_Start(istart)
 ! ------------
 ! optional wave export after each slice, also saves incoming wave
   if (MS_incwave_export==1) then
-    ! prepare file name
-    call sinsertslcidx(MS_slicecur,MS_nslid,trim(MS_wave_filenm),"",".wav",stmp)
     MS_wave_avg_idx = 0 ! store incoming wave in channel 0 regardless of its actual plane.
     MS_pint_idx = 0
-    !
-    call ExportWave(trim(stmp))
-    !
+    call ExportWave(trim(MS_wave_filenm),0) ! export incident plane wave function
   end if
 
 ! ------------
@@ -1967,7 +1956,8 @@ END SUBROUTINE MS_Stop
 SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
 ! function: Calculates wave with next slice in stack
 ! -------------------------------------------------------------------- !
-! parameter: 
+! parameter: complex*8 :: slc(nx,ny) ! slice phase grating
+!            integer*4 :: nx, ny ! # phase grating samples
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1977,12 +1967,8 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
   integer*4, parameter :: subnum = 1300
   integer*4, intent(in) :: nx, ny
   complex*8, intent(in) :: slc(nx,ny)
-  
   integer*4 :: i,j, nslice, ncurslice, nprop, i1, j1
-  character(len=MS_ll) :: stmp
-  
   external :: ExportWave
-  external :: sinsertslcidx ! (idx,idxlen,sfnin,sfnadd,sfnext,sfnout) ! msasub.f90
 ! ------------
 
 ! ------------
@@ -2018,10 +2004,8 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
 
 ! ------------
 ! transform to real space
-  !call MS_FFT(MS_wave(:,:),MS_dimx,MS_dimy,"back") ! external call from SFFTs.f
   call fftwf_execute_dft(MS_fft_planb,MS_wave,MS_wave)
 ! ------------
-
 
 ! ------------
 ! apply the phase grating
@@ -2049,15 +2033,11 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
     
   end if
 ! ------------
-  
 
 ! ------------
 ! transform to fourier space
-  !call MS_FFT(MS_wave(:,:),MS_dimx,MS_dimy,"for") ! external call from SFFTs.f
   call fftwf_execute_dft(MS_fft_planf,MS_wave,MS_wave)
 ! ------------
-
-
 
 ! ------------
 ! apply the fresnel propagator
@@ -2069,7 +2049,6 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
   MS_calcthick = MS_calcthick + MS_slicethick(nslice)
 ! ------------
 
-
 ! ------------
 ! in the end, the wave is given in Fourier-space
 !   scrambled
@@ -2079,16 +2058,13 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
 ! - moved here with special export routine ExportWave
 ! - the export routine does another inverse FT before saving
 ! - by this way the wave function is multiplied by the propagator at the end
-! - this version is used for CTEM mode only, where we want the full thickness effect
-  if (      (MS_wave_export==1 .or. MS_wave_avg_export==1 .or. &
-             MS_pint_export==1 ) &
+! - this code handles the wave function averging and sets indices
+  if ( (MS_wave_export > 0 .or. MS_wave_avg_export > 0 .or. &
+        MS_pint_export > 0 ) &
      & .and. 0==modulo(ncurslice,MS_wave_export_pzp) ) then
-    ! prepare file name
-    call sinsertslcidx(ncurslice,MS_nslid,trim(MS_wave_filenm),"",".wav",stmp)
     MS_wave_avg_idx = ncurslice/MS_wave_export_pzp ! this should always give an integer number
     MS_pint_idx = MS_wave_avg_idx
-    !
-    call ExportWave(trim(stmp))
+    call ExportWave(trim(MS_wave_filenm), ncurslice) ! export current wave function
     !
   end if
 ! ------------

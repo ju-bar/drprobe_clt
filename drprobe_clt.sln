@@ -26,6 +26,19 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		update-bin.sh = update-bin.sh
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Test", "Test", "{A170CC72-6B98-48A4-952D-367159DD3D4B}"
+	ProjectSection(SolutionItems) = preProject
+		test\msa-1-avg.prm = test\msa-1-avg.prm
+		test\msa-1.prm = test\msa-1.prm
+		test\msa-1_det.prm = test\msa-1_det.prm
+		test\msa-2.prm = test\msa-2.prm
+		test\README = test\README
+		test\STO_001_4x4.cel = test\STO_001_4x4.cel
+		test\STO_001_4x4.cif = test\STO_001_4x4.cif
+		test\US1000P-300keV.mtf = test\US1000P-300keV.mtf
+		test\wavimg-2.prm = test\wavimg-2.prm
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64

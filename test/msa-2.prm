@@ -1,0 +1,121 @@
+'[Microscope Parameters]'
+25                                      Semi angle of convergence [mrad]
+0                                       Inner radius of the annular detector [mrad]
+30                                      Outer radius of the annular detector [mrad]
+0, 'test/msa-1_det.prm'                 Detector definition file, switch and file name
+300.00                                  Electron wavelength [nm]
+0.04                                    De-magnified source radius (1/e half width) [nm]
+3                                       Focus spread [nm]
+2                                       Focus-spread kernel half-width w.r.t. the focus spread
+7                                       Focus-spread kernel size
+24                                      Number of aberration definitions following
+0 0 0                                   Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+1 1 0                                   Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+2 0 0                                   Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+3 0 0                                   Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+4 0 0                                   Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+5 0 0                                   Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+6 0 0                                   Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+7 0 0                                   Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+8 0 0                                   Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+9 0 0                                   Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+10 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+11 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+12 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+13 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+14 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+15 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+16 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+17 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+18 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+19 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+20 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+21 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+22 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+23 0 0                                  Aberration definition: (index) (aberration.x [nm]) (aberration.y [nm])
+'[Multislice Parameters]'
+0                                       Object tilt X [deg]. Approximative approach. Do not use for tilts larger than 5 degrees!
+0                                       Object tilt Y [deg]. Approximative approach. Do not use for tilts larger than 5 degrees!
+0                                       Horizontal scan frame offset [nm]. X coordinate of the lower left scan frame corner.
+0                                       Vertical scan frame offset [nm]. X coordinate of the lower left scan frame corner.
+0.3905                                  Horizontal scan frame size [nm]
+0.3905                                  Vertical scan frame size [nm]
+0                                       Scan frame rotation [deg] w.r.t. the slice data.
+20                                      Number of scan columns = number of pixels on horizontal scan image axis.
+20                                      Number of scan rows = number of pixels on vertical scan image axis.
+0                                       Switch for partial temporal coherence calculation. Drastic increase of calculation time if activated!
+1                                       Switch for partial spatial coherence calculation. Is only applied in combination with an input image file.
+1                                       Supercell repeat factor in horizontal direction, x
+1                                       Supercell repeat factor in vertical direction, y
+1                                       Supercell repeat factor in Z-direction, obsolete
+'test/sto_001_4x4_300keV_dwf'           Slice file series name [SFN]. Expected file names are [SFN]+"_###.sli" where ### is a three digit number.
+2                                       Number of slice files to load.
+50                                      Number of frozen lattice variants per slice.
+1                                       Minimum number of frozen lattice variations averaged per scan pixel in STEM mode.
+2                                       Detector readout period in slices.
+32                                      Number of slices in the object.
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+End of parameter file.

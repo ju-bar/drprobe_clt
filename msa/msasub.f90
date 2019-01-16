@@ -3,7 +3,7 @@
 !                                                                      !
 !    File     :  msasub.f90                                            !
 !                                                                      !
-!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2018   !
+!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2019   !
 !                                                                      !
 !**********************************************************************!
 !                                                                      !
@@ -659,19 +659,24 @@ SUBROUTINE GetFreeLFU(lfu,lfu0,lfumax)
 !  write(unit=*,fmt=*) " > GetFreeLFU: EXIT."
   return
 
-END SUBROUTINE GetFreeLFU
+  END SUBROUTINE GetFreeLFU
 !**********************************************************************!
 
 ! here are two functions copied from binio2.f90
 ! take care to remove when linking with binio2.f90
+  
 
 
 !**********************************************************************!
 !
 ! subroutine sinsertslcidx
 !
-! inserts the slice index suffix to a file name before the last dot
-! character
+! inserts and additional suffix string with slice index suffix to
+! a file name before the last dot character and sets a given file
+! extension
+!
+! idxlen <= 0 will switch off the addition of the index suffix
+!             and the "_sl" prefix.
 !
 subroutine sinsertslcidx(idx,idxlen,sfnin,sfnadd,sfnext,sfnout)
   implicit none
@@ -679,19 +684,63 @@ subroutine sinsertslcidx(idx,idxlen,sfnin,sfnadd,sfnext,sfnout)
   integer*4, intent(in) :: idxlen ! number of characters to use
   character(len=*), intent(in) :: sfnin ! input file name
   character(len=*), intent(in) :: sfnadd ! additional substring
-  character(len=*), intent(in) :: sfnext ! file name extansion
+  character(len=*), intent(in) :: sfnext ! file name extension
   character(len=*), intent(out) :: sfnout ! output file name
   integer*4 :: ipt ! position of last dot in sfnin
+  character(len=12) :: snum
+  snum = ""
+  if (idxlen>0) then
+    write(unit=snum,fmt='(A,I<idxlen>.<idxlen>)') "_sl", idx
+  end if
   ipt = index(trim(sfnin),".",BACK=.TRUE.) ! remember position of the last dot in file prefix
   if (ipt>0) then
-    write(unit=sfnout,fmt='(A,I<idxlen>.<idxlen>,A)') sfnin(1:ipt-1)// &
-        & trim(sfnadd)//"_sl", idx, trim(sfnext)
+    sfnout = sfnin(1:ipt-1)//trim(sfnadd)//trim(snum)//trim(sfnext)
   else 
-    write(unit=sfnout,fmt='(A,I<idxlen>.<idxlen>,A)') trim(sfnin)// &
-        & trim(sfnadd)//"_sl", idx, trim(sfnext)
+    sfnout = trim(sfnin)//trim(sfnadd)//trim(snum)//trim(sfnext)
   end if
   return
-end subroutine sinsertslcidx
+  end subroutine sinsertslcidx
+  
+!**********************************************************************!
+!
+! subroutine saddsuffix
+!
+! adds a suffix to the file name sfin before the last file extension
+! (last dot) with a pre-string sadd and a number idx written with
+! nlid digits (leading zeros might be added). The result is stored
+! in sfout. With idln == 0 the numerical suffix will not be added.
+!
+subroutine saddsuffix(sfin, sadd, idx, idln, sfout)
+  implicit none
+  integer*4, parameter :: lnummax = 10 ! max length of numerical suffix
+  integer*4, intent(in) :: idx ! index to append
+  integer*4, intent(in) :: idln ! number of characters to use
+  character(len=*), intent(in) :: sfin ! input file name
+  character(len=*), intent(in) :: sadd ! additional substring
+  character(len=*), intent(out) :: sfout ! output file name
+  integer*4 :: ipt ! position of last dot in sfnin
+  integer*4 :: inlen ! input string length
+  integer*4 :: lin ! internal number length
+  character(len=12) snum ! numerical suffix
+  inlen = len_trim(sfin) ! length of input string
+  snum = "" ! init empty
+  lin = max(0,min(lnummax,idln)) ! limit the numerical number suffix length
+  if (lin>0) then
+    write(unit=snum,fmt='(I<lin>.<lin>)') idx ! write temp. num. suffix
+    snum = trim(adjustl(snum)) ! left adjust and trim
+  end if
+  if (inlen==0) then ! handle case of empty input string
+    sfout = trim(sadd)//trim(snum)
+  else
+    ipt = index(trim(sfin),".",BACK=.TRUE.) ! remember position of the last dot in file prefix
+    if (ipt>0) then
+      sfout = sfin(1:ipt-1)//trim(sadd)//trim(snum)//sfin(ipt:inlen)
+    else 
+      sfout = trim(sfin)//trim(sadd)//trim(snum)
+    end if
+  end if
+  return
+end subroutine saddsuffix
 
 !**********************************************************************!
 !
@@ -944,6 +993,69 @@ SUBROUTINE SaveDataR4(sfile,dat,n,nerr)
   return
 
 END SUBROUTINE SaveDataR4
+!**********************************************************************!
+  
+  
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE AppendDataR4(sfile,dat,n,nerr)
+! function: appends real*4 data array to file
+! -------------------------------------------------------------------- !
+! parameter: 
+! -------------------------------------------------------------------- !
+
+  implicit none
+
+! ------------
+! DECLARATION
+  character(len=*), intent(in) :: sfile
+  integer*4, intent(in) :: n
+  real*4, intent(in) :: dat(n)
+  integer*4, intent(inout) :: nerr
+  
+  integer*4 :: lu
+  external :: GETFreeLFU
+  external :: createfilefolder
+! ------------
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > AppendDataR4: INIT."
+  nerr = 0
+  call GetFreeLFU(lu,20,99)
+! ------------
+
+! ------------
+  !
+  ! open file, connect to lun
+  !
+  call createfilefolder(trim(sfile),nerr)
+  open(unit=lu, file=trim(sfile), iostat=nerr, &
+     & form='binary', action='write', status='unknown', position='append')
+  if (nerr/=0) then
+    call CriticalError("AppendDataR4: Failed to open file ["//trim(sfile)//"].")
+  end if
+  !
+  ! write data to file, sequential binary
+  !
+  write(unit=lu,iostat=nerr) dat
+  if (nerr/=0) then
+    call CriticalError("AppendDataR4: Failed to write data to file ["//trim(sfile)//"].")
+  end if
+  !
+  ! close and disconnect
+  !
+  close(unit=lu)
+  !
+  ! done
+  !
+! ------------
+
+! ------------
+!  write(unit=*,fmt=*) " > AppendDataR4: EXIT."
+  return
+
+END SUBROUTINE AppendDataR4
 !**********************************************************************!
 
 
@@ -1779,6 +1891,16 @@ SUBROUTINE ParseCommandLine()
       nfound = 1
       MS_wave_avg_export = 1
       nawef = 1
+    
+    case ("/silavwave")
+      nfound = 1
+      MS_wave_avg_export = 2
+      nawef = 0
+      
+    case ("/silavwaveft")
+      nfound = 1
+      MS_wave_avg_export = 2
+      nawef = 1
       
     case ("/gaussap")
       nfound = 1
@@ -1854,25 +1976,21 @@ SUBROUTINE ParseCommandLine()
 
 ! ------------
 ! check wave export
-  if (MS_wave_export>=1 .or. MS_wave_avg_export>=1 .or. MSP_pimgmode .or. MSP_pdifmode) then
+  if (MS_wave_export > 0 .or. MS_wave_avg_export > 0 .or. &
+    & MSP_pimgmode > 0 .or. MSP_pdifmode > 0) then
   ! preset file names and backup names
     MS_wave_filenm = MSP_outfile
     MS_wave_filenm_bk = MS_wave_filenm
     MS_wave_filenm_avg = MS_wave_filenm
   ! determine export form from input parameters before manipulating them
-    if (MS_wave_export>=1) then ! if wave export requested ...
+    if (MS_wave_export > 0) then ! if wave export requested ...
       MS_wave_export_form = nwef ! ... this preferentially decides the export form
     else ! if no direct wave export is requested, ...
-      if (MS_wave_avg_export>=1) then ! ... but avg. wave export is requested
+      if (MS_wave_avg_export > 0) then ! ... but avg. wave export is requested
         MS_wave_export_form = nawef ! ... the avg. wave export form is used
       end if
     end if
-  ! handle ctem mode
-    if (MSP_ctemmode==0) then
-       ! activates incoming wave export only in the special case
-       ! >> wave export wanted in STEM mode <<
-       MS_incwave_export = 1
-    end if
+    MS_incwave_export = 1
   end if
 ! ------------
 
@@ -2037,11 +2155,19 @@ SUBROUTINE LoadParameters(sprmfile)
   
   ! allocate the detection result array
   if (allocated(MSP_detresult)) deallocate(MSP_detresult,stat=nalloc)
+  if (allocated(MSP_detresult_ela)) deallocate(MSP_detresult_ela,stat=nalloc)
   allocate(MSP_detresult(MSP_detnum,MS_stacksize), stat=nalloc)
   if (nalloc/=0) then
     call CriticalError("Failed to allocate detector array.")
   end if
   MSP_detresult = 0.0
+  if (MS_wave_avg_export>0) then
+    allocate(MSP_detresult_ela(MSP_detnum,MS_stacksize), stat=nalloc)
+    if (nalloc/=0) then
+      call CriticalError("Failed to allocate detector array for elastic channel.")
+    end if
+    MSP_detresult_ela = 0.0
+  end if
   
   ! allocate the k-momentum result array
   if (allocated(MSP_Kmomresult)) deallocate(MSP_Kmomresult,stat=nalloc)
@@ -2050,6 +2176,13 @@ SUBROUTINE LoadParameters(sprmfile)
     call CriticalError("Failed to allocate k-moment array.")
   end if
   MSP_Kmomresult = 0.0
+  if (MS_wave_avg_export>0) then
+    allocate(MSP_Kmomresult_ela(MSP_KmomNum,MS_stacksize), stat=nalloc)
+    if (nalloc/=0) then
+      call CriticalError("Failed to allocate k-moment array for elastic channel.")
+    end if
+    MSP_Kmomresult_ela = 0.0
+  end if
 ! ------------
 
 
@@ -3064,7 +3197,212 @@ SUBROUTINE DetectorReadout(rdata, ndat, nret)
 !  write(unit=*,fmt=*) " > DetectorReadout: EXIT."
   return
 
-END SUBROUTINE DetectorReadout
+  END SUBROUTINE DetectorReadout
+!**********************************************************************!
+  
+  
+  
+  
+  
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE DetectorReadoutElastic(nerr)
+! SUBROUTINE: Performs readout of all detectors and k-moment
+!             integration for the elastic channel.
+!             The output is written to the module arrays
+!             MSP_detresult_ela and MSP_Kmomresult_ela, which are
+!             only allocated if MS_wave_avg_export > 0. This is the
+!             condition by which this routine should be triggered.
+!             A respective if statement is performed at the beginning.
+!             The readout is done here for all slices, assuming that
+!             the elastic wave functions exist in MS_wave_avg.
+! -------------------------------------------------------------------- !
+! parameter:  rdata (real*4) expect one item per detector and k-moment
+!             component, output
+! -------------------------------------------------------------------- !
+
+  use MultiSlice
+  use MSAparams
+  
+  implicit none
+
+! ------------
+! DECLARATION
+  integer*4, intent(out) :: nerr
+  integer*4 :: ncrit, ndet, nkmom, nx, ny, nalloc, nmlen, npln, ndetect
+  integer*4 :: i, j, k, l, m, ipln, islc, idy, idx
+  real*4 :: rval, gxk, gyl, rsca, renorm
+  complex*8, allocatable :: wave(:,:)
+! ------------
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > DetectorReadoutElastic: INIT."
+  nerr = 0
+  ncrit = 0
+  nalloc = 0
+  nx = MS_dimx
+  ny = MS_dimy
+  if (MS_wave_avg_export <= 0) goto 100 ! just quit, no output of elastic channel requested
+  ! We assume now, that MSP_detresult_ela is allocated
+  !    and that MSP_Kmomresult_ela is allocated
+  !    if the "-kmom" option is used and MSP_Kmomresult is allocated.
+  ndet = MSP_detnum
+  nkmom = MSP_KmomNum
+  if (0>=ndet .and. 0>=nkmom) then ! no detectors and no other integrating readout
+    goto 100
+  end if
+  if (0==MS_status) then
+    nerr = 1
+    goto 200
+  end if
+  if (0>=nx .or. 0>=ny) then ! invalid size of diffraction grid
+    nerr = 2
+    goto 200
+  end if
+  if (.not.allocated(MSP_pdiftmp)) then ! allocate temp readout buffer
+    allocate(MSP_pdiftmp(nx*ny), stat=nalloc)
+    if (nalloc/=0) then
+      nerr = 3
+      goto 200
+    end if
+  end if
+  if (.not.allocated(MSP_pdettmp)) then ! allocate temp readout buffer
+    allocate(MSP_pdettmp(nx*ny), stat=nalloc)
+    if (nalloc/=0) then
+      nerr = 3
+      goto 200
+    end if
+  end if
+  ! determine periodic detection slice index
+  ndetect = MS_stacksize ! preset detection switch to last slice
+  if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize) ! periodic readout
+  ! determine total number of planes
+  npln = MS_wave_avg_num
+  ! allocate memory for a temporary wave function
+  allocate(wave(nx,ny), stat=nalloc)
+  if (nalloc/=0) then
+    nerr = 3
+    goto 200
+  end if
+  wave = cmplx(0.,0.)
+  rsca = 1.0 / real(nx*ny) ! FFT transform rescale
+! ------------
+  
+  
+! ------------
+! loop over all thicknesses for which we have averaged wave functions
+! Slightly complicated:
+! * MS_wave_avg has 1+MS_wave_avg_num slots where wave functions are stored.
+!   Those slots correspond to the planes with readout + incident wave (at ipln=0)
+! * MS_detresult has MS_stacksize slots, where only data is written to slots
+!   with 0 == modulo(islc, ndetect). There is no data for the incident plane.
+  do ipln=0, npln
+    islc = ipln*ndetect ! slice index (0 = incident wave function)
+    if (0 == islc) cycle ! skip the indcident wave function, no detection data present
+    if (ndet>0) MSP_detresult_ela(1:ndet, islc) = 0.0 ! clear data
+    if (nkmom>0) MSP_Kmomresult_ela(1:nkmom, islc) = 0.0
+    if (MS_wave_avg_nac(ipln) <= 0) cycle ! there is no average wave function data
+    renorm = 1.0 / real(MS_wave_avg_nac(ipln)) ! renormalization factor due to averaging
+    if (MS_wave_export_form==0) then ! real-space average -> need to transform
+      ! real space export (inverse FT)
+      ! - transfer data
+      !   for an unknown reason, the following line causes a stack overflow and access violation
+      !   MS_work(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny, ipln)
+      !   Though, the explicit assignement below element by element works.
+      do j=1, ny
+        do i=1, nx
+          MS_work(i,j) = MS_wave_avg(i,j, ipln)
+        end do
+      end do
+      ! call MS_FFT(work,MS_dimx,MS_dimy,'backwards')
+      call MS_FFT_WORK(-1)
+      wave(1:nx,1:ny) = MS_work(1:nx,1:ny) * sqrt(rsca) * renorm ! renormalize after iDFT and averaging
+    else ! Fourier-space averages, can take data as is, but renormalize
+      wave(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny, ipln) * renorm
+    end if
+    ! calculate the diffraction data stream used by all detectors and integrators below
+    do j=1, ny
+      idy = (j-1)*nx
+      do i=1, nx
+        idx = i + idy
+        MSP_pdiftmp(idx) = real(wave(i,j)*conjg(wave(i,j))) ! get power of wave function as stream of data
+      end do
+    end do
+    ! default STEM detectors
+    if (ndet>0) then
+      ! readout all integrating detectors
+      do k=1, ndet 
+        nmlen = MSP_detmasklen(k)
+        if ( 0 == nint(MSP_detdef(0,k)) .or. 0 >= nmlen) cycle ! skip empty or undefined detector
+        do i=1, nmlen ! readout each masked Fourier pixel
+          idx = MSP_detmask(i,k) ! get stream index
+          MSP_pdettmp(i) = MSP_pdiftmp(idx) * MSP_detarea(idx,k) ! store detected intensity
+        end do
+        !call FDNCS2M(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a 2-fold butterfly
+        call DSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
+        MSP_detresult_ela(k, islc) = rval ! store the elastic channel intensity
+      end do
+    end if
+  ! k-space moments
+    if (nkmom>0) then
+      ! readout k-moments
+      idy = 0
+      nmlen = MSP_Kmommasklen ! assuming everything is OK with MSP_Kmommasklen
+      ! accumulate sums
+      do m=0, MSP_KmomMmax ! loop from 0 to maximum order of moments
+        do l=0, m ! loop through all 2d components of moment k
+          idy = idy + 1
+          k = m - l ! second parameter power
+          do i=1, nmlen ! readout each masked Fourier pixel
+            idx = MSP_Kmommask(i) ! get stream index
+            gxk = MSP_Kmomgx(MSP_kmomhash(1,i),k) ! get gx^k
+            gyl = MSP_Kmomgy(MSP_kmomhash(2,i),l) ! get gy^l
+            MSP_pdettmp(i) = gxk * gyl * MSP_pdiftmp(idx) * MSP_Kmomwgt(idx) ! store detected intensity
+          end do
+          !call FDNCS2M(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a 2-fold butterfly
+          call DSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
+          MSP_Kmomresult_ela(idy, islc) = rval ! store elastic channel result
+          if (m>0) then ! normalize by the 0-th moment MSP_Kmomresult_ela(1, islc)
+            MSP_Kmomresult_ela(idy, islc) = MSP_Kmomresult_ela(idy, islc) / MSP_Kmomresult_ela(1, islc)
+          end if
+        end do
+      end do
+    end if
+  end do
+! ------------
+  
+! ------------
+! normal routine exit
+100 continue
+  nerr = 0
+  goto 1000 ! now really exit
+! error exits (handle different error cases)
+200 continue
+  select case (nerr)
+  case (1)
+    call PostMessage("DetectorReadoutElastic failed: MultiSlice module not initialized.")
+    ncrit = 1
+  case (2)
+    call PostMessage("DetectorReadoutElastic failed: Invalid grid size.")
+    ncrit = 1
+  case (3)
+    call PostMessage("DetectorReadoutElastic failed: Memory allocation failed.")
+    ncrit = 1
+  case default
+    call PostMessage("DetectorReadoutElastic failed due to unknown reason.")
+  end select ! case (nerr)
+  goto 1000
+! final exit
+1000 continue
+  ! deallocate
+  if (allocated(wave)) deallocate(wave, stat=nalloc)
+  if (ncrit==1) then  ! trigger critical error stopping the program
+    call CriticalError("DetectorReadoutElastic failed.")
+  end if
+  return ! exit
+
+END SUBROUTINE DetectorReadoutElastic
 !**********************************************************************!
 
 
@@ -3286,7 +3624,7 @@ SUBROUTINE STEMMultiSlice()
 
 ! ------------
 ! DECLARATION
-  integer*4 :: nz, nerr, nznum, i, j, ndet, nkmom, ndat, nalloc, nslcidx
+  integer*4 :: nz, nerr, nznum, ndet, nkmom, ndat, nalloc, nslcidx
   integer*4 :: nv, nvc, nvar, nvarnum, nvartot, nvdigits
   integer*4 :: nslc, ndetect, ncalcslc
   real*4 :: scansampx, scansampy, scanposx, scanposy
@@ -3451,13 +3789,7 @@ SUBROUTINE STEMMultiSlice()
       
       ! update wave file name (insert variation number) when more than one variant per multislice
       if (MS_wave_export>=1 .and. nvartot>1) then
-        i = index(trim(swavfile),".",BACK=.TRUE.)
-        if (i>0) then
-          j = len_trim(swavfile)
-          write(unit=MSP_stmp, fmt='(A,I<nvdigits>.<nvdigits>,A)') swavfile(1:i-1)//"_vr", nvar+1, swavfile(i:j)
-        else 
-          write(unit=MSP_stmp, fmt='(A,I<nvdigits>.<nvdigits>)') swavfile(1:i-1)//"_vr", nvar+1
-        end if
+        call saddsuffix(trim(swavfile), "_vr", nvar+1, nvdigits, MSP_stmp)
         MS_wave_filenm = trim(MSP_stmp)
       end if
       
@@ -3536,6 +3868,15 @@ SUBROUTINE STEMMultiSlice()
     MSP_Kmomresult = MSP_Kmomresult * zrescale
   end if
 ! ------------
+  
+  
+! ------------
+! elastic channel output
+  if (MS_wave_avg_export>0) then
+    call DetectorReadoutElastic(nerr)
+    if (nerr/=0) goto 13
+  end if
+! ------------
 
 
 ! ------------
@@ -3559,6 +3900,11 @@ SUBROUTINE STEMMultiSlice()
 12 continue
   if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
   call CriticalError("Failed to readout detectors.")
+  return
+  
+13 continue
+  if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
+  call CriticalError("Failed to readout detectors for elastic channel.")
   return
 
 16 continue
@@ -3586,7 +3932,7 @@ SUBROUTINE CTEMMultiSlice()
 
 ! ------------
 ! DECLARATION
-  integer*4 :: nerr, i, j, nv, nvarnum, nvd
+  integer*4 :: nerr, nv, nvarnum, nvd
 ! ------------
 
 ! ------------
@@ -3609,15 +3955,9 @@ SUBROUTINE CTEMMultiSlice()
   do nv = 1, nvarnum ! variants loop per focus spread cycle
   
     ! update wave file name (insert variation number) when more than one variant per multislice
-    if (MS_wave_export>=1 .and. nvarnum>1) then
+    if (MS_wave_export > 0 .and. nvarnum > 1) then
       MS_wave_filenm = MS_wave_filenm_bk
-      i = index(trim(MS_wave_filenm),".",BACK=.TRUE.)
-      if (i>0) then
-        j = len_trim(MS_wave_filenm)
-        write(unit=MSP_stmp, fmt='(A,I<nvd>.<nvd>,A)') MS_wave_filenm(1:i-1)//"_vr", nv, MS_wave_filenm(i:j)
-      else 
-        write(unit=MSP_stmp, fmt='(A,I<nvd>.<nvd>)') MS_wave_filenm(1:i-1)//"_vr", nv
-      end if
+      call saddsuffix(trim(MS_wave_filenm), "_vr", nv, nvd, MSP_stmp)
       MS_wave_filenm = trim(MSP_stmp)
     end if
     
@@ -3718,18 +4058,20 @@ SUBROUTINE ExportSTEMData(sfile)
 ! ------------
 ! DECLARATION
   character*(*), intent(in) :: sfile
-  integer*4 :: lfu, nerr, i, ic, j, k, l, m, datapos, ndet, ncomp
+  integer*4 :: nfil, lfu(3), nerr, i, ic, j, k, iff
+  integer*4 :: datapos, ndet, ncomp, ipos
   integer*4 :: ndetect
   integer*4 :: ndatanum, idataplane
-  logical :: fex
-  character(len=1024) :: stmp, spfile, sdfile
+  real*4 :: rsignal(3)
+  logical :: fex(3)
+  character(len=1024) :: stmp, ssufdet, ssufsep(3), spfile(3), sdfile(3)
 ! ------------
 
 ! ------------
 ! INIT
 !  write(unit=*,fmt=*) " > ExportSTEMData: INIT."
   write(unit=stmp,fmt='(A,I4,A,I4)') &
-     &  "Exporting detector signals for scan pixel ", &
+     &  "Saving detector signals for scan pixel ", &
      &  MSP_ScanPixelX,", ",MSP_ScanPixelY
   call PostMessage(trim(stmp))
   ! check data position in the image
@@ -3742,6 +4084,17 @@ SUBROUTINE ExportSTEMData(sfile)
   if (datapos<=0.or.datapos>ndatanum) then
     call CriticalError("ExportSTEMData: Invalid datafile position.")
   end if
+  nfil = 1
+  ssufsep = ""
+  if (MS_wave_avg_export > 0) then ! separate signal scattering channels
+    nfil = 3
+    call PostMessage("Saving also separated signal of elastic and thermal-diffuse scattering.")
+    ssufsep(1) = "_tot"
+    ssufsep(2) = "_ela"
+    ssufsep(3) = "_tds"
+  end if
+  ssufdet = ""
+  rsignal = 0
 ! ------------
 
 
@@ -3755,63 +4108,62 @@ SUBROUTINE ExportSTEMData(sfile)
   if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize)
   ! loop over detectors
   do k=1, ndet
-    ! prepare the output file name
+    ! prepare the output file name (append detector name and output channel)
     sdfile = trim(sfile) ! default preset
     if (MSP_usedetdef/=0) then ! update output file name with detector name
-      m = LEN_TRIM(sfile) ! get length of the standard output file
-      l = INDEX(sfile,".",back=.TRUE.) ! search for extension point in given output file
-      if (l<1) then ! no extension wanted
-        write(unit=sdfile,fmt='(A)') trim(sfile)//"_"//trim(MSP_detname(k))
-      else ! last extension starts at position l, insert the index string before
-        write(unit=sdfile,fmt='(A)') sfile(1:l-1)//"_"//trim(MSP_detname(k))//sdfile(l:m)
-      end if
-    else ! keep current output file name
-      sdfile = trim(sfile)
+      ssufdet = "_"//trim(MSP_detname(k))
     end if
+    do iff=1, nfil ! add detector suffic and separation suffix for each file to open
+      call saddsuffix(trim(sfile), trim(ssufdet)//trim(ssufsep(iff)), 0, 0, sdfile(iff))
+    end do
     ! write data to file
-    if (MSP_3dout == 1) then ! prepare for output to 3d data file
+    if (MSP_3dout > 0) then ! prepare for output to 3d data file
       !
       ! BEGIN OF 3D FILE OUTPUT
       !
-      ! check existence of current output file
-      inquire(file=trim(sdfile),exist=fex)
-      if (.not.fex) then ! doesn't exist, create new
-        call CreateSTEMFile(trim(sdfile),ndatanum*MSP_detpln,nerr)
-        if (nerr/=0) call CriticalError("Output file creation failed.")
-      end if
-      ! open the file for writing all data to it
-      ! - get logical unit
-      call GetFreeLFU(lfu,20,100)
-      ! - open file shared access
-      open(unit=lfu, file=trim(sdfile), form="binary", access="direct", &
-     &     iostat=nerr, status="old", action="write", recl=4, share='DENYNONE' )
+      do iff=1, nfil ! open all files
+        ! - check existence of current output file
+        inquire(file=trim(sdfile(iff)),exist=fex(iff))
+        if (.not.fex(iff)) then ! doesn't exist, create new
+          call CreateSTEMFile(trim(sdfile(iff)),ndatanum*MSP_detpln,nerr)
+          if (nerr/=0) call CriticalError("Output file creation failed.")
+        end if
+        ! - get logical unit
+        call GetFreeLFU(lfu(iff),20,100)
+        ! - open file shared access
+        open (unit=lfu(iff), file=trim(sdfile(iff)), form="binary", access="direct", &
+            & iostat=nerr, status="old", action="write", recl=4, share='DENYNONE' )
         if (nerr/=0) then
-          call CriticalError("ExportSTEMData: Failed to open file ["//trim(sdfile)//"].")
-      end if
-      ! - write to the file ... 
+          call CriticalError("ExportSTEMData: Failed to open file ["//trim(sdfile(iff))//"].")
+        end if
+      end do
+      ! - write to the files ... 
       ! preset plane offset for 3d data stacks
       idataplane = 0
       do i=1, MS_stacksize ! loop over all slices
-        if (0/=modulo(i,ndetect)) cycle ! skip this slice 
-        !
-        ! - write the data at correct position
-        write(unit=lfu,rec=(datapos+idataplane*ndatanum),iostat=nerr) MSP_detresult(k,i)
-        if (nerr/=0) then
-          call CriticalError("ExportSTEMData: Failed to write data.")
+        if (0/=modulo(i,ndetect)) cycle ! skip this slice
+        ipos = datapos + idataplane*ndatanum
+        rsignal(1) = MSP_detresult(k,i)
+        if (nfil>1) then
+          rsignal(2) = MSP_detresult_ela(k,i) ! ela
+          rsignal(3) = rsignal(1) - rsignal(2) ! tds = tot - ela
         end if
-        !
+        ! - write the data at correct positions
+        do iff=1, nfil
+          write(unit=lfu(iff), rec=ipos, iostat=nerr) rsignal(iff)
+        end do
+        ! - report stored signal
+        write (unit=MSP_stmp,fmt='(A,<nfil>G13.5,A)') "- saved "// &
+          &   trim(MSP_detname(k))//" signal (",rsignal(1:nfil),")"
+        call PostMessage(trim(MSP_stmp))
         ! increase the plane offset index by one for the next cycle
         idataplane = idataplane + 1
-        ! - report per export plane
-        write(unit=MSP_stmp,fmt='(A,G13.5,A)') "- Saved "// &
-     &      trim(MSP_detname(k))//" signal: ", MSP_detresult(k,i), &
-     &      " to file ["//trim(sdfile)//"]."
-        call PostMessage(trim(MSP_stmp))
-        !
       end do ! i-loop over slices
       !
-      ! - close the file
-      close(unit=lfu)
+      ! - close the files ...
+      do iff=1, nfil
+        close(unit=lfu(iff), iostat=nerr)
+      end do
       !
       ! END OF 3D FILE OUTPUT
       !
@@ -3822,48 +4174,45 @@ SUBROUTINE ExportSTEMData(sfile)
       ! loop over all slices
       do i=1, MS_stacksize
         if (0/=modulo(i,ndetect)) cycle ! skip this slice
-        spfile = trim(sdfile) ! default preset
-        ! - modify file name with slice index
+        spfile = sdfile ! default preset
+        ! - modify file names (append slice index)
         if (MSP_detslc>0) then ! append slice index to file name
-          ! - update output file name
-          m = LEN_TRIM(sdfile) ! get length of the standard output file
-          l = INDEX(sdfile,".",back=.TRUE.) ! search for extension point in given output file
-          if (l<1) then ! no extension wanted
-            write(unit=spfile,fmt='(A,I<MSP_nslid>.<MSP_nslid>)') trim(sdfile)//"_sl",i
-          else ! last extension starts at position l, insert the index string before
-            write(unit=spfile,fmt='(A,I<MSP_nslid>.<MSP_nslid>,A)') sdfile(1:l-1)//"_sl",i,spfile(l:m)
-          end if
+          do iff=1, nfil
+            call saddsuffix(trim(sdfile(iff)), "_sl", i, MSP_nslid, spfile(iff))
+          end do
+        end if
+        ! - open all files
+        do iff=1, nfil
           ! - check existence of current output file
-          inquire(file=trim(spfile),exist=fex)
-          if (.not.fex) then ! doesn't exist, create new (single plane file)
-            call CreateSTEMFile(trim(spfile),ndatanum,nerr)
+          inquire(file=trim(spfile(iff)),exist=fex(iff))
+          if (.not.fex(iff)) then ! doesn't exist, create new (single plane file)
+            call CreateSTEMFile(trim(spfile(iff)),ndatanum,nerr)
             if (nerr/=0) call CriticalError("Output file creation failed.")
           end if
+          ! - get logical unit
+          call GetFreeLFU(lfu(iff),20,100)
+          ! - open file shared access
+          open (unit=lfu(iff), file=trim(spfile(iff)), form="binary", access="direct", &
+           &    iostat=nerr, status="old", action="write", recl=4, share='DENYNONE' )
+          if (nerr/=0) then
+            call CriticalError("ExportSTEMData: Failed to open file ["//trim(spfile(iff))//"].")
+          end if
+        end do
+        ! - set signal to store
+        rsignal(1) = MSP_detresult(k,i) ! tot
+        if (nfil>1) then
+          rsignal(2) = MSP_detresult_ela(k,i) ! ela
+          rsignal(3) = rsignal(1) - rsignal(2) ! tds = tot - ela
         end if
-        ! write data record to current output file
-        ! - get logical unit
-        call GetFreeLFU(lfu,20,100)
-        ! - open file shared access
-        open(unit=lfu, file=trim(spfile), form="binary", access="direct", &
-     &     iostat=nerr, status="old", action="write", recl=4, share='DENYNONE' )
-        if (nerr/=0) then
-          call CriticalError("ExportSTEMData: Failed to open file ["//trim(spfile)//"].")
-        end if
-        !
-        ! - write the data at correct position
-        write(unit=lfu,rec=datapos,iostat=nerr) MSP_detresult(k,i)
-        if (nerr/=0) then
-          call CriticalError("ExportSTEMData: Failed to write data.")
-        end if
-        !
-        ! - close logical file unit
-        close(unit=lfu)
-        ! - report
-        write(unit=MSP_stmp,fmt='(A,G13.5,A)') "- Saved "// &
-     &      trim(MSP_detname(k))//" signal: ", MSP_detresult(k,i), &
-     &      " to file ["//trim(spfile)//"]."
+        ! - write the signal at correct positions ... and close the files
+        do iff=1, nfil
+          write(unit=lfu(iff), rec=datapos, iostat=nerr) rsignal(iff)
+          close(unit=lfu(iff), iostat=nerr)
+        end do
+        ! - report stored signal
+        write (unit=MSP_stmp,fmt='(A,<nfil>G13.5,A)') "- saved "// &
+          &   trim(MSP_detname(k))//" signal (",rsignal(1:nfil),")"
         call PostMessage(trim(MSP_stmp))
-
       end do ! i-loop over slices
       !
       ! END OF SINGLE PLANE FILE OUTPUT
@@ -3871,7 +4220,6 @@ SUBROUTINE ExportSTEMData(sfile)
     end if ! SWITCH 3d output or single plane files
 
   end do ! k-loop over detectors
-  call PostMessage("Finished detector signal export.")
 ! ------------
   
 ! ------------
@@ -3890,59 +4238,64 @@ SUBROUTINE ExportSTEMData(sfile)
       ndatanum = ncomp*MSP_SF_ndimx*MSP_SF_ndimy ! number of data per thickness plane
       ! prepare the output file name
       write(unit=stmp,fmt=*) k ! order to string
-      sdfile = trim(sfile) ! default preset
-      m = LEN_TRIM(sfile) ! get length of the standard output file
-      l = INDEX(sfile,".",back=.TRUE.) ! search for extension point in given output file
-      if (l<1) then ! no extension wanted
-        write(unit=sdfile,fmt='(A)') trim(sfile)//"_kmom"//trim(adjustl(stmp))
-      else ! last extension starts at position l, insert the index string before
-        write(unit=sdfile,fmt='(A)') sfile(1:l-1)//"_kmom"//trim(adjustl(stmp))//sdfile(l:m)
-      end if
+      do iff=1, nfil ! construct file names ...
+        call saddsuffix(trim(sfile), "_kmom"//trim(adjustl(stmp))// &
+           & trim(ssufsep(iff)), 0, 0, sdfile(iff))
+      end do
       ! write data to file
-      if (MSP_3dout == 1) then ! prepare for output to 3d data file
+      if (MSP_3dout > 0) then ! prepare for output to 3d data file
         !
         ! BEGIN OF 3D FILE OUTPUT
         !
-        ! check existence of current output file
-        inquire(file=trim(sdfile),exist=fex)
-        if (.not.fex) then ! doesn't exist, create new
-          call CreateSTEMFile(trim(sdfile),ndatanum*MSP_detpln,nerr)
-          if (nerr/=0) call CriticalError("Output file creation failed.")
-        end if
-        ! open the file for writing all data to it
-        ! - get logical unit
-        call GetFreeLFU(lfu,20,100)
-        ! - open file shared access
-        open(unit=lfu, file=trim(sdfile), form="binary", access="direct", &
-       &     iostat=nerr, status="old", action="write", recl=4, share='DENYNONE' )
+        do iff=1, nfil ! open all files
+          ! - check existence of current output file
+          inquire(file=trim(sdfile(iff)),exist=fex(iff))
+          if (.not.fex(iff)) then ! doesn't exist, create new
+            call CreateSTEMFile(trim(sdfile(iff)),ndatanum*MSP_detpln,nerr)
+            if (nerr/=0) call CriticalError("Output file creation failed.")
+          end if
+          ! - get logical unit
+          call GetFreeLFU(lfu(iff),20,100)
+          ! - open file shared access
+          open (unit=lfu(iff), file=trim(sdfile(iff)), form="binary", &
+            &   access="direct", iostat=nerr, status="old", &
+            &   action="write", recl=4, share='DENYNONE' )
           if (nerr/=0) then
-            call CriticalError("ExportSTEMData: Failed to open file ["//trim(sdfile)//"].")
-        end if
+            call CriticalError("ExportSTEMData: Failed to open file [" &
+              &  //trim(sdfile(iff))//"].")
+          end if
+        end do
         ! - write to the file ... 
         ! preset plane offset for 3d data stacks
         idataplane = 0
         do i=1, MS_stacksize ! loop over all slices
-          if (0/=modulo(i,ndetect)) cycle ! skip this slice 
-          ! - write the data at correct position
+          if (0/=modulo(i,ndetect)) cycle ! skip this slice
+          ! - write the total intensity data at correct position to files
           do ic=1, ncomp
-            write(unit=lfu,rec=(ic+datapos+idataplane*ndatanum),iostat=nerr) MSP_Kmomresult(j+ic,i)
-            if (nerr/=0) then
-              call CriticalError("ExportSTEMData: Failed to write data.")
+            ipos = ic + datapos + idataplane*ndatanum
+            ! - get the signal of current plane and component
+            rsignal(1) = MSP_Kmomresult(j+ic,i) ! total signal
+            if (nfil>1) then ! store also ela and tds
+              rsignal(2) = MSP_Kmomresult_ela(j+ic,i) ! ela
+              rsignal(3) = rsignal(1) - rsignal(2) ! tds = tot - ela
             end if
+            ! - store
+            do iff=1, nfil
+              write(unit=lfu(iff), rec=ipos, iostat=nerr) rsignal(iff)
+            end do
+            ! - report stored signal values
+            write (unit=MSP_stmp,fmt='(A,I3,A,<nfil>G13.5,A)') &
+              &   "- saved moment "//trim(adjustl(stmp))// &
+              &   "(", ic, ") signal (",rsignal(1:nfil),")"
+            call PostMessage(trim(MSP_stmp))
           end do
-          !
           ! increase the plane offset index by one for the next cycle
           idataplane = idataplane + 1
-          ! - report per export plane
-          write(unit=MSP_stmp,fmt='(A,<ncomp>G13.5,A)') "- Saved moment("// &
-       &      trim(adjustl(stmp))//") data: ", MSP_Kmomresult(j+1:j+ncomp,i), &
-       &      " to file ["//trim(sdfile)//"]."
-          call PostMessage(trim(MSP_stmp))
-          !
         end do ! i-loop over slices
-        !
-        ! - close the file
-        close(unit=lfu)
+        ! - close the files ...
+        do iff=1, nfil
+          close(unit=lfu(iff), iostat=nerr)
+        end do
         !
         ! END OF 3D FILE OUTPUT
         !
@@ -3953,50 +4306,56 @@ SUBROUTINE ExportSTEMData(sfile)
         ! loop over all slices
         do i=1, MS_stacksize
           if (0/=modulo(i,ndetect)) cycle ! skip this slice
-          spfile = trim(sdfile) ! default preset
+          spfile = sdfile ! default preset
           ! - modify file name with slice index
           if (MSP_detslc>0) then ! append slice index to file name
-            ! - update output file name
-            m = LEN_TRIM(sdfile) ! get length of the standard output file
-            l = INDEX(sdfile,".",back=.TRUE.) ! search for extension point in given output file
-            if (l<1) then ! no extension wanted
-              write(unit=spfile,fmt='(A,I<MSP_nslid>.<MSP_nslid>)') trim(sdfile)//"_sl",i
-            else ! last extension starts at position l, insert the index string before
-              write(unit=spfile,fmt='(A,I<MSP_nslid>.<MSP_nslid>,A)') sdfile(1:l-1)//"_sl",i,spfile(l:m)
-            end if
-            ! - check existence of current output file
-            inquire(file=trim(spfile),exist=fex)
-            if (.not.fex) then ! doesn't exist, create new (single plane file)
-              call CreateSTEMFile(trim(spfile),ndatanum,nerr)
+            ! - update output file names ...
+            do iff=1, nfil
+              call saddsuffix(trim(sdfile(iff)), "_sl", i, MSP_nslid, spfile(iff))
+            end do
+          end if
+          ! - open the files ...
+          do iff=1, nfil
+            ! - check existence of current output files
+            inquire(file=trim(spfile(iff)),exist=fex(iff))
+            if (.not.fex(iff)) then ! doesn't exist, create new (single plane files)
+              call CreateSTEMFile(trim(spfile(iff)),ndatanum,nerr)
               if (nerr/=0) call CriticalError("Output file creation failed.")
             end if
-          end if
-          ! write data record to current output file
-          ! - get logical unit
-          call GetFreeLFU(lfu,20,100)
-          ! - open file shared access
-          open(unit=lfu, file=trim(spfile), form="binary", access="direct", &
-       &     iostat=nerr, status="old", action="write", recl=4, share='DENYNONE' )
-          if (nerr/=0) then
-            call CriticalError("ExportSTEMData: Failed to open file ["//trim(spfile)//"].")
-          end if
-          !
-          ! - write the data at correct position
-          do ic=1, ncomp
-            write(unit=lfu,rec=ic+datapos,iostat=nerr) MSP_Kmomresult(j+ic,i)
+            ! - get logical unit
+            call GetFreeLFU(lfu(iff),20,100)
+            ! - open file shared access
+            open (unit=lfu(iff), file=trim(spfile(iff)), form="binary",&
+              &   access="direct", iostat=nerr, status="old", &
+              &   action="write", recl=4, share='DENYNONE' )
             if (nerr/=0) then
-              call CriticalError("ExportSTEMData: Failed to write data.")
+              call CriticalError("ExportSTEMData: Failed to open file ["&
+                &  //trim(spfile(iff))//"].")
             end if
           end do
-          !
-          ! - close logical file unit
-          close(unit=lfu)
-          ! - report
-          write(unit=MSP_stmp,fmt='(A,<ncomp>G13.5,A)') "- Saved moment("// &
-       &      trim(adjustl(stmp))//") data: ", MSP_Kmomresult(j+1:j+ncomp,i), &
-       &      " to file ["//trim(spfile)//"]."
-          call PostMessage(trim(MSP_stmp))
-
+          ! - write the data at correct position
+          do ic=1, ncomp
+            ipos = ic + datapos
+            ! - get the signal of current plane and component
+            rsignal(1) = MSP_Kmomresult(j+ic,i) ! total signal
+            if (nfil>1) then ! store also ela and tds
+              rsignal(2) = MSP_Kmomresult_ela(j+ic,i) ! ela
+              rsignal(3) = rsignal(1) - rsignal(2) ! tds = tot - ela
+            end if
+            ! - store
+            do iff=1, nfil 
+              write(unit=lfu(iff), rec=ipos, iostat=nerr) rsignal(iff)
+            end do
+            ! - report stored signal values
+            write (unit=MSP_stmp,fmt='(A,I3,A,<nfil>G13.5,A)') &
+              &   "- saved moment "//trim(adjustl(stmp))// &
+              &   "(", ic, ") signal (",rsignal(1:nfil),")"
+            call PostMessage(trim(MSP_stmp))
+          end do
+          ! - close files ...
+          do iff=1, nfil
+            close(unit=lfu(iff), iostat=nerr)
+          end do
         end do ! i-loop over slices
         !
         ! END OF SINGLE PLANE FILE OUTPUT
@@ -4231,16 +4590,16 @@ SUBROUTINE ExportProbeIntensity(sfile)
 ! ------------
 ! DECLARATION
   character(len=*), intent(in) :: sfile
-  character(len=MSP_ll) :: isfile, sexpfile
-  integer*4 :: nintout, nwavavg, ntransform
+  character(len=MSP_ll) :: isfile, sexpfile(3)
+  integer*4 :: nintout, nwavavg, ntransform, nuidx
   integer*4 :: nx, ny, nerr, nalloc, i, j, k
-  integer*4 :: islc
+  integer*4 :: islc, iout
   integer*4 :: ndetect
   real*4 :: rnorm, pint, rsca
   real*4, dimension(:,:), allocatable :: pimg, pela, ptds
   complex*8, dimension(:,:), allocatable :: wave !, work
   external :: SaveDataC8, SaveDataR4 ! (sfile,dat,n,nerr) this file
-  !external :: AppendDataC8, AppendDataR4 ! (sfile,dat,n,nerr) this file
+  external :: AppendDataC8, AppendDataR4 ! (sfile,dat,n,nerr) this file
   external :: sinsertslcidx ! (idx,idxlen,sfnin,sfnadd,sfnext,sfnout) this file
 ! ------------
 
@@ -4266,7 +4625,7 @@ SUBROUTINE ExportProbeIntensity(sfile)
   ! In this case, we want to export the elastic images as well as 
   ! also the difference (TDS) images to the total intensity.
   ! We then need extra data arrays
-  if (MS_wave_avg_export==1 .and. allocated(MS_wave_avg)) then ! there is average wave data
+  if (MS_wave_avg_export>0 .and. allocated(MS_wave_avg)) then ! there is average wave data
     nwavavg = 2 - MS_wave_export_form ! 1 -> Fourier space, 2 -> real space wave function
     if ( nwavavg /= nintout ) then
       ! this means, average wave and at least one intended output are not in the same space
@@ -4280,6 +4639,9 @@ SUBROUTINE ExportProbeIntensity(sfile)
   else ! use the input file name
     isfile = trim(sfile)
   end if
+  !
+  nuidx = 1
+  if (MSP_3dout > 0) nuidx = 0 ! switch off using the index for file names
 ! ------------
 
 ! ------------
@@ -4292,6 +4654,7 @@ SUBROUTINE ExportProbeIntensity(sfile)
       allocate(pela(nx,ny), stat=nalloc)
       allocate(ptds(nx,ny), stat=nalloc)
     end if
+    iout = 0 ! initialize output plane counter
     do k=0, MSP_pint_num ! Loop over all exit-planes.
       islc = k*ndetect ! = periodic readout slice number / exit-plane
       if (MSP_pint_nac(k)==0) cycle ! ignore planes which didn't recieve data
@@ -4300,10 +4663,16 @@ SUBROUTINE ExportProbeIntensity(sfile)
       !
       ! get total intensity
       pimg(1:nx,1:ny) = MSP_pimg(1:nx,1:ny,k) * rnorm
-      ! prepare file name for total intensity image
-      call sinsertslcidx(islc,MS_nslid,trim(isfile),"_pimg_tot",".dat",sexpfile)
-      call PostMessage("  Writing total probe image intensity to file ["//trim(sexpfile)//"].")
-      call SaveDataR4(trim(sexpfile), pimg, nx*ny, nerr) ! save
+      ! prepare file names
+      call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pimg_tot",".dat",sexpfile(1))
+      call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pimg_ela",".dat",sexpfile(2))
+      call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pimg_tds",".dat",sexpfile(3))
+      if (MSP_3dout > 0 .and. iout > 0) then ! /3dout append
+        call AppendDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! append tot
+      else ! writing to new new file 
+        call PostMessage("  Writing total probe image intensity to file ["//trim(sexpfile(1))//"].")
+        call SaveDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! save tot
+      end if
       ! 
       if (nwavavg>0) then
         ! get elastic and tds images
@@ -4322,16 +4691,19 @@ SUBROUTINE ExportProbeIntensity(sfile)
             pela(i,j) = pint
           end do
         end do
-        ! prepare file name for elastic intensity image
-        call sinsertslcidx(islc,MS_nslid,trim(isfile),"_pimg_ela",".dat",sexpfile)
-        call PostMessage("  Writing elastic probe image intensity to file ["//trim(sexpfile)//"].")
-        call SaveDataR4(trim(sexpfile), pela, nx*ny, nerr) ! save
         ptds = pimg - pela
-        ! prepare file name for tds intensity image
-        call sinsertslcidx(islc,MS_nslid,trim(isfile),"_pimg_tds",".dat",sexpfile)
-        call PostMessage("  Writing TDS probe image intensity to file ["//trim(sexpfile)//"].")
-        call SaveDataR4(trim(sexpfile), ptds, nx*ny, nerr) ! save
+        if (MSP_3dout > 0 .and. iout > 0) then ! /3dout -> single files append
+          call AppendDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! append ela
+          call AppendDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! append tds
+        else ! individual files per plane
+          call PostMessage("  Writing elastic probe image intensity to file ["//trim(sexpfile(2))//"].")
+          call SaveDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! save ela
+          call PostMessage("  Writing TDS probe image intensity to file ["//trim(sexpfile(3))//"].")
+          call SaveDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! save tds
+        end if
       end if
+      !
+      iout = iout + 1 ! increment output plane counter
       !
     end do ! k=0, MS_pint_num
     !
@@ -4355,6 +4727,7 @@ SUBROUTINE ExportProbeIntensity(sfile)
       allocate(pela(nx,ny), stat=nalloc)
       allocate(ptds(nx,ny), stat=nalloc)
     end if
+    iout = 0
     do k=0, MSP_pint_num ! Loop over all exit-planes.
       islc = k*ndetect ! = periodic readout slice number / exit-plane
       if (MSP_pint_nac(k)==0) cycle ! ignore planes which didn't recieve data
@@ -4363,10 +4736,16 @@ SUBROUTINE ExportProbeIntensity(sfile)
       !
       ! get total intensity
       pimg(1:nx,1:ny) = MSP_pdif(1:nx,1:ny,k) * rnorm
-      ! prepare file name for total intensity image
-      call sinsertslcidx(islc,MS_nslid,trim(isfile),"_pdif_tot",".dat",sexpfile)
-      call PostMessage("  Writing total probe diffraction intensity to file ["//trim(sexpfile)//"].")
-      call SaveDataR4(trim(sexpfile), pimg, nx*ny, nerr) ! save
+      ! prepare file names and save
+      call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pdif_tot",".dat",sexpfile(1))
+      call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pdif_ela",".dat",sexpfile(2))
+      call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pdif_tds",".dat",sexpfile(3))
+      if (MSP_3dout > 0 .and. iout >0) then ! /3dout append
+        call AppendDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! append to old file
+      else ! single file per plane
+        call PostMessage("  Writing total probe diffraction intensity to file ["//trim(sexpfile(1))//"].")
+        call SaveDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! save to new file
+      end if
       ! 
       if (nwavavg>0) then
         ! get elastic and tds images
@@ -4385,16 +4764,19 @@ SUBROUTINE ExportProbeIntensity(sfile)
             pela(i,j) = pint
           end do
         end do
-        ! prepare file name for elastic intensity image
-        call sinsertslcidx(islc,MS_nslid,trim(isfile),"_pdif_ela",".dat",sexpfile)
-        call PostMessage("  Writing elastic probe diffraction intensity to file ["//trim(sexpfile)//"].")
-        call SaveDataR4(trim(sexpfile), pela, nx*ny, nerr) ! save
         ptds = pimg - pela
-        ! prepare file name for tds intensity image
-        call sinsertslcidx(islc,MS_nslid,trim(isfile),"_pdif_tds",".dat",sexpfile)
-        call PostMessage("  Writing TDS probe diffraction intensity to file ["//trim(sexpfile)//"].")
-        call SaveDataR4(trim(sexpfile), ptds, nx*ny, nerr) ! save
+        if (MSP_3dout > 0 .and. iout > 0) then ! /3dout -> single files append
+          call AppendDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! append ela
+          call AppendDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! append tds
+        else ! individual files per plane
+          call PostMessage("  Writing elastic probe diffraction intensity to file ["//trim(sexpfile(2))//"].")
+          call SaveDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! save ela
+          call PostMessage("  Writing TDS probe diffraction intensity to file ["//trim(sexpfile(3))//"].")
+          call SaveDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! save tds
+        end if
       end if
+      !
+      iout = iout + 1 ! increment probe diffraction plane output counter
       !
     end do ! k=0, MS_pint_num
     !
@@ -4623,8 +5005,8 @@ SUBROUTINE ExportWaveAvg(sfile)
 ! DECLARATION
   character(len=*), intent(in) :: sfile
   character(len=MSP_ll) :: isfile, sexpfile
-  integer*4 :: nerr, k, nx, ny
-  integer*4 :: islc
+  integer*4 :: nerr, k, nx, ny, nuidx
+  integer*4 :: islc, iout
   integer*4 :: ndetect
   real*4 :: rnorm
   complex*8, dimension(:,:), allocatable :: wave
@@ -4636,16 +5018,16 @@ SUBROUTINE ExportWaveAvg(sfile)
 ! ------------
 ! INIT
 !  write(unit=*,fmt=*) " > ExportWaveAvg: INIT."
-  nx = MS_dimx
-  ny = MS_dimy
-  if (MS_wave_avg_export<=0 .or. MS_wave_avg_export>1) return ! no valid setup
+  if (MS_wave_avg_export /= 1) return ! only export for MS_wave_avg_export == 1
   if (.not.allocated(MS_wave_avg)) return ! no data
   !
   if (MS_wave_export_form==0) then
-    call PostMessage("Average wavefunction export (real space).")
+    call PostMessage("Average wavefunction output (real space).")
   else
-    call PostMessage("Average wavefunction export (Fourier space).")
+    call PostMessage("Average wavefunction output (Fourier space).")
   end if
+  nx = MS_dimx
+  ny = MS_dimy
   ! determine periodic detection slice index
   ndetect = MS_stacksize ! preset detection switch to last slice
   if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize) ! periodic readout
@@ -4659,20 +5041,28 @@ SUBROUTINE ExportWaveAvg(sfile)
   else ! use the input file name
     isfile = trim(sfile)
   end if
+  nuidx = 1
+  if (MSP_3dout) nuidx = 0 ! slice index usage flag in file names
 ! ------------
 
 ! ------------
 ! OUTPUT OF AVERAGE WAVE FUNCTION
+  iout=0
   do k=0, MS_wave_avg_num ! Loop over all exit-planes.
     islc = k*ndetect ! = periodic readout slice number / exit-plane
     if (MS_wave_avg_nac(k)==0) cycle ! ignore planes which didn't recieve data
     ! normalize
     rnorm = 1.0/real(MS_wave_avg_nac(k))
     wave(1:nx, 1:ny) = MS_wave_avg(1:nx, 1:ny, k) * rnorm
+    call sinsertslcidx(islc*nuidx,MS_nslid*nuidx,trim(isfile),"_avg",".wav",sexpfile)
     ! export to file
-    call sinsertslcidx(islc,MS_nslid,trim(isfile),"_avg",".wav",sexpfile)
-    call PostMessage("  Writing to file ["//trim(sexpfile)//"].")
-    call SaveDataC8(trim(sexpfile), wave, nx*ny, nerr)
+    if (MSP_3dout>0 .and. iout >0) then ! /3dout append
+      call AppendDataC8(trim(sexpfile), wave, nx*ny, nerr) ! append
+    else ! first or single slice plane output
+      call PostMessage("  Writing average wave function to file ["//trim(sexpfile)//"].")
+      call SaveDataC8(trim(sexpfile), wave, nx*ny, nerr) ! save
+    end if
+    iout = iout + 1
     ! ...
   end do ! k=0, MS_wave_avg_num
 ! ------------
@@ -4689,7 +5079,7 @@ END SUBROUTINE ExportWaveAvg
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE ExportWave(sfile)
+SUBROUTINE ExportWave(sfile, islice)
 ! function: saves the wave function to file
 !           - expects the wave function in MS_wave in Fourier form
 !           - does inverse FT
@@ -4697,7 +5087,10 @@ SUBROUTINE ExportWave(sfile)
 !           - accumulates probe images, diffraction patterns and
 !             average wave functions
 ! -------------------------------------------------------------------- !
-! parameter: character(len=*) :: sfile    ! the file name
+! parameter: character(len=*) :: sfile    ! the basic output file name
+!            integer*4 :: islice ! slice index for extra file naming
+!                                ! 0 = incident probe plane
+!                                ! >0 = planes in the sample
 ! -------------------------------------------------------------------- !
 
   use MultiSlice
@@ -4708,10 +5101,13 @@ SUBROUTINE ExportWave(sfile)
 ! ------------
 ! DECLARATION
   character(len=*), intent(in) :: sfile
-  integer*4 :: nerr, i, j, nx, ny, nwavrs
+  integer*4, intent(in) :: islice
+  integer*4 :: nerr, i, j, nx, ny, nwavrs, nuidx, iwav, iimg
   real*4 :: pint, rsca
   complex*8, allocatable :: wave(:,:) !(MS_dimx,MS_dimy)
-  external :: SaveDataC8
+  character(len=1024) :: sexpfile
+  external :: sinsertslcidx
+  external :: SaveDataC8, AppendDataC8
 ! ------------
 
 ! ------------
@@ -4726,9 +5122,16 @@ SUBROUTINE ExportWave(sfile)
   if (nerr/=0) then
     call CriticalError("ExportWave: Failed to allocate memory.")
   end if
+  nuidx = 1
+  if (MSP_3dout>0) nuidx = 0 ! /3dout -> add no index suffix to file name
+  ! create output file name for the wave function
+  call sinsertslcidx(islice*nuidx,MS_nslid*nuidx,trim(sfile),"",".wav",sexpfile)
+  iwav = MS_wave_avg_idx
+  iimg = MS_pint_idx
 ! ------------
 
 ! ------------
+! wave function export and averaging
   if (MS_wave_export>0 .or. MS_wave_avg_export>0) then
     ! from calculation frame (MS_wave) to local frame (wave)
     if (MS_wave_export_form==1) then
@@ -4751,17 +5154,24 @@ SUBROUTINE ExportWave(sfile)
       nwavrs = 1
     end if
     if (MS_wave_export>0) then ! individual wave export to disk
-      call PostMessage("  Writing to file ["//trim(sfile)//"].")
-      call SaveDataC8(trim(sfile), wave, nx*ny, nerr)
+      
+      if (MSP_3dout > 0 .and. islice > 0) then
+        call AppendDataC8(trim(sexpfile), wave, nx*ny, nerr)
+      else
+        call PostMessage("  Writing wave function to file ["// &
+          &  trim(sexpfile)//"].")
+        call SaveDataC8(trim(sexpfile), wave, nx*ny, nerr)
+      end if
     end if
     if (MS_wave_avg_export>0) then ! accumulation of the elastic wave
-      MS_wave_avg(1:nx,1:ny,MS_wave_avg_idx) = MS_wave_avg(1:nx,1:ny,MS_wave_avg_idx) + wave(1:nx,1:ny)
-      MS_wave_avg_nac(MS_wave_avg_idx) = MS_wave_avg_nac(MS_wave_avg_idx) + 1
+      MS_wave_avg(1:nx,1:ny,iwav) = MS_wave_avg(1:nx,1:ny,iwav) + wave(1:nx,1:ny)
+      MS_wave_avg_nac(iwav) = MS_wave_avg_nac(iwav) + 1
     end if
   end if
 ! ------------
 
 ! ------------
+! probe intensity accumulations
   if (MS_pint_export>0) then ! accumulation of probe intensities
     if (MSP_pimgmode>0) then ! real-space intensity accumulation
       if (nwavrs==0) then ! no real-space wave function generated here
@@ -4781,7 +5191,7 @@ SUBROUTINE ExportWave(sfile)
         do j=1, MS_dimy
           do i=1, MS_dimx
             pint = real( MS_work(i,j)*conjg(MS_work(i,j)) ) * rsca ! renormalize after iDFT 
-            MSP_pimg(i,j,MS_pint_idx) = MSP_pimg(i,j,MS_pint_idx) + pint
+            MSP_pimg(i,j,iimg) = MSP_pimg(i,j,iimg) + pint
           end do
         end do
       else ! real-space wave function was already created above
@@ -4789,7 +5199,7 @@ SUBROUTINE ExportWave(sfile)
         do j=1, MS_dimy
           do i=1, MS_dimx
             pint = real( wave(i,j)*conjg(wave(i,j)) ) ! wave should already be normalized in this case
-            MSP_pimg(i,j,MS_pint_idx) = MSP_pimg(i,j,MS_pint_idx) + pint
+            MSP_pimg(i,j,iimg) = MSP_pimg(i,j,iimg) + pint
           end do
         end do
       end if
@@ -4799,11 +5209,11 @@ SUBROUTINE ExportWave(sfile)
       do j=1, MS_dimy
         do i=1, MS_dimx
           pint = real( MS_wave(i,j)*conjg(MS_wave(i,j)) )
-          MSP_pdif(i,j,MS_pint_idx) = MSP_pdif(i,j,MS_pint_idx) + pint
+          MSP_pdif(i,j,iimg) = MSP_pdif(i,j,iimg) + pint
         end do
       end do
     end if
-    MSP_pint_nac(MS_pint_idx) = MSP_pint_nac(MS_pint_idx) + 1
+    MSP_pint_nac(iimg) = MSP_pint_nac(iimg) + 1
   end if
 ! ------------
 

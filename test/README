@@ -1,0 +1,48 @@
+Image simulation tests with the drprobe_clt tools
+by J. Barthel (ju.barthel@fz-juelich.de)
+2019 - Jan - 16
+Forschungszentrum Juelich GmbH, 52425 Juelich, Germany
+
+The following example calls are for test simulations and have
+no specifi purpose as to provide a starting point for checking
+the functionality of all program options. There is no guarantee
+that the calls work on your system. You may have to adopt them
+to your local operating system and file structure.
+The intention is to call the tools from the drprobe_clt
+main source folder. All relevant input data should be present
+in the subfolder 'test' which is contained in the repository
+[https://github.com/ju-bar/drprobe_clt].
+
+
+1) STEM HAADF, ABF and BF thickness series simulation with
+subsequent source convolutions:
+
+celslc\x64\Release\celslc -cif test/STO_001_4x4.cif -nx 625 -ny 625 -nz 2 -nv 50 -ht 300 -slc test/sto_001_4x4_300keV_fl50 -fl
+msa\x64\Release\msa -prm test/msa-1.prm -out test/img.dat /3dout
+msa\x64\Release\msa -prm test/msa-1.prm -in test/img_HAADF.dat -out test/img_HAADF_psc.dat /3dout
+msa\x64\Release\msa -prm test/msa-1.prm -in test/img_ABF.dat -out test/img_ABF_psc.dat /3dout
+msa\x64\Release\msa -prm test/msa-1.prm -in test/img_BF.dat -out test/img_BF_psc.dat /3dout
+
+2) STEM HAADF thickness series simulation with subsequent source
+convolutions. The example tests the separation of elastic and
+thermal-diffuse scattering with 5 processes running in parallel,
+each solving a set of different scan lines:
+
+celslc\x64\Release\celslc -cif test/STO_001_4x4.cif -nx 625 -ny 625 -nz 2 -nv 50 -ht 300 -slc test/sto_001_4x4_300keV_fl50 -fl
+start msa\x64\Release\msa -prm test/msa-1-avg.prm -out test/img.dat /3dout -py 0 -ly 3 /silavwaveft /verbose
+start msa\x64\Release\msa -prm test/msa-1-avg.prm -out test/img.dat /3dout -py 4 -ly 7 /silavwaveft /verbose
+start msa\x64\Release\msa -prm test/msa-1-avg.prm -out test/img.dat /3dout -py 8 -ly 11 /silavwaveft /verbose
+start msa\x64\Release\msa -prm test/msa-1-avg.prm -out test/img.dat /3dout -py 12 -ly 15 /silavwaveft /verbose
+start msa\x64\Release\msa -prm test/msa-1-avg.prm -out test/img.dat /3dout -py 16 -ly 19 /silavwaveft /verbose
+REM : Wait until the started processes are finished!
+msa\x64\Release\msa -prm test/msa-1.prm -in test/img_HAADF_tot.dat -out test/img_HAADF_tot_psc.dat /3dout
+msa\x64\Release\msa -prm test/msa-1.prm -in test/img_HAADF_ela.dat -out test/img_HAADF_ela_psc.dat /3dout
+msa\x64\Release\msa -prm test/msa-1.prm -in test/img_HAADF_tds.dat -out test/img_HAADF_tds_psc.dat /3dout
+
+3) HR-TEM NCSI image simulation:
+
+celslc\x64\Release\celslc -cif test/STO_001_4x4.cif -nx 256 -ny 256 -nz 2 -ht 300 -slc test/sto_001_4x4_300keV_dwf -dwf -abf 0.07
+msa\x64\Release\msa -prm test/msa-2.prm -out test/img.dat /ctem
+wavimg\x64\Release\wavimg -prm test/wavimg-2.prm -out test/img_ctem.dat
+
+

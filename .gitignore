@@ -259,3 +259,12 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc
+/test/sto_001_4x4_300keV_fl50_002.sli
+/test/sto_001_4x4_300keV_fl50_001.sli
+/test/sto_001_4x4_300keV_fl50.prm
+/test/img_HAADF_psc.dat
+/test/img_HAADF.dat
+/test/img_BF_psc.dat
+/test/img_BF.dat
+/test/img_ABF_psc.dat
+/test/img_ABF.dat

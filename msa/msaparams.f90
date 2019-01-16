@@ -12,7 +12,7 @@
 !                                                                      !
 !    Purpose  : parameters, parameter I/O and memory management for    !
 !               the program MSA (see msa.f90)                          !
-!    Version  : 1.3.0, Jan 07, 2019                                    !
+!    Version  : 1.3.1, Jan 15, 2019                                    !
 !    To Link  : MultiSlice.f90                                         !
 !               STEMfunctions.f90                                      !
 !                                                                      !
@@ -404,6 +404,7 @@ MODULE MSAparams
   integer*4, dimension(:), allocatable, public :: MSP_detmasklen ! detector mask lengths
   integer*4, dimension(:,:), allocatable, public :: MSP_detmask ! detector masks
   real*4, dimension(:,:), allocatable, public :: MSP_detresult ! detector readout results
+  real*4, dimension(:,:), allocatable, public :: MSP_detresult_ela ! detector readout results of the elastic channel
   
 ! moment analysis arrays
   integer*4, public :: MSP_KmomNum ! Number of k-moment components calculated
@@ -414,6 +415,7 @@ MODULE MSAparams
   integer*4, dimension(:,:), allocatable, public :: MSP_Kmomhash ! k-moment hash (hash table pointing back to original pixel indices)
   real*4, dimension(:,:), allocatable, public :: MSP_Kmomgx, MSP_Kmomgy ! k-moment k-power tables
   real*4, dimension(:,:), allocatable, public :: MSP_Kmomresult ! k-moment data (moment components, slice index)
+  real*4, dimension(:,:), allocatable, public :: MSP_Kmomresult_ela ! k-moment data (moment components, slice index) of the elastic channel
   
   
 ! detector image output flag
@@ -617,6 +619,9 @@ SUBROUTINE MSP_UNINIT()
   if (allocated(MSP_detresult)) then
     deallocate(MSP_detresult,stat=nalloc)
   end if
+  if (allocated(MSP_detresult_ela)) then
+    deallocate(MSP_detresult_ela,stat=nalloc)
+  end if
   if (allocated(MSP_detarea)) then
     deallocate(MSP_detarea,stat=nalloc)
   end if
@@ -637,6 +642,9 @@ SUBROUTINE MSP_UNINIT()
   end if
   if (allocated(MSP_Kmomresult)) then
     deallocate(MSP_Kmomresult,stat=nalloc)
+  end if
+  if (allocated(MSP_Kmomresult_ela)) then
+    deallocate(MSP_Kmomresult_ela,stat=nalloc)
   end if
   MSP_KmomNum = 0
   if (allocated(MSP_Kmomwgt)) then
