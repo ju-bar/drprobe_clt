@@ -269,11 +269,10 @@ Detailed explanation of program options:
 
 /3dout [optional]
 
-	STEM mode only. The output of results is in 32-bit floating point
-	arrays. The third dimension represents the thickness series. One
-	file is generated for each detector and a respective suffix with
-	the detector name is appended. This applies to STEM images only,
-	not to diffraction images, probe images, or wave functions.
+	The output is written in larger files containing 3d data, where
+	The third dimension represents the sample thickness. One file is
+	generated for each detector and a respective suffix with
+	the detector name is appended.
 
 
 /wave [optional]
