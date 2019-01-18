@@ -39,6 +39,7 @@ copy "%FPATH%wavimg\makefile" "%LPATH%wavimg\" /Y
 echo - subfolder [test] ...
 mkdir %LPATH%test
 copy "%FPATH%test\README" "%LPATH%test\" /Y
+copy "%FPATH%test\*.txt" "%LPATH%test\" /Y
 copy "%FPATH%test\*.cel" "%LPATH%test\" /Y
 copy "%FPATH%test\*.cif" "%LPATH%test\" /Y
 copy "%FPATH%test\*.prm" "%LPATH%test\" /Y

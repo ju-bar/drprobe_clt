@@ -1307,7 +1307,7 @@ SUBROUTINE ParseCommandLine()
 ! DECLARATION
   character*512 :: buffer, cmd
   logical :: fex
-  integer*4 :: i, cnt, status, len, nfound, nsil, nwef, nawef
+  integer*4 :: i, cnt, status, clen, plen, nfound, nsil, nwef, nawef
   integer*4 :: nprm, nout, nposx, nposy, nbtx, nbty
   real*4 :: mrad2deg
 ! ------------
@@ -1364,20 +1364,18 @@ SUBROUTINE ParseCommandLine()
   MSP_Kmomout = 0
   MSP_KmomMmax = -1
   MSP_KmomRange = 0.0
+  MSP_useldet = 0
   do
     i = i + 1
     if (i>cnt) exit
     
-    call get_command_argument (i, buffer, len, status)
-    if (status/=0) then
-      call ExplainUsage()
-      call CriticalError("Command line parsing error.")
-    end if
+    call get_command_argument (i, buffer, clen, status)
+    if (status/=0) goto 100
     
     ! CHECK COMMAND
     nfound = 0
-    cmd = buffer(1:len)
-    CHECK_COMMAND: select case (cmd(1:len))
+    cmd = buffer(1:clen)
+    CHECK_COMMAND: select case (cmd(1:clen))
     
     ! ???
     case ("msa")
@@ -1387,19 +1385,15 @@ SUBROUTINE ParseCommandLine()
     case ("-prm")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      write(unit = MSP_prmfile, fmt='(A)') buffer(1:len)
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      write(unit = MSP_prmfile, fmt='(A)') buffer(1:plen)
       inquire(file=trim(MSP_prmfile),exist=fex)
       if (.not.fex) then
-        call CriticalError("Invalid argument: Specified parameter file does not exist.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": parameter file ["//trim(MSP_prmfile)//"] not found.")
+        return
       end if
       nprm = 1
     
@@ -1407,35 +1401,25 @@ SUBROUTINE ParseCommandLine()
     case ("-out")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      write(unit = MSP_outfile, fmt='(A)') buffer(1:len)
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      write(unit = MSP_outfile, fmt='(A)') buffer(1:plen)
       nout = 1
     
     ! THE INPUT IMAGE FILE (FOR APPLICATION OF PARTIAL SPATIAL COHERENCE ONLY)
     case ("-in")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      write(unit = MSP_infile, fmt='(A)') buffer(1:len)
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      write(unit = MSP_infile, fmt='(A)') buffer(1:plen)
       inquire(file=trim(MSP_infile),exist=fex)
       if (.not.fex) then
-        call CriticalError("Specified input image file does not exist.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": input image file ["//trim(MSP_infile)//"] not found.")
+        return
       end if
       MSP_ApplyPSC = 1
       
@@ -1445,35 +1429,26 @@ SUBROUTINE ParseCommandLine()
       nfound = 1
       ! read the wave file name from the next parameter
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      write(unit = MSP_inwfile, fmt='(A)') buffer(1:len)
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      write(unit = MSP_inwfile, fmt='(A)') buffer(1:plen)
       inquire(file=trim(MSP_inwfile),exist=fex)
       if (.not.fex) then
-        call CriticalError("Specified input wave function file does not exist.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": input wave function file ["//trim(MSP_inwfile)//"] not found.")
+        return
       end if
       ! read the insert slice number from the next parameter
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_extinwslc
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize insert position of the input wave function.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read insert slice number.")
+        return
       end if
       ! allow the use
       MSP_use_extinwave = 1
@@ -1486,35 +1461,26 @@ SUBROUTINE ParseCommandLine()
       nfound = 1
       ! read the wave file name from the next parameter
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      write(unit = MSP_inwfile, fmt='(A)') buffer(1:len)
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      write(unit = MSP_inwfile, fmt='(A)') buffer(1:plen)
       inquire(file=trim(MSP_inwfile),exist=fex)
       if (.not.fex) then
-        call CriticalError("Specified input wave function file does not exist.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": input wave function file ["//trim(MSP_inwfile)//"] not found.")
+        return
       end if
       ! read the insert slice number from the next parameter
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_extinwslc
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize insert position of the input wave function.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read insert slice number.")
+        return
       end if
       ! allow the use
       MSP_use_extinwave = 1
@@ -1525,19 +1491,14 @@ SUBROUTINE ParseCommandLine()
     case ("-px")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_ScanPixelX
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize horizontal scan position.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read position index.")
+        return
       end if
       nposx = 1
     
@@ -1545,19 +1506,14 @@ SUBROUTINE ParseCommandLine()
     case ("-py")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_ScanPixelY
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize vertical scan position.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read position index.")
+        return
       end if
       nposy = 1
       
@@ -1565,57 +1521,42 @@ SUBROUTINE ParseCommandLine()
     case ("-lx")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_LastScanPixelX
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize last horizontal scan position.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read position index.")
+        return
       end if
     
     ! THE LAST VERTICAL SCAN POSITION  (IMAGE PIXEL POS)
     case ("-ly")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_LastScanPixelY
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize last vertical scan position.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read position index.")
+        return
       end if
       
     ! AN OPTION FOR SETTING A FIX DEFOCUS EXTERNALLY
     case ("-foc")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_extdefocus
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize defocus.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read defocus value.")
+        return
       end if
       MSP_use_extdefocus = 1
     
@@ -1623,19 +1564,14 @@ SUBROUTINE ParseCommandLine()
     case ("-otx")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_OTExX
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize object tilt x.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read tilt value.")
+        return
       end if
       MSP_OTExX = MSP_OTExX * mrad2deg
       MSP_use_extot = 1
@@ -1644,19 +1580,14 @@ SUBROUTINE ParseCommandLine()
     case ("-oty")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_OTExY
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize object tilt y.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read tilt value.")
+        return
       end if
       MSP_OTExY = MSP_OTExY * mrad2deg
       MSP_use_extot = 1
@@ -1665,19 +1596,14 @@ SUBROUTINE ParseCommandLine()
     case ("-sr")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_extsrcrad
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize source radius.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read source radius.")
+        return
       end if
       MSP_use_extsrcprm = 1
     
@@ -1685,57 +1611,42 @@ SUBROUTINE ParseCommandLine()
     case ("-tx")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_BeamTiltX
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize beam tilt x.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read tilt value.")
+        return
       end if
     
     ! AN OPTION FOR SETTING A BEAM TILT X EXTERNALLY
     case ("-ty")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_BeamTiltY
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize beam tilt y.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read tilt value.")
+        return
       end if
     
     ! APPLY ABSORPTIVE POTENTIALS (ONLY IN CASE OF POTENTIAL SLICE FILE INPUT)
     case ("-abf")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_Absorption
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize absorption factor.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read absorption parameter.")
+        return
       end if
       MSP_nabf = 1
       
@@ -1743,19 +1654,14 @@ SUBROUTINE ParseCommandLine()
     case ("-buni")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_Buni
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize Debye-Waller parameter (Biso).")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read Biso value.")
+        return
       end if
       MSP_nbuni = 1
       
@@ -1763,19 +1669,14 @@ SUBROUTINE ParseCommandLine()
     case ("-uuni")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_Buni
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize Debye-Waller parameter (Uiso).")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read Uiso value.")
+        return
       end if
       MSP_Buni = MSP_Buni * 78.9568352 * 0.01 ! from U [A^2] to B [nm^2]
       MSP_nbuni = 1
@@ -1784,55 +1685,58 @@ SUBROUTINE ParseCommandLine()
     case ("-vtx")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_Vortex
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize vortex angular orbital momentum.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read OAM value.")
+        return
       end if
       
     ! Calculate k-moments (STEM ONLY) (added 2019-01-11 JB)
     case ("-kmom")
       nfound = 1
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_KmomMmax
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize k-moment maximum order.")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read max. moment index.")
+        return
       end if
       i = i + 1
-      if (i>cnt) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
-      call get_command_argument (i, buffer, len, status)
-      if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Command line parsing error.")
-      end if
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
       read(unit=buffer,fmt=*,iostat=status) MSP_KmomRange
       if (status/=0) then
-        call ExplainUsage()
-        call CriticalError("Failed to recognize k-moment integration range (mrad).")
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read theta range.")
+        return
       end if
       MSP_Kmomout = 1
+      
+    ! THE DETECTION PLANE LIST FILE
+    case ("-detslc")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      write(unit = MSP_ldetfile, fmt='(A)') buffer(1:plen)
+      inquire(file=trim(MSP_ldetfile),exist=fex)
+      if (.not.fex) then
+        if (status/=0) then
+          call CriticalError("Invalid data for "//cmd(1:clen)// &
+            & ": file ["//trim(MSP_ldetfile)//"] not found.")
+          return
+        end if
+      end if
+      MSP_useldet = 1
 
     ! ACTIVATE OUTPUT TO A TEXT LIST FILE
     case ("/txtout")
@@ -1932,10 +1836,7 @@ SUBROUTINE ParseCommandLine()
     
     end select CHECK_COMMAND
     
-    if (nfound == 0) then
-      call ExplainUsage()
-      call CriticalError("Command line parsing error. Unknown command ["//cmd(1:len)//"].")
-    end if
+    if (nfound == 0) goto 103
   
   end do
 ! ------------
@@ -1951,7 +1852,7 @@ SUBROUTINE ParseCommandLine()
 ! ------------
   if (nprm==0) then
     call ExplainUsage()
-    call CriticalError("Command line error. Parameter file not specified")
+    call CriticalError("Command line error: missing parameter file option -prm")
   end if
   if (nout==0) then
     call PostWarning("No output file specified, using default output file name ["//trim(MSP_outfile)//"]")
@@ -1997,6 +1898,28 @@ SUBROUTINE ParseCommandLine()
 ! ------------
 !  write(unit=*,fmt=*) " > ParseCommandLine: EXIT."
   return
+  
+! error handling
+100 continue
+  call ExplainUsage()
+  call CriticalError("Command line error: missing mandatory options.")
+  return
+101 continue ! missing parameter behind -option
+  call ExplainUsage()
+  call CriticalError("Command line error: missing data for option "// &
+    & cmd(1:clen))
+  return
+102 continue ! failed reading data behind -option
+  call ExplainUsage()
+  call CriticalError("Command line error: failed reading data for option "// &
+    & cmd(1:clen))
+  return
+103 continue ! unknown option
+  call ExplainUsage()
+  call CriticalError("Command line error. Unknown command ["// &
+    & cmd(1:clen)//"].")
+  return
+  
 
 END SUBROUTINE ParseCommandLine
 !**********************************************************************!
@@ -2156,13 +2079,13 @@ SUBROUTINE LoadParameters(sprmfile)
   ! allocate the detection result array
   if (allocated(MSP_detresult)) deallocate(MSP_detresult,stat=nalloc)
   if (allocated(MSP_detresult_ela)) deallocate(MSP_detresult_ela,stat=nalloc)
-  allocate(MSP_detresult(MSP_detnum,MS_stacksize), stat=nalloc)
+  allocate(MSP_detresult(MSP_detnum,0:MS_stacksize), stat=nalloc)
   if (nalloc/=0) then
     call CriticalError("Failed to allocate detector array.")
   end if
   MSP_detresult = 0.0
   if (MS_wave_avg_export>0) then
-    allocate(MSP_detresult_ela(MSP_detnum,MS_stacksize), stat=nalloc)
+    allocate(MSP_detresult_ela(MSP_detnum,0:MS_stacksize), stat=nalloc)
     if (nalloc/=0) then
       call CriticalError("Failed to allocate detector array for elastic channel.")
     end if
@@ -2171,13 +2094,13 @@ SUBROUTINE LoadParameters(sprmfile)
   
   ! allocate the k-momentum result array
   if (allocated(MSP_Kmomresult)) deallocate(MSP_Kmomresult,stat=nalloc)
-  allocate(MSP_Kmomresult(MSP_KmomNum,MS_stacksize), stat=nalloc)
+  allocate(MSP_Kmomresult(MSP_KmomNum,0:MS_stacksize), stat=nalloc)
   if (nalloc/=0) then
     call CriticalError("Failed to allocate k-moment array.")
   end if
   MSP_Kmomresult = 0.0
   if (MS_wave_avg_export>0) then
-    allocate(MSP_Kmomresult_ela(MSP_KmomNum,MS_stacksize), stat=nalloc)
+    allocate(MSP_Kmomresult_ela(MSP_KmomNum,0:MS_stacksize), stat=nalloc)
     if (nalloc/=0) then
       call CriticalError("Failed to allocate k-moment array for elastic channel.")
     end if
@@ -3229,7 +3152,7 @@ SUBROUTINE DetectorReadoutElastic(nerr)
 ! ------------
 ! DECLARATION
   integer*4, intent(out) :: nerr
-  integer*4 :: ncrit, ndet, nkmom, nx, ny, nalloc, nmlen, npln, ndetect
+  integer*4 :: ncrit, ndet, nkmom, nx, ny, nalloc, nmlen, npln
   integer*4 :: i, j, k, l, m, ipln, islc, idy, idx
   real*4 :: rval, gxk, gyl, rsca, renorm
   complex*8, allocatable :: wave(:,:)
@@ -3249,9 +3172,8 @@ SUBROUTINE DetectorReadoutElastic(nerr)
   !    if the "-kmom" option is used and MSP_Kmomresult is allocated.
   ndet = MSP_detnum
   nkmom = MSP_KmomNum
-  if (0>=ndet .and. 0>=nkmom) then ! no detectors and no other integrating readout
-    goto 100
-  end if
+  if (0>=ndet .and. 0>=nkmom) goto 100 ! no detectors and no other integrating readout
+  if (0>=MSP_detpln) goto 100 ! no planes with readout
   if (0==MS_status) then
     nerr = 1
     goto 200
@@ -3274,9 +3196,6 @@ SUBROUTINE DetectorReadoutElastic(nerr)
       goto 200
     end if
   end if
-  ! determine periodic detection slice index
-  ndetect = MS_stacksize ! preset detection switch to last slice
-  if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize) ! periodic readout
   ! determine total number of planes
   npln = MS_wave_avg_num
   ! allocate memory for a temporary wave function
@@ -3291,19 +3210,16 @@ SUBROUTINE DetectorReadoutElastic(nerr)
   
   
 ! ------------
-! loop over all thicknesses for which we have averaged wave functions
-! Slightly complicated:
-! * MS_wave_avg has 1+MS_wave_avg_num slots where wave functions are stored.
-!   Those slots correspond to the planes with readout + incident wave (at ipln=0)
-! * MS_detresult has MS_stacksize slots, where only data is written to slots
-!   with 0 == modulo(islc, ndetect). There is no data for the incident plane.
-  do ipln=0, npln
-    islc = ipln*ndetect ! slice index (0 = incident wave function)
-    if (0 == islc) cycle ! skip the indcident wave function, no detection data present
+! loop over all detection planes for which we have averaged wave functions
+  do ipln=0, MSP_detpln-1
+    islc = MSP_hdetpln(ipln) ! slice index
     if (ndet>0) MSP_detresult_ela(1:ndet, islc) = 0.0 ! clear data
     if (nkmom>0) MSP_Kmomresult_ela(1:nkmom, islc) = 0.0
-    if (MS_wave_avg_nac(ipln) <= 0) cycle ! there is no average wave function data
-    renorm = 1.0 / real(MS_wave_avg_nac(ipln)) ! renormalization factor due to averaging
+    if (MS_wave_avg_nac(ipln) > 0) then
+      renorm = 1.0 / real(MS_wave_avg_nac(ipln)) ! renormalization factor due to averaging
+    else
+      renorm = 1.0
+    end if
     if (MS_wave_export_form==0) then ! real-space average -> need to transform
       ! real space export (inverse FT)
       ! - transfer data
@@ -3626,7 +3542,7 @@ SUBROUTINE STEMMultiSlice()
 ! DECLARATION
   integer*4 :: nz, nerr, nznum, ndet, nkmom, ndat, nalloc, nslcidx
   integer*4 :: nv, nvc, nvar, nvarnum, nvartot, nvdigits
-  integer*4 :: nslc, ndetect, ncalcslc
+  integer*4 :: nslc, ncalcslc
   real*4 :: scansampx, scansampy, scanposx, scanposy
   real*4 :: dxcurr, dycurr, dzcurr
   real*4 :: zstep, zoffset, zpow, zrescale, fafac, fascal, vrescale
@@ -3715,9 +3631,6 @@ SUBROUTINE STEMMultiSlice()
   nvar = 0
   nvartot = nvarnum*nznum
   swavfile = trim(MS_wave_filenm) ! wave file name backup
-  ! detection switch parameter
-  ndetect = MS_stacksize ! preset detection switch to last slice
-  if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize) ! set detection switch number to user specified value
   
   ! loop through focal variants
   do nz=1, nznum
@@ -3799,16 +3712,38 @@ SUBROUTINE STEMMultiSlice()
         call MS_Start()
       end if
       if (nerr/=MS_err_num) goto 16
-
-      ! loop over all slices and do the multislice
+      
       ncalcslc = MS_slicecur ! reset number of calculated slices
-           
+      
       ! determine current scaling factor for summation over foci and over variants
       ffac = exp(fafac*dzcurr*dzcurr)*vrescale
       ! write(*,*) ffac, exp(fafac*dzcurr*dzcurr), vrescale
 	    ! .. and sum up the applied weights for later rescaling to 1.0
 	    fascal = fascal + ffac;
       
+      if (MSP_ldetpln(ncalcslc) >= 0) then ! readout at incident plane
+        ! COLLECT DATA FROM DETECTOR
+        call DetectorReadout(rtmpresult, ndat, nerr)
+        if (nerr/=0) goto 12
+        ! sum up weighted data depending on slice number and detector number
+	      MSP_detresult(1:ndet,ncalcslc) = MSP_detresult(1:ndet,ncalcslc) + rtmpresult(1:ndet)*ffac
+        if (nkmom>0) then
+          MSP_Kmomresult(1:nkmom,ncalcslc) = MSP_Kmomresult(1:nkmom,ncalcslc) + rtmpresult(ndet+1:ndet+nkmom)*ffac
+        end if
+        !
+	      if (DEBUG_EXPORT>0) then
+	        write(unit=MSP_stmp,fmt='(A,I4,A)') "- Detection after ",ncalcslc," slices."
+          call PostMessage(trim(MSP_stmp))
+          write(unit=MSP_stmp,fmt='(A,<ndet>G13.5)') "- Current detector readout:",rtmpresult(1:ndet)
+          call PostMessage(trim(MSP_stmp))
+          write(unit=MSP_stmp,fmt='(A,<ndet>G13.5)') "- Current total result    :",MSP_detresult(1:ndet,ncalcslc)
+          call PostMessage(trim(MSP_stmp))
+        end if
+      end if
+      
+      !
+      ! loop over all slices and do the multislice
+      !    
       do while (MS_slicecur >= 0.and. MS_slicecur<MS_stacksize)
         nerr = MS_err_num ! backup error
         nslc = MS_slicestack(MS_slicecur+1)+1 ! get current slice index
@@ -3822,7 +3757,7 @@ SUBROUTINE STEMMultiSlice()
         
         if (nerr/=MS_err_num) goto 16 ! error check
         
-        if (0==modulo(ncalcslc,ndetect)) then ! detection?
+        if (MSP_ldetpln(ncalcslc) >= 0) then ! detection?
           ! COLLECT DATA FROM DETECTOR
           call DetectorReadout(rtmpresult, ndat, nerr)
           if (nerr/=0) goto 12
@@ -4058,12 +3993,12 @@ SUBROUTINE ExportSTEMData(sfile)
 ! ------------
 ! DECLARATION
   character*(*), intent(in) :: sfile
-  integer*4 :: nfil, lfu(3), nerr, i, ic, j, k, iff
-  integer*4 :: datapos, ndet, ncomp, ipos
-  integer*4 :: ndetect
-  integer*4 :: ndatanum, idataplane
+  integer*4 :: nfil, lfu(3), nerr, i, j, k, l, l1, iff
+  integer*4 :: datapos, ndet, ipos
+  integer*4 :: ndatanum
   real*4 :: rsignal(3)
   logical :: fex(3)
+  character(len=12) :: snumk, snuml
   character(len=1024) :: stmp, ssufdet, ssufsep(3), spfile(3), sdfile(3)
 ! ------------
 
@@ -4078,8 +4013,6 @@ SUBROUTINE ExportSTEMData(sfile)
   datapos = 1 + MSP_ScanPixelX + MSP_ScanPixelY*MSP_SF_ndimx
   ! determine number of scan points
   ndatanum = MSP_SF_ndimx*MSP_SF_ndimy
-  ! preset plane offset for 3d data stacks
-  idataplane = 0
   !
   if (datapos<=0.or.datapos>ndatanum) then
     call CriticalError("ExportSTEMData: Invalid datafile position.")
@@ -4103,9 +4036,6 @@ SUBROUTINE ExportSTEMData(sfile)
 ! ------------
   ! get number of detectors
   ndet = max(1,MSP_detnum)
-  ! determine detection slice index
-  ndetect = MS_stacksize ! preset detection switch to last slice
-  if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize)
   ! loop over detectors
   do k=1, ndet
     ! prepare the output file name (append detector name and output channel)
@@ -4139,10 +4069,9 @@ SUBROUTINE ExportSTEMData(sfile)
       end do
       ! - write to the files ... 
       ! preset plane offset for 3d data stacks
-      idataplane = 0
-      do i=1, MS_stacksize ! loop over all slices
-        if (0/=modulo(i,ndetect)) cycle ! skip this slice
-        ipos = datapos + idataplane*ndatanum
+      do i=0, MS_stacksize ! loop over all slices beginning with incident probe plane (0)
+        if (MSP_ldetpln(i) < 0) cycle ! skip this slice
+        ipos = datapos + MSP_ldetpln(i)*ndatanum
         rsignal(1) = MSP_detresult(k,i)
         if (nfil>1) then
           rsignal(2) = MSP_detresult_ela(k,i) ! ela
@@ -4156,8 +4085,6 @@ SUBROUTINE ExportSTEMData(sfile)
         write (unit=MSP_stmp,fmt='(A,<nfil>G13.5,A)') "- saved "// &
           &   trim(MSP_detname(k))//" signal (",rsignal(1:nfil),")"
         call PostMessage(trim(MSP_stmp))
-        ! increase the plane offset index by one for the next cycle
-        idataplane = idataplane + 1
       end do ! i-loop over slices
       !
       ! - close the files ...
@@ -4172,11 +4099,11 @@ SUBROUTINE ExportSTEMData(sfile)
       ! BEGIN OF SINGLE PLANE FILE OUTPUT
       !
       ! loop over all slices
-      do i=1, MS_stacksize
-        if (0/=modulo(i,ndetect)) cycle ! skip this slice
+      do i=0, MS_stacksize ! loop over all slices beginning with incident probe plane (0)
+        if (MSP_ldetpln(i) < 0) cycle ! skip this slice
         spfile = sdfile ! default preset
         ! - modify file names (append slice index)
-        if (MSP_detslc>0) then ! append slice index to file name
+        if (MSP_detpln > 1) then ! append slice index to file name
           do iff=1, nfil
             call saddsuffix(trim(sdfile(iff)), "_sl", i, MSP_nslid, spfile(iff))
           end do
@@ -4231,52 +4158,50 @@ SUBROUTINE ExportSTEMData(sfile)
   if (MSP_Kmomout>0) then
     call PostMessage("Integrated k-space momentum output.")
     ! loop over all moment orders
-    j = 0 ! offset of current order in result array
+    j = 0 ! offset of current order in result arrays MSP_Kmomresult etc.
     do k=0, MSP_KmomMmax ! ... from zero to m_max
-      ncomp = k+1 ! number of components in current order
-      datapos = ncomp*MSP_ScanPixelX + MSP_ScanPixelY*ncomp*MSP_SF_ndimx ! offset of current data in the thickness plane
-      ndatanum = ncomp*MSP_SF_ndimx*MSP_SF_ndimy ! number of data per thickness plane
-      ! prepare the output file name
-      write(unit=stmp,fmt=*) k ! order to string
-      do iff=1, nfil ! construct file names ...
-        call saddsuffix(trim(sfile), "_kmom"//trim(adjustl(stmp))// &
-           & trim(ssufsep(iff)), 0, 0, sdfile(iff))
-      end do
-      ! write data to file
-      if (MSP_3dout > 0) then ! prepare for output to 3d data file
-        !
-        ! BEGIN OF 3D FILE OUTPUT
-        !
-        do iff=1, nfil ! open all files
-          ! - check existence of current output file
-          inquire(file=trim(sdfile(iff)),exist=fex(iff))
-          if (.not.fex(iff)) then ! doesn't exist, create new
-            call CreateSTEMFile(trim(sdfile(iff)),ndatanum*MSP_detpln,nerr)
-            if (nerr/=0) call CriticalError("Output file creation failed.")
-          end if
-          ! - get logical unit
-          call GetFreeLFU(lfu(iff),20,100)
-          ! - open file shared access
-          open (unit=lfu(iff), file=trim(sdfile(iff)), form="binary", &
-            &   access="direct", iostat=nerr, status="old", &
-            &   action="write", recl=4, share='DENYNONE' )
-          if (nerr/=0) then
-            call CriticalError("ExportSTEMData: Failed to open file [" &
-              &  //trim(sdfile(iff))//"].")
-          end if
+      write(unit=snumk,fmt=*) k ! order to string
+      do l=0, k ! component in current order
+        l1 = l + 1 ! shifted index
+        ! prepare the output file name
+        write(unit=snuml,fmt=*) l ! component to string
+        do iff=1, nfil ! construct file names ... 
+          call saddsuffix(trim(sfile), "_kmom"//trim(adjustl(snumk))// &
+            & "-"//trim(adjustl(snuml))//trim(ssufsep(iff)), 0, 0, &
+            & sdfile(iff))
         end do
-        ! - write to the file ... 
-        ! preset plane offset for 3d data stacks
-        idataplane = 0
-        do i=1, MS_stacksize ! loop over all slices
-          if (0/=modulo(i,ndetect)) cycle ! skip this slice
-          ! - write the total intensity data at correct position to files
-          do ic=1, ncomp
-            ipos = ic + datapos + idataplane*ndatanum
+        ! write data to file
+        if (MSP_3dout > 0) then ! prepare for output to 3d data file
+          !
+          ! BEGIN OF 3D FILE OUTPUT
+          !
+          do iff=1, nfil ! open all files
+            ! - check existence of current output file
+            inquire(file=trim(sdfile(iff)),exist=fex(iff))
+            if (.not.fex(iff)) then ! doesn't exist, create new
+              call CreateSTEMFile(trim(sdfile(iff)),ndatanum*MSP_detpln,nerr)
+              if (nerr/=0) call CriticalError("Output file creation failed.")
+            end if
+            ! - get logical unit
+            call GetFreeLFU(lfu(iff),20,100)
+            ! - open file shared access
+            open (unit=lfu(iff), file=trim(sdfile(iff)), form="binary", &
+              &   access="direct", iostat=nerr, status="old", &
+              &   action="write", recl=4, share='DENYNONE' )
+            if (nerr/=0) then
+              call CriticalError("ExportSTEMData: Failed to open file [" &
+                &  //trim(sdfile(iff))//"].")
+            end if
+          end do
+          ! - write to the file ... 
+          do i=0, MS_stacksize ! loop over all slices beginning with incident probe plane (0)
+            if (MSP_ldetpln(i) < 0) cycle ! skip this slice
+            ! - write the total intensity data at correct position to files
+            ipos = l1 + datapos + MSP_ldetpln(i)*ndatanum
             ! - get the signal of current plane and component
-            rsignal(1) = MSP_Kmomresult(j+ic,i) ! total signal
+            rsignal(1) = MSP_Kmomresult(l1+j, i) ! total signal
             if (nfil>1) then ! store also ela and tds
-              rsignal(2) = MSP_Kmomresult_ela(j+ic,i) ! ela
+              rsignal(2) = MSP_Kmomresult_ela(l1+j, i) ! ela
               rsignal(3) = rsignal(1) - rsignal(2) ! tds = tot - ela
             end if
             ! - store
@@ -4284,62 +4209,59 @@ SUBROUTINE ExportSTEMData(sfile)
               write(unit=lfu(iff), rec=ipos, iostat=nerr) rsignal(iff)
             end do
             ! - report stored signal values
-            write (unit=MSP_stmp,fmt='(A,I3,A,<nfil>G13.5,A)') &
-              &   "- saved moment "//trim(adjustl(stmp))// &
-              &   "(", ic, ") signal (",rsignal(1:nfil),")"
+            write (unit=MSP_stmp,fmt='(A,<nfil>G13.5,A)') &
+              &   "- saved moment "//trim(adjustl(snumk))// &
+              &   "("//trim(adjustl(snuml))//") signal (", &
+              &   rsignal(1:nfil),")"
             call PostMessage(trim(MSP_stmp))
-          end do
-          ! increase the plane offset index by one for the next cycle
-          idataplane = idataplane + 1
-        end do ! i-loop over slices
-        ! - close the files ...
-        do iff=1, nfil
-          close(unit=lfu(iff), iostat=nerr)
-        end do
-        !
-        ! END OF 3D FILE OUTPUT
-        !
-      else ! perpare for output to 2D files (one per export plane)
-        !
-        ! BEGIN OF SINGLE PLANE FILE OUTPUT
-        !
-        ! loop over all slices
-        do i=1, MS_stacksize
-          if (0/=modulo(i,ndetect)) cycle ! skip this slice
-          spfile = sdfile ! default preset
-          ! - modify file name with slice index
-          if (MSP_detslc>0) then ! append slice index to file name
-            ! - update output file names ...
-            do iff=1, nfil
-              call saddsuffix(trim(sdfile(iff)), "_sl", i, MSP_nslid, spfile(iff))
-            end do
-          end if
-          ! - open the files ...
+          end do ! i-loop over slices
+          ! - close the files ...
           do iff=1, nfil
-            ! - check existence of current output files
-            inquire(file=trim(spfile(iff)),exist=fex(iff))
-            if (.not.fex(iff)) then ! doesn't exist, create new (single plane files)
-              call CreateSTEMFile(trim(spfile(iff)),ndatanum,nerr)
-              if (nerr/=0) call CriticalError("Output file creation failed.")
-            end if
-            ! - get logical unit
-            call GetFreeLFU(lfu(iff),20,100)
-            ! - open file shared access
-            open (unit=lfu(iff), file=trim(spfile(iff)), form="binary",&
-              &   access="direct", iostat=nerr, status="old", &
-              &   action="write", recl=4, share='DENYNONE' )
-            if (nerr/=0) then
-              call CriticalError("ExportSTEMData: Failed to open file ["&
-                &  //trim(spfile(iff))//"].")
-            end if
+            close(unit=lfu(iff), iostat=nerr)
           end do
-          ! - write the data at correct position
-          do ic=1, ncomp
-            ipos = ic + datapos
+          !
+          ! END OF 3D FILE OUTPUT
+          !
+        else ! perpare for output to 2D files (one per export plane)
+          !
+          ! BEGIN OF SINGLE PLANE FILE OUTPUT
+          !
+          ! loop over all slices
+          do i=0, MS_stacksize ! loop over all slices beginning with incident probe plane (0)
+            if (MSP_ldetpln(i) < 0) cycle ! skip this slice
+            spfile = sdfile ! default preset
+            ! - modify file name with slice index
+            if (MSP_detpln > 1) then ! append slice index to file name
+              ! - update output file names ...
+              do iff=1, nfil
+                call saddsuffix(trim(sdfile(iff)), "_sl", i, MSP_nslid, spfile(iff))
+              end do
+            end if
+            ! - open the files ...
+            do iff=1, nfil
+              ! - check existence of current output files
+              inquire(file=trim(spfile(iff)),exist=fex(iff))
+              if (.not.fex(iff)) then ! doesn't exist, create new (single plane files)
+                call CreateSTEMFile(trim(spfile(iff)),ndatanum,nerr)
+                if (nerr/=0) call CriticalError("Output file creation failed.")
+              end if
+              ! - get logical unit
+              call GetFreeLFU(lfu(iff),20,100)
+              ! - open file shared access
+              open (unit=lfu(iff), file=trim(spfile(iff)), form="binary",&
+                &   access="direct", iostat=nerr, status="old", &
+                &   action="write", recl=4, share='DENYNONE' )
+              if (nerr/=0) then
+                call CriticalError("ExportSTEMData: Failed to open file ["&
+                  &  //trim(spfile(iff))//"].")
+              end if
+            end do
+            ! - write the data at correct position
+            ipos = l1 + datapos
             ! - get the signal of current plane and component
-            rsignal(1) = MSP_Kmomresult(j+ic,i) ! total signal
+            rsignal(1) = MSP_Kmomresult(j+l1, i) ! total signal
             if (nfil>1) then ! store also ela and tds
-              rsignal(2) = MSP_Kmomresult_ela(j+ic,i) ! ela
+              rsignal(2) = MSP_Kmomresult_ela(j+l1, i) ! ela
               rsignal(3) = rsignal(1) - rsignal(2) ! tds = tot - ela
             end if
             ! - store
@@ -4347,23 +4269,25 @@ SUBROUTINE ExportSTEMData(sfile)
               write(unit=lfu(iff), rec=ipos, iostat=nerr) rsignal(iff)
             end do
             ! - report stored signal values
-            write (unit=MSP_stmp,fmt='(A,I3,A,<nfil>G13.5,A)') &
-              &   "- saved moment "//trim(adjustl(stmp))// &
-              &   "(", ic, ") signal (",rsignal(1:nfil),")"
+            write (unit=MSP_stmp,fmt='(A,<nfil>G13.5,A)') &
+              &   "- saved moment "//trim(adjustl(snumk))// &
+              &   "("//trim(adjustl(snuml))//") signal (", &
+              &   rsignal(1:nfil),")"
             call PostMessage(trim(MSP_stmp))
-          end do
-          ! - close files ...
-          do iff=1, nfil
-            close(unit=lfu(iff), iostat=nerr)
-          end do
-        end do ! i-loop over slices
+            ! - close files ...
+            do iff=1, nfil
+              close(unit=lfu(iff), iostat=nerr)
+            end do
+          end do ! i-loop over slices
+          !
+          ! END OF SINGLE PLANE FILE OUTPUT
+          !
+        end if ! SWITCH 3d output or single plane files 
         !
-        ! END OF SINGLE PLANE FILE OUTPUT
-        !
-      end if ! SWITCH 3d output or single plane files 
+      end do ! loop l over components
       !
       ! update offset
-      j = j + ncomp
+      j = j + 1 + k
       !
     end do ! loop k over momentum orders
   end if
@@ -4404,8 +4328,7 @@ SUBROUTINE InitProbeIntegration()
 
 ! ------------
 ! DECLARATION
-  integer*4 :: nerr, i, nx, ny
-  integer*4 :: ndetect
+  integer*4 :: nerr, nx, ny
   integer*4 :: nepw
 ! ------------
 
@@ -4413,47 +4336,30 @@ SUBROUTINE InitProbeIntegration()
 ! INIT
 !  write(unit=*,fmt=*) " > InitWaveAvg: INIT."
   call PostMessage("Initializing probe intensity integration.")
-  ! determine periodic detection slice index
-  ndetect = MS_stacksize ! preset detection switch to last slice
-  if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize) ! periodic readout
-  nepw = 0
+  nepw = MSP_detpln
   nx = MS_dimx
   ny = MS_dimy
-! ------------
-
-! ------------
-! Determine the number of exit planes.
-  do i=1, MS_stacksize
-    if (0/=modulo(i,ndetect)) cycle ! skip this slice
-    nepw = nepw + 1 ! increase number of exit planes
-  end do
 ! ------------
 
 ! ------------
 ! Allocate the array holding the integrated probe intensities
   if (MSP_pimgmode/=0) then ! array is already allocated
     if (allocated(MSP_pimg)) deallocate(MSP_pimg,stat=nerr) ! deallocate
-    allocate(MSP_pimg(1:nx, 1:ny, 0:nepw),stat=nerr) ! allocate
-    if (nerr/=0) then
-      call CriticalError("InitProbeIntegration: Failed to allocate memory.")
-    end if
+    allocate(MSP_pimg(1:nx, 1:ny, 0:nepw-1),stat=nerr) ! allocate
+    if (nerr/=0) goto 101
     MSP_pimg = 0.0
   end if
   if (MSP_pdifmode/=0) then ! array is already allocated
     if (allocated(MSP_pdif)) deallocate(MSP_pdif,stat=nerr) ! deallocate
-    allocate(MSP_pdif(1:nx, 1:ny, 0:nepw),stat=nerr) ! allocate
-    if (nerr/=0) then
-      call CriticalError("InitProbeIntegration: Failed to allocate memory.")
-    end if
+    allocate(MSP_pdif(1:nx, 1:ny, 0:nepw-1),stat=nerr) ! allocate
+    if (nerr/=0) goto 101
     MSP_pdif = 0.0
   end if
-  if (MSP_pimgmode/=0 .or. MSP_pdifmode/=0) then ! array is already allocated
+  if (MSP_pimgmode/=0 .or. MSP_pdifmode/=0) then ! array are allocated
     if (allocated(MSP_pint_nac)) deallocate(MSP_pint_nac,stat=nerr) ! deallocate
     MSP_pint_num = 0
-    allocate(MSP_pint_nac(0:nepw),stat=nerr)
-    if (nerr/=0) then
-      call CriticalError("InitProbeIntegration: Failed to allocate memory.")
-    end if
+    allocate(MSP_pint_nac(0:nepw-1),stat=nerr)
+    if (nerr/=0) goto 101
     MSP_pint_nac = 0
     MSP_pint_num = nepw ! store the number of exit-planes
   end if
@@ -4462,6 +4368,11 @@ SUBROUTINE InitProbeIntegration()
 
 ! ------------
 !  write(unit=*,fmt=*) " > InitProbeIntegration: EXIT."
+  return
+  
+! error handling
+101 continue
+  call CriticalError("InitProbeIntegration: Failed to allocate memory.")
   return
 
 END SUBROUTINE InitProbeIntegration
@@ -4594,7 +4505,6 @@ SUBROUTINE ExportProbeIntensity(sfile)
   integer*4 :: nintout, nwavavg, ntransform, nuidx
   integer*4 :: nx, ny, nerr, nalloc, i, j, k
   integer*4 :: islc, iout
-  integer*4 :: ndetect
   real*4 :: rnorm, pint, rsca
   real*4, dimension(:,:), allocatable :: pimg, pela, ptds
   complex*8, dimension(:,:), allocatable :: wave !, work
@@ -4616,10 +4526,6 @@ SUBROUTINE ExportProbeIntensity(sfile)
   if (MSP_pdifmode>0) nintout = 1
   if (MSP_pimgmode>0) nintout = nintout + 2
   rsca = 1.0 / real(nx*ny) ! for DFT renormalizations
-  !
-  ! Determine periodic detection slice index.
-  ndetect = MS_stacksize ! preset detection switch to last slice
-  if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize) ! periodic readout
   !
   ! Handle the case of present average wave function data.
   ! In this case, we want to export the elastic images as well as 
@@ -4655,8 +4561,8 @@ SUBROUTINE ExportProbeIntensity(sfile)
       allocate(ptds(nx,ny), stat=nalloc)
     end if
     iout = 0 ! initialize output plane counter
-    do k=0, MSP_pint_num ! Loop over all exit-planes.
-      islc = k*ndetect ! = periodic readout slice number / exit-plane
+    do k=0, MSP_pint_num-1 ! Loop over all exit-planes.
+      islc = MSP_hdetpln(k) ! get slice index for this detection plane
       if (MSP_pint_nac(k)==0) cycle ! ignore planes which didn't recieve data
       ! normalize (we assume that wave and images have the same number of contributions)
       rnorm = 1.0/real(MSP_pint_nac(k))
@@ -4728,8 +4634,8 @@ SUBROUTINE ExportProbeIntensity(sfile)
       allocate(ptds(nx,ny), stat=nalloc)
     end if
     iout = 0
-    do k=0, MSP_pint_num ! Loop over all exit-planes.
-      islc = k*ndetect ! = periodic readout slice number / exit-plane
+    do k=0, MSP_pint_num-1 ! Loop over all exit-planes.
+      islc = MSP_hdetpln(k) ! get slice index for this detection plane
       if (MSP_pint_nac(k)==0) cycle ! ignore planes which didn't recieve data
       ! normalize (we assume that wave and images have the same number of contributions)
       rnorm = 1.0/real(MSP_pint_nac(k))
@@ -4823,8 +4729,7 @@ SUBROUTINE InitWaveAvg()
 
 ! ------------
 ! DECLARATION
-  integer*4 :: nerr, i, nx, ny
-  integer*4 :: ndetect
+  integer*4 :: nerr, nx, ny
   integer*4 :: nepw
 ! ------------
 
@@ -4832,40 +4737,23 @@ SUBROUTINE InitWaveAvg()
 ! INIT
 !  write(unit=*,fmt=*) " > InitWaveAvg: INIT."
   call PostMessage("Initializing wavefunction averaging.")
-  ! determine periodic detection slice index
-  ndetect = MS_stacksize ! preset detection switch to last slice
-  if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize) ! periodic readout
-  nepw = 0
+  nepw = MSP_detpln
   nx = MS_dimx
   ny = MS_dimy
 ! ------------
 
 ! ------------
-! Determine the number of exit planes.
-  do i=1, MS_stacksize
-    if (0/=modulo(i,ndetect)) cycle ! skip this slice
-    nepw = nepw + 1 ! increase number of exit planes
-  end do
-! ------------
-
-! ------------
 ! Allocate the array holding the average wavefunctions
-  if (allocated(MS_wave_avg)) then ! array is already allocated
-    if (nepw+1/=SIZE(MS_wave_avg, DIM=3)) then ! check size on dimension 3
-      deallocate(MS_wave_avg,stat=nerr) ! deallocate on wrong size
-      deallocate(MS_wave_avg_nac,stat=nerr) ! 
-      MS_wave_avg_num = 0
-    end if
-  end if
-  if (.not.allocated(MS_wave_avg)) then ! array not allocated
+  if (allocated(MS_wave_avg)) deallocate(MS_wave_avg,stat=nerr) ! deallocate on wrong size
+  if (allocated(MS_wave_avg_nac)) deallocate(MS_wave_avg_nac,stat=nerr) ! 
+  MS_wave_avg_num = 0
   ! alloation with an extra array for the incoming wavefunction, index 0 at dimension 3
-    allocate(MS_wave_avg(1:nx, 1:ny, 0:nepw),stat=nerr)
-    allocate(MS_wave_avg_nac(0:nepw),stat=nerr)
-    if (nerr/=0) then
-      call CriticalError("InitWaveAvg: Failed to allocate memory.")
-    end if
-    MS_wave_avg_num = nepw ! store the number of exit-planes
+  allocate(MS_wave_avg(1:nx, 1:ny, 0:nepw-1),stat=nerr)
+  allocate(MS_wave_avg_nac(0:nepw-1),stat=nerr)
+  if (nerr/=0) then
+    call CriticalError("InitWaveAvg: Failed to allocate memory.")
   end if
+  MS_wave_avg_num = nepw ! store the number of exit-planes
 ! reset the wavefunctions
   MS_wave_avg = cmplx(0.,0.)
   MS_wave_avg_nac = 0
@@ -4963,10 +4851,8 @@ SUBROUTINE UnInitWaveAvg()
 
 ! ------------
 ! Deallocate the array holding the average wavefunctions
-  if (allocated(MS_wave_avg)) then ! array is already allocated
-    deallocate(MS_wave_avg, stat=nerr) ! 
-    deallocate(MS_wave_avg_nac, stat=nerr) ! 
-  end if
+  if (allocated(MS_wave_avg)) deallocate(MS_wave_avg,stat=nerr) ! deallocate on wrong size
+  if (allocated(MS_wave_avg_nac)) deallocate(MS_wave_avg_nac,stat=nerr) ! 
 ! reset the average wf access and accumulation indices
   MS_wave_avg_num = 0
   MS_wave_avg_idx = 0
@@ -5007,7 +4893,6 @@ SUBROUTINE ExportWaveAvg(sfile)
   character(len=MSP_ll) :: isfile, sexpfile
   integer*4 :: nerr, k, nx, ny, nuidx
   integer*4 :: islc, iout
-  integer*4 :: ndetect
   real*4 :: rnorm
   complex*8, dimension(:,:), allocatable :: wave
   external :: SaveDataC8
@@ -5028,9 +4913,6 @@ SUBROUTINE ExportWaveAvg(sfile)
   end if
   nx = MS_dimx
   ny = MS_dimy
-  ! determine periodic detection slice index
-  ndetect = MS_stacksize ! preset detection switch to last slice
-  if (MSP_detslc>0) ndetect = min(MSP_detslc,MS_stacksize) ! periodic readout
   allocate(wave(1:nx,1:ny), stat=nerr)
   if (nerr/=0) then
     call CriticalError("ExportWaveAvg: Failed to allocate memory.")
@@ -5048,8 +4930,8 @@ SUBROUTINE ExportWaveAvg(sfile)
 ! ------------
 ! OUTPUT OF AVERAGE WAVE FUNCTION
   iout=0
-  do k=0, MS_wave_avg_num ! Loop over all exit-planes.
-    islc = k*ndetect ! = periodic readout slice number / exit-plane
+  do k=0, MS_wave_avg_num-1 ! Loop over all exit-planes.
+    islc = MSP_hdetpln(k) ! slice number
     if (MS_wave_avg_nac(k)==0) cycle ! ignore planes which didn't recieve data
     ! normalize
     rnorm = 1.0/real(MS_wave_avg_nac(k))
@@ -5155,12 +5037,12 @@ SUBROUTINE ExportWave(sfile, islice)
     end if
     if (MS_wave_export>0) then ! individual wave export to disk
       
-      if (MSP_3dout > 0 .and. islice > 0) then
-        call AppendDataC8(trim(sexpfile), wave, nx*ny, nerr)
-      else
+      if (MSP_3dout > 0 .and. iwav > 0) then ! 3d and not the first slot
+        call AppendDataC8(trim(sexpfile), wave, nx*ny, nerr) ! append file
+      else ! 2d or first 3d slot
         call PostMessage("  Writing wave function to file ["// &
           &  trim(sexpfile)//"].")
-        call SaveDataC8(trim(sexpfile), wave, nx*ny, nerr)
+        call SaveDataC8(trim(sexpfile), wave, nx*ny, nerr) ! store new file
       end if
     end if
     if (MS_wave_avg_export>0) then ! accumulation of the elastic wave

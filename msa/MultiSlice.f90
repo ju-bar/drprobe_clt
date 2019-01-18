@@ -303,9 +303,11 @@ MODULE MultiSlice
   character(len=MS_ll), public :: MS_wave_filenm_avg
   DATA MS_wave_filenm /"epw"/
   DATA MS_wave_filenm_avg /"epw"/
-! period of wave export in number of slices  
-  integer*4, public :: MS_wave_export_pzp
-  DATA MS_wave_export_pzp /1/
+
+! flag list of detection planes (general and decisive)
+  integer*4, public, allocatable :: MS_ldetpln(:)
+! hash list of detection planes (detection plane slot -> slice index)
+  integer*4, public, allocatable :: MS_hdetpln(:)
   
 
 !*********************************************************************!
@@ -489,7 +491,7 @@ SUBROUTINE MS_UNINIT()
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 200
-  integer*4 :: err
+  integer*4 :: err, nalloc
 ! ------------
 
 ! ------------
@@ -502,18 +504,12 @@ SUBROUTINE MS_UNINIT()
 
 ! ------------
   call MS_DEALLOCSTATICS(err)
-  if (allocated(MS_slicestack)) then
-    deallocate(MS_slicestack)
-  end if
-  if (allocated(MS_propstack)) then
-    deallocate(MS_propstack,stat=err)
-  end if
-  if (allocated(MS_slicethick)) then
-    deallocate(MS_slicethick)
-  end if
-  if (allocated(MS_propagator)) then
-    deallocate(MS_propagator)
-  end if
+  if (allocated(MS_slicestack)) deallocate(MS_slicestack, stat=nalloc)
+  if (allocated(MS_propstack)) deallocate(MS_propstack, stat=nalloc)
+  if (allocated(MS_slicethick)) deallocate(MS_slicethick, stat=nalloc)
+  if (allocated(MS_propagator)) deallocate(MS_propagator, stat=nalloc)
+  if (allocated(MS_ldetpln)) deallocate(MS_ldetpln, stat=nalloc)
+  if (allocated(MS_hdetpln)) deallocate(MS_hdetpln, stat=nalloc)
   if ( MS_fft_dims(1)>0 .or. MS_fft_dims(2)>0 ) then
     call fftwf_free(MS_fft_pdata)
     call fftwf_destroy_plan(MS_fft_planf)
@@ -1898,10 +1894,10 @@ SUBROUTINE MS_Start(istart)
 
 ! ------------
 ! optional wave export after each slice, also saves incoming wave
-  if (MS_incwave_export==1) then
-    MS_wave_avg_idx = 0 ! store incoming wave in channel 0 regardless of its actual plane.
+  if (MS_ldetpln(0) >= 0) then
+    MS_wave_avg_idx = MS_hdetpln(0) ! store incoming wave in channel 0 regardless of its actual plane.
     MS_pint_idx = 0
-    call ExportWave(trim(MS_wave_filenm),0) ! export incident plane wave function
+    call ExportWave(trim(MS_wave_filenm), 0) ! export incident plane wave function
   end if
 
 ! ------------
@@ -2061,8 +2057,8 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
 ! - this code handles the wave function averging and sets indices
   if ( (MS_wave_export > 0 .or. MS_wave_avg_export > 0 .or. &
         MS_pint_export > 0 ) &
-     & .and. 0==modulo(ncurslice,MS_wave_export_pzp) ) then
-    MS_wave_avg_idx = ncurslice/MS_wave_export_pzp ! this should always give an integer number
+     & .and. MS_ldetpln(ncurslice) >= 0 ) then
+    MS_wave_avg_idx = MS_ldetpln(ncurslice) ! get the wave averaging slot
     MS_pint_idx = MS_wave_avg_idx
     call ExportWave(trim(MS_wave_filenm), ncurslice) ! export current wave function
     !

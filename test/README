@@ -4,10 +4,11 @@ by J. Barthel (ju.barthel@fz-juelich.de)
 Forschungszentrum Juelich GmbH, 52425 Juelich, Germany
 
 The following example calls are for test simulations and have
-no specifi purpose as to provide a starting point for checking
-the functionality of all program options. There is no guarantee
-that the calls work on your system. You may have to adopt them
-to your local operating system and file structure.
+no other specific purpose as to provide a starting point for
+checking the functionality of program options.
+There is no guarantee that the calls work on your system.
+You may have to adopt them to your local operating system,
+and file structure, and option you want to test.
 The intention is to call the tools from the drprobe_clt
 main source folder. All relevant input data should be present
 in the subfolder 'test' which is contained in the repository

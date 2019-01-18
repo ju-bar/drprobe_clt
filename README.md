@@ -96,7 +96,7 @@ The programs are written in Fortran 90 code for Intel Fortran compilers.
 
 Current versions:
 * CELSLC: 0.70
-* MSA: 0.91
+* MSA: 0.92
 * WAVIMG: 0.70
 
 The code of the program MSA links to "libfftwf-3.3.lib"

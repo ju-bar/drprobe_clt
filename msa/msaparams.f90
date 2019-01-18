@@ -101,6 +101,7 @@ MODULE MSAparams
   public :: MSP_ALLOCPGR, MSP_PREALLOCPGR, MSP_ALLOCDET
   public :: MSP_GetRandomProbeDefocus
   public :: MSP_GetRandomProbeShift
+  public :: MSP_SetDetectionPlanes
   public :: MSP_SetAnnularDetectors
   public :: MSP_SetRectangularDetectors
 !  public :: MSP_SetCalibratedDetectors
@@ -380,16 +381,26 @@ MODULE MSAparams
   integer*4, public :: MSP_SLC_num ! number of allocated phasegratings in MSP_phasegrt
   DATA MSP_SLC_num /0/
   
-! detector parameters
-  integer*4, public :: MSP_detslc                           ! detector read out period [slices]
+! detection parameters
+  integer*4, public :: MSP_detslc                           ! detector periodic read-out period [# slices]
   DATA MSP_detslc /0/
   integer*4, public :: MSP_usedetdef                        ! detector definition file, usage flag
   DATA MSP_usedetdef /0/
   character(len=MSP_ll), public :: MSP_detfile              ! detecor definition file name
   integer*4, public :: MSP_detnum                           ! number of defined detectors
   DATA MSP_detnum /0/
-  integer*4, public :: MSP_detpln                           ! number of readout planes (for output handling)
+  integer*4, public :: MSP_detpln                           ! number of readout planes (for output handling) = sum(MSP_ldetpln)
   DATA MSP_detpln /0/
+  integer*4, public :: MSP_useldet                          ! flag to use an external detection plane list -> MSP_ldetfile
+  DATA MSP_useldet /0/                                      ! -> 0: use periodic readout by MSP_detslc, 1: use MSP_ldetfile
+  character(len=MSP_ll), public :: MSP_ldetfile             ! file with a list of detection planes (option -detslc)
+  integer*4, public, allocatable :: MSP_ldetpln(:)          ! flag and link list of detection planes (general and decisive) (0:MS_stacksize)
+                                                            ! MSP_ldetpln(i) == j : detection at slice i into storage slot j
+                                                            ! MSP_ldetpln(i) == -1 : no detection at slice i
+  integer*4, public, allocatable :: MSP_hdetpln(:)          ! Backwards detection hash
+                                                            ! MSP_hdetpln(j) == i : detection slot j stores data of slice i
+                                                            ! MSP_hdetpln(j) == -1 : detection slot j is not used
+  
 ! detector definitions
   real*4, dimension(:,:), allocatable, public :: MSP_detdef ! detector definitions
   character(len=MSP_ll), dimension(:), allocatable, public :: MSP_detname ! detector names
@@ -468,12 +479,14 @@ SUBROUTINE MSP_INIT()
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 100
+  integer*4 :: nalloc
 ! ------------
 
 
 ! ------------
 ! INIT
 !  write(unit=*,fmt=*) " > MSP_INIT: INIT."
+  nalloc = 0
   MSP_compile_version = MSP_VERSION_NORMAL  !MSP_VERSION_SERVICE !MSP_VERSION_NORMAL
 ! ------------
 
@@ -545,20 +558,16 @@ SUBROUTINE MSP_INIT()
   MSP_PC_spatial = 0
   MSP_SC_repeatx = 1
   MSP_SC_repeaty = 1
-  if (allocated(MSP_SLC_object)) then
-    deallocate(MSP_SLC_object)
-  end if
-  if (allocated(MSP_phasegrt)) then
-    deallocate(MSP_phasegrt)
-    MSP_SLC_num = 0
-  end if
-  if (allocated(MSP_SLC_setup)) then
-    deallocate(MSP_SLC_setup)
-  end if
-  if (allocated(MSP_SLC_title)) then
-    deallocate(MSP_SLC_title)
-  end if
+  if (allocated(MSP_SLC_object)) deallocate(MSP_SLC_object, stat=nalloc)
+  if (allocated(MSP_phasegrt)) deallocate(MSP_phasegrt, stat=nalloc)
+  if (allocated(MSP_SLC_setup)) deallocate(MSP_SLC_setup, stat=nalloc)
+  if (allocated(MSP_SLC_title)) deallocate(MSP_SLC_title, stat=nalloc)
+  if (allocated(MSP_ldetpln)) deallocate(MSP_ldetpln, stat=nalloc)
+  if (allocated(MSP_hdetpln)) deallocate(MSP_hdetpln, stat=nalloc)
+  MSP_SLC_num = 0
   MSP_usedetdef = 0
+  MSP_useldet = 0
+  MSP_detpln = 0
 ! ------------
 
 ! ------------
@@ -591,77 +600,34 @@ SUBROUTINE MSP_UNINIT()
 ! ------------
 
 ! ------------
-  if (allocated(MSP_SLC_object)) then
-    deallocate(MSP_SLC_object,stat=nalloc)
-  end if
-  if (allocated(MSP_phasegrt)) then
-    deallocate(MSP_phasegrt,stat=nalloc)
-    MSP_SLC_num = 0
-  end if
-  if (allocated(MSP_SLC_title)) then
-    deallocate(MSP_SLC_title,STAT=nalloc)
-  end if
-  if (allocated(MSP_SLC_setup)) then
-    deallocate(MSP_SLC_setup,STAT=nalloc)
-  end if
-  if (allocated(MSP_detdef)) then
-    deallocate(MSP_detdef,stat=nalloc)
-  end if
-  if (allocated(MSP_pdiftmp)) then
-    deallocate(MSP_pdiftmp,stat=nalloc)
-  end if
-  if (allocated(MSP_pdettmp)) then
-    deallocate(MSP_pdettmp,stat=nalloc)
-  end if
-  if (allocated(MSP_detname)) then
-    deallocate(MSP_detname,stat=nalloc)
-  end if
-  if (allocated(MSP_detresult)) then
-    deallocate(MSP_detresult,stat=nalloc)
-  end if
-  if (allocated(MSP_detresult_ela)) then
-    deallocate(MSP_detresult_ela,stat=nalloc)
-  end if
-  if (allocated(MSP_detarea)) then
-    deallocate(MSP_detarea,stat=nalloc)
-  end if
-  if (allocated(MSP_detmask)) then
-    deallocate(MSP_detmask,stat=nalloc)
-  end if
-  if (allocated(MSP_detmasklen)) then
-    deallocate(MSP_detmasklen,stat=nalloc)
-  end if
-  if (allocated(MSP_detrspdat)) then
-    deallocate(MSP_detrspdat,stat=nalloc)
-  end if
-  if (allocated(MSP_detrspfile)) then
-    deallocate(MSP_detrspfile,stat=nalloc)
-  end if
-  if (allocated(MSP_detrsphdr)) then
-    deallocate(MSP_detrsphdr,stat=nalloc)
-  end if
-  if (allocated(MSP_Kmomresult)) then
-    deallocate(MSP_Kmomresult,stat=nalloc)
-  end if
-  if (allocated(MSP_Kmomresult_ela)) then
-    deallocate(MSP_Kmomresult_ela,stat=nalloc)
-  end if
+  if (allocated(MSP_SLC_object)) deallocate(MSP_SLC_object,stat=nalloc)
+  if (allocated(MSP_phasegrt)) deallocate(MSP_phasegrt,stat=nalloc)
+  MSP_SLC_num = 0
+  if (allocated(MSP_ldetpln)) deallocate(MSP_ldetpln, stat=nalloc)
+  if (allocated(MSP_hdetpln)) deallocate(MSP_hdetpln, stat=nalloc)
+  MSP_detpln = 0
+  if (allocated(MSP_SLC_title)) deallocate(MSP_SLC_title,STAT=nalloc)
+  if (allocated(MSP_SLC_setup)) deallocate(MSP_SLC_setup,STAT=nalloc)
+  if (allocated(MSP_detdef)) deallocate(MSP_detdef,stat=nalloc)
+  if (allocated(MSP_pdiftmp)) deallocate(MSP_pdiftmp,stat=nalloc)
+  if (allocated(MSP_pdettmp)) deallocate(MSP_pdettmp,stat=nalloc)
+  if (allocated(MSP_detname)) deallocate(MSP_detname,stat=nalloc)
+  if (allocated(MSP_detresult)) deallocate(MSP_detresult,stat=nalloc)
+  if (allocated(MSP_detresult_ela)) deallocate(MSP_detresult_ela,stat=nalloc)
+  if (allocated(MSP_detarea)) deallocate(MSP_detarea,stat=nalloc)
+  if (allocated(MSP_detmask)) deallocate(MSP_detmask,stat=nalloc)
+  if (allocated(MSP_detmasklen)) deallocate(MSP_detmasklen,stat=nalloc)
+  if (allocated(MSP_detrspdat)) deallocate(MSP_detrspdat,stat=nalloc)
+  if (allocated(MSP_detrspfile)) deallocate(MSP_detrspfile,stat=nalloc)
+  if (allocated(MSP_detrsphdr)) deallocate(MSP_detrsphdr,stat=nalloc)
+  if (allocated(MSP_Kmomresult)) deallocate(MSP_Kmomresult,stat=nalloc)
+  if (allocated(MSP_Kmomresult_ela)) deallocate(MSP_Kmomresult_ela,stat=nalloc)
   MSP_KmomNum = 0
-  if (allocated(MSP_Kmomwgt)) then
-    deallocate(MSP_Kmomwgt,stat=nalloc)
-  end if
-  if (allocated(MSP_Kmommask)) then
-    deallocate(MSP_Kmommask,stat=nalloc)
-  end if
-  if (allocated(MSP_Kmomhash)) then
-    deallocate(MSP_Kmommask,stat=nalloc)
-  end if
-  if (allocated(MSP_Kmomgx)) then
-    deallocate(MSP_Kmommask,stat=nalloc)
-  end if
-  if (allocated(MSP_Kmomgy)) then
-    deallocate(MSP_Kmommask,stat=nalloc)
-  end if
+  if (allocated(MSP_Kmomwgt)) deallocate(MSP_Kmomwgt,stat=nalloc)
+  if (allocated(MSP_Kmommask)) deallocate(MSP_Kmommask,stat=nalloc)
+  if (allocated(MSP_Kmomhash)) deallocate(MSP_Kmommask,stat=nalloc)
+  if (allocated(MSP_Kmomgx)) deallocate(MSP_Kmommask,stat=nalloc)
+  if (allocated(MSP_Kmomgy)) deallocate(MSP_Kmommask,stat=nalloc)
 ! ------------
 
 ! ------------
@@ -1048,13 +1014,16 @@ SUBROUTINE MSP_READBLOCK_multislice(nunit)
   else
     goto 18
   end if
+
+! ***********************
+! POST-PROCESSING
   call MSP_GetNumberOfDigits(MS_slicenum,MSP_nslcd)
   MSP_nslcd = max(3,MSP_nslcd) ! min. number of expected digits defining the slice number in the file name
   call MSP_GetNumberOfDigits(max(MSP_SF_ndimx,MSP_SF_ndimy),MSP_nn1d)
   MSP_nn1d = max(3,MSP_nn1d)
   
 ! ***********************
-!   CHECKS
+! CHECKS
 
   
   if (sqrt(MS_objtiltx**2+MS_objtilty**2)>10.0) then
@@ -1159,16 +1128,16 @@ SUBROUTINE MSP_READBLOCK_multislice(nunit)
     call PostMessage("            ... ["//trim(MSP_stmp)//"]")
     write(unit=MSP_stmp,fmt='(A,I5)') "number of slices in object:",MS_stacksize
     call PostMessage(trim(MSP_stmp))
-!    if (MS_stacksize>0) then
-!      write(unit=MSP_stmp,fmt='(A,<MS_stacksize>I5)') "slice order:",MSP_SLC_object(1:MS_stacksize)
-!      call PostMessage(trim(MSP_stmp))
-!    end if
-    if (MSP_detslc<=0) then
-      write(unit=MSP_stmp,fmt='(A,I4,A)') "detector readout at last slice (",MS_stacksize,")."
-      call PostMessage(trim(MSP_stmp))
+    if (MSP_useldet) then
+      call PostMessage("detector readout according to list ("//trim(MSP_ldetfile)//").")
     else
-      write(unit=MSP_stmp,fmt='(A,I4,A)') "detector readout every ",MSP_detslc," slices."
-      call PostMessage(trim(MSP_stmp))
+      if (MSP_detslc<=0) then
+        write(unit=MSP_stmp,fmt='(A,I4,A)') "detector readout at last slice (",MS_stacksize,")."
+        call PostMessage(trim(MSP_stmp))
+      else
+        write(unit=MSP_stmp,fmt='(A,I4,A)') "detector readout every ",MSP_detslc," slices."
+        call PostMessage(trim(MSP_stmp))
+      end if
     end if
     
   end if
@@ -1185,6 +1154,7 @@ SUBROUTINE MSP_READBLOCK_multislice(nunit)
 17 call CriticalError("Failed reading float parameter from file.")
 18 call CriticalError("Invalid number of object slices.")
 19 call CriticalError("Failed to locate slice files.")
+20 call CriticalError("Failed to allocate memory.")   
 
 END SUBROUTINE MSP_READBLOCK_multislice
 !**********************************************************************!
@@ -2020,6 +1990,122 @@ END SUBROUTINE MSP_ALLOCDET
 
 !**********************************************************************!
 !**********************************************************************!
+SUBROUTINE MSP_SetDetectionPlanes()
+! function: sets hash lists for detection in slice planes
+!             MSP_ldetpln(i) == j : detection in slice i to slot j
+!             MSP_hdetpln(j) == i : slot j contains signal of slice i
+!           sets number of detection planes: MSP_detpln
+! -------------------------------------------------------------------- !
+! parameter: 
+! -------------------------------------------------------------------- !
+
+  implicit none
+
+! ------------
+! DECLARATION
+  integer*4, parameter :: subnum = 2200
+  integer*4 :: i, j, nerr, nalloc, lfu, noslc, iper
+  external :: GetFreeLFU
+! ------------
+
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > MSP_SetDetectionPlanes: INIT."
+  nalloc = 0
+  nerr = 0
+  lfu = 0
+  noslc = MS_stacksize
+! ------------
+  
+  
+! ------------
+  if (allocated(MSP_ldetpln)) deallocate(MSP_ldetpln, stat=nalloc)
+  if (allocated(MSP_hdetpln)) deallocate(MSP_hdetpln, stat=nalloc)
+  if (allocated(MS_ldetpln)) deallocate(MS_ldetpln, stat=nalloc)
+  if (allocated(MS_hdetpln)) deallocate(MS_hdetpln, stat=nalloc)
+  MSP_detpln = 0
+  if (noslc <= 0) return
+  allocate(MSP_ldetpln(0:noslc), MSP_hdetpln(0:noslc), &
+    & MS_ldetpln(0:noslc), MS_hdetpln(0:noslc), stat=nalloc)
+  if (nalloc/=0) then
+    call MSP_ERROR("Failed to allocate detection plane lists.", subnum+1)
+    return
+  end if
+  MSP_ldetpln = -1 ! turn off the detection
+  MSP_hdetpln = -1 ! preset negative, indicating unset hash item
+  MS_ldetpln = -1
+  MS_hdetpln = -1
+! ------------
+
+
+! ------------
+  if (MSP_useldet>0) then ! flag only planes listed in the file
+    ! load the detection list file and set the flags
+    ! - open
+    call GetFreeLFU(lfu, 20, 100)
+    open (unit=lfu, file=trim(MSP_ldetfile), iostat=nerr, &
+      &   action="read", share='DENYNONE')
+    if (nerr/=0) then
+      call MSP_ERROR("MSP_SetDetectionPlanes: Failed to open file ["// &
+        &  trim(MSP_ldetfile)//"].", subnum+2)
+      return
+    end if
+    ! - read & set
+    nerr = 0
+    j = 0
+    do while (nerr==0)
+      read(unit=lfu, fmt=*, iostat=nerr) i
+      if (nerr==0) then
+        if (i>=0 .and. i<=noslc) then ! detection at slice i
+          MSP_ldetpln(i) = j ! set flag i -> use slot j
+          MSP_hdetpln(j) = i ! set hash j -> i
+          j = j + 1 ! increment number of slots
+        end if
+      end if
+    end do
+    MSP_detpln = j ! store number of slots
+    ! - close
+  else ! flag periodic plane sequence
+    if (MSP_detslc>0) then ! periodic readout with zero plane and max. thickness
+      iper = min(MSP_detslc,noslc)
+      j = 0
+      do i=0, noslc ! determine number of export planes
+        if (0/=modulo(i,iper)) cycle ! this slice is skipped for output
+        MSP_ldetpln(i) = j ! set flag i -> use slot j
+        MSP_hdetpln(j) = i ! set hash j -> i
+        j = j + 1 ! increment number of slots
+      end do
+      if (MSP_ldetpln(noslc)<0) then ! exit-plane not used yet
+        MSP_ldetpln(noslc) = j ! set flag noslc -> use slot j
+        MSP_hdetpln(j) = noslc ! set hash j -> noslc
+        j = j + 1 
+      end if
+      MSP_detpln = j ! store number of slots
+    else ! only maximum thickness, no zero plane
+      j = 0
+      MSP_ldetpln(noslc) = j ! set flag noslc -> use slot j
+      MSP_hdetpln(j) = noslc ! set hash j -> noslc
+      j = 1
+      MSP_detpln = j ! store number of slots
+    end if
+  end if
+  ! copy detection lists to module MultiSlice
+  MS_ldetpln = MSP_ldetpln
+  MS_hdetpln = MSP_hdetpln
+! ------------
+
+
+! ------------
+!  write(unit=*,fmt=*) " > MSP_SetDetectionPlanes: EXIT."
+  return
+
+END SUBROUTINE MSP_SetDetectionPlanes
+!**********************************************************************!
+
+
+!**********************************************************************!
+!**********************************************************************!
 SUBROUTINE MSP_GetRandomProbeDefocus(fs, dz)
 ! function: calculates a random defocus from focus-spread parameters
 ! -------------------------------------------------------------------- !
@@ -2181,10 +2267,9 @@ SUBROUTINE MSP_InitTextOutput(nerr)
   integer*4, parameter :: subnum = 1400
   integer*4, intent(inout) :: nerr
 
-  integer*4 :: i, k, lfu, ioerr, ndet, nslcmax, nslc, ndetect
-  
+  integer*4 :: i, k, l, lfu, ioerr, ndet, nkmom, nslcmax, nslc, nsig
+  character(len=12) :: snumk, snuml
   character(len=MSP_ll) :: sline
-  
   external :: GetFreeLFU ! (lfu,lfu0,lfumax)
   external :: createfilefolder
 ! ------------
@@ -2199,14 +2284,18 @@ SUBROUTINE MSP_InitTextOutput(nerr)
                             ! Just leave.
 ! Determine the number of detectors
   ndet = max(1,MSP_detnum)
+! Determine number of k-moment components
+  nkmom = 0
+  if (MSP_Kmomout > 0 .and. MSP_KmomNum > 0) then
+    nkmom = MSP_KmomNum
+  end if
 ! Determine the number of output slices -> nslc
   nslcmax = MS_stacksize
-  ndetect = nslcmax
-  if (MSP_detslc>0) ndetect = min(MSP_detslc,nslcmax)
-  nslc = 0
-  do i=1, nslcmax
-    if (0==modulo(i,ndetect)) nslc = nslc + 1
-  end do
+  nslc = MSP_detpln ! set number of detection planes
+  if (ndet+nkmom <=0 .or. nslc <= 0) return ! no detectors or slices
+! Determine number of signal items
+  nsig = 1 ! number of signal (1=total, 3=total,elastic,tds)
+  if (MS_wave_avg_export > 0) nsig = 3
 ! ------------
 
 ! ------------
@@ -2221,29 +2310,48 @@ SUBROUTINE MSP_InitTextOutput(nerr)
 
 ! ------------
 ! Write the detector list to file
-  write(unit=sline, fmt='(I)') ndet                            ! line 1: number of detectors
+  write(unit=sline, fmt='(I)') ndet + nkmom                    ! line 1: number of detectors + k-space moment components
   write(unit=lfu, fmt='(A)') trim(adjustl(sline))
-  do k=1, ndet                                                 ! lines 2 - 1+ndet: detector names
-    write(unit=lfu, fmt='(A)') "'"//trim(MSP_detname(k))//"'"
-  end do
+  if (ndet>0) then
+    do k=1, ndet                                                 ! lines 2 -> 1+ndet: detector names
+      write(unit=lfu, fmt='(A)') "'"//trim(MSP_detname(k))//"'"
+    end do
+  end if
+  if (nkmom>0) then
+    do k=0, MSP_KmomMmax
+      write(unit=snumk,fmt='(I4)') k
+      do l=0, k                                                  ! lines 2 -> 1+ndet+nkmom: detector names
+        write(unit=snuml,fmt='(I4)') l
+        write(unit=lfu, fmt='(A)') "'kmom"//trim(adjustl(snumk))//"-"//&
+          & trim(adjustl(snuml))//"'"
+      end do
+    end do
+  end if
 ! ------------
 
 ! ------------
 ! Write the slice list to file
-  write(unit=sline, fmt='(I)') nslc                            ! line 2+ndet: number of detection planes ( = length of detector arrays)
+  write(unit=sline, fmt='(I)') nslc                            ! line 2+ndet+nkmom: number of detection planes ( = length of detector arrays)
   write(unit=lfu, fmt='(A)') trim(adjustl(sline))
-  do i=1, nslcmax                                              ! line 3+ndet - 2+ndet+nslc: detection plane indices
-    if (0/=modulo(i,ndetect)) cycle ! skip this slice
+  do i=0, nslcmax                                              ! line 3+ndet+nkmom -> 2+ndet+nkmom+nslc: detection plane indices
+    if (MSP_ldetpln(i)<0) cycle ! skip this slice
     write(unit=sline, fmt='(I)') i
     write(unit=lfu, fmt='(A)') trim(adjustl(sline))
   end do
 ! ------------
-
+  
+! ------------
+! Write number of values per line
+! 1: total intensity
+! 3: total, elastic and TDS intensity
+  write(unit=sline, fmt='(I)') nsig                            ! line 4+ndet+nkmom+nslc: number of number of values per line
+  write(unit=lfu, fmt='(A)') trim(adjustl(sline))
+! ------------
+  
 ! ------------
 ! Close the file
   close(unit=lfu, iostat=ioerr)
 ! ------------
-
 
 ! ------------
 !  write(unit=*,fmt=*) " > MSP_InitTextOutput: EXIT."
@@ -2270,13 +2378,12 @@ SUBROUTINE MSP_WriteTextOutput(nerr)
   integer*4, parameter :: subnum = 1500
   integer*4, intent(inout) :: nerr
 
-  integer*4 :: i, k, lfu, ioerr, ndet, nslcmax, ndetect, nkmom
-  
+  integer*4 :: i, k, lfu, ioerr, ndet, nslcmax, nkmom, nsig
+  real*4 :: rsig(3)
   character(len=MSP_ll) :: sline, stmp1, stmp2
   
   external :: GetFreeLFU ! (lfu,lfu0,lfumax)
 ! ------------
-
 
 ! ------------
 ! INIT
@@ -2293,10 +2400,10 @@ SUBROUTINE MSP_WriteTextOutput(nerr)
   end if
 ! Determine the number of output slices
   nslcmax = MS_stacksize
-  ndetect = nslcmax
-  if (MSP_detslc>0) ndetect = min(MSP_detslc,nslcmax)
+! Determine number of signal items
+  nsig = 1 ! number of signal (1=total, 3=total,elastic,tds)
+  if (MS_wave_avg_export > 0) nsig = 3
 ! ------------
-
 
 ! ------------
 ! Open the existing file
@@ -2309,7 +2416,6 @@ SUBROUTINE MSP_WriteTextOutput(nerr)
   end if
 ! ------------
 
-
 ! ------------
 ! Write the current record to the file
   write(unit=lfu, fmt='(A)') "1" ! new record indicator
@@ -2318,30 +2424,38 @@ SUBROUTINE MSP_WriteTextOutput(nerr)
   write(unit=lfu, fmt='(A)') trim(adjustl(stmp1))//", "//trim(adjustl(stmp2)) ! scan pixel numbers
   if (ndet>0) then ! write detector readout results
     do k=1, ndet ! loop over detectors
-      do i=1, nslcmax ! loop over thickness
-        if (0/=modulo(i,ndetect)) cycle
-        write(unit=sline, fmt='(E14.6)') MSP_detresult(k,i)
+      do i=0, nslcmax ! loop over thickness
+        if (MSP_ldetpln(i)<0) cycle ! skip this plane, no detection here
+        rsig(1) = MSP_detresult(k,i) ! default with total intensity only
+        if (nsig==3) then ! include elastic and tds data
+          rsig(2) = MSP_detresult_ela(k,i) ! elastic signal
+          rsig(3) = rsig(1) - rsig(2) ! tds = tot - ela
+        end if
+        write(unit=sline, fmt='(<nsig>E14.6)') rsig(1:nsig) ! write nsig items
         write(unit=lfu, fmt='(A)') trim(adjustl(sline)) ! the intensity data
       end do
     end do
   end if
   if (nkmom>0) then ! write k-moment components
     do k=1, nkmom ! loop over components
-      do i=1, nslcmax ! loop over thickness
-        if (0/=modulo(i,ndetect)) cycle
-        write(unit=sline, fmt='(E14.6)') MSP_Kmomresult(k,i)
+      do i=0, nslcmax ! loop over thickness
+        if (MSP_ldetpln(i)<0) cycle ! skip this plane, no detection here
+        rsig(1) = MSP_Kmomresult(k,i) ! default with total intensity only
+        if (nsig==3) then ! include elastic and tds data
+          rsig(2) = MSP_Kmomresult_ela(k,i) ! elastic signal
+          rsig(3) = rsig(1) - rsig(2) ! tds = tot - ela
+        end if
+        write(unit=sline, fmt='(<nsig>E14.6)') rsig(1:nsig) ! write nsig items
         write(unit=lfu, fmt='(A)') trim(adjustl(sline)) ! the k-moment data
       end do
     end do
   end if
 ! ------------
 
-
 ! ------------
 ! Close the file
   close(unit=lfu, iostat=ioerr)
 ! ------------
-
 
 ! ------------
 !  write(unit=*,fmt=*) " > MSP_WriteTextOutput: EXIT."
@@ -3326,7 +3440,7 @@ END MODULE MSAparams
 
 ! ------------
 ! DECLARATION
-!  integer*4, parameter :: subnum = 2200
+!  integer*4, parameter :: subnum = 2300
 !
 ! ------------
 

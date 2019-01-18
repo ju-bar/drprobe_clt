@@ -1,13 +1,13 @@
 !**********************************************************************
 !
-!  PROGRAM: msa, version 0.91
+!  PROGRAM: msa, version 0.92
 !  FILE: msa.f90
 !  PURPOSE:  Entry point for the console application MSA.
 !            Multislice calculation for electron diffraction
 !
 !**********************************************************************
 !                                                                      
-!   Date: 2018-01-15
+!   Date: 2018-01-18
 !                                                                      
 !   Author: Juri Barthel                                               
 !           Ernst Ruska-Centre                                         
@@ -66,7 +66,7 @@ program msa
   
 ! ------------
 ! declare constants and variables
-  integer :: nerr, prm_px, prm_py, lpx, lpy, mpx, mpy, i, j
+  integer :: nerr, prm_px, prm_py, lpx, lpy, mpx, mpy
   
   external :: InitRand
   
@@ -79,7 +79,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "0.91b 64-bit  -  2019 Jan  16  -"
+  MSP_verApp  =                   "0.92b 64-bit  -  2019 Jan  18  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -226,7 +226,7 @@ program msa
 
 
 ! ------------
-! INITIALIZE WAVE GENERATION MODULE
+! HANDLE COMMAND-LINE PARAMETER OVERRIDES
   MS_nslid = MSP_nslid
   if (MSP_use_extdefocus/=0) then ! update the defocus using the external command line parameter
     call STF_SetAberration(2,MSP_extdefocus,0.0)
@@ -242,6 +242,10 @@ program msa
     call PostMessage("- overriding object tilt by command-line parameter: otx="// &
        & trim(adjustl(MSP_stmp))//", oty="//trim(adjustl(MSP_stmp2))//" deg.")
   end if
+! ------------
+  
+! ------------
+! INITIALIZE WAVE GENERATION MODULE
   if (MSP_ctemmode/=0) then ! by default switch the wave export ON in CTEM mode
     MS_wave_export = 1 ! activate wave function export by default in CTEM mode
     MS_wave_export_form = 0 ! set to real-space export by default
@@ -250,19 +254,8 @@ program msa
     MS_wave_filenm_bk = MS_wave_filenm
     MS_wave_filenm_avg = MS_wave_filenm
     call PostDebugMessage("Switched wave export ON by default in CTEM mode.")
-    if (MS_wave_avg_export>0) MS_wave_avg_export = 1
   end if
-  if (MSP_detslc>0) then
-    MS_wave_export_pzp = MSP_detslc
-    j = min(MSP_detslc,MS_stacksize)
-    do i=1, MS_stacksize ! determine number of export planes
-      if (0/=modulo(i,j)) cycle ! this slice is skipped for output
-      MSP_detpln = MSP_detpln + 1
-    end do
-  else
-    MS_wave_export_pzp = MS_stacksize ! default wave readout position
-    MSP_detpln = 1
-  end if
+  call MSP_SetDetectionPlanes() ! set detection planes from input parameters
   write(unit=MSP_stmp,fmt=*) MSP_detpln
   call PostMessage("- number of output planes: "//trim(adjustl(MSP_stmp)))  
   call PostRuntime("probe generation initialized", 1)

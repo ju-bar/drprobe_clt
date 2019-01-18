@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 0.91b                                  #
+#   HOWTO use the program MSA, Version 0.92b                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-01-16                                                          #
+#   Date: 2019-01-18                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -35,8 +35,7 @@ CONTENT OF THIS FILE:
 3) License
 4) Usage and command-line options
 5) The parameter file formats
-6) Multislice calculation setup examples
-7) History of changes
+6) History of changes
 
 
 #-----------------------------------------------------------------------------#
@@ -120,7 +119,9 @@ Command-line calling options for the program msa.exe:
 >     [/silent, show no processing output]
 >     [] = optional parameter
 
-Examples:
+
+4.1) Examples:
+
 - STEM mode:
   - Calculation of a full STEM image:
     msa -prm "msa.prm" -out "stemimage.dat"
@@ -139,7 +140,8 @@ Examples:
     msa -prm "msa.prm" -out "epw.wav" -inw "incident.wav" 1 /ctem
 
 
-Detailed explanation of program options:
+4.2) Detailed explanation of program options:
+
 
 -prm "file name"
 
@@ -270,7 +272,7 @@ Detailed explanation of program options:
 /3dout [optional]
 
 	The output is written in larger files containing 3d data, where
-	The third dimension represents the sample thickness. One file is
+	the third dimension represents the sample thickness. One file is
 	generated for each detector and a respective suffix with
 	the detector name is appended.
 
@@ -327,21 +329,32 @@ Detailed explanation of program options:
 
 
 
-Additional and experimental options (not tested):
+4.3) Additional, experimental options which are not tested thoroughly
+or are still under development:
+
+-detslc (file name)
+
+	Input of slice numbers by a text file. These numbers define the
+	slices, where detector readout and other data output will be done.
+	The text file should provide a list of integer numbers with
+	one number per line. The incident plane is identified by 0.
+	This option overrides the periodic detection input made by the
+	parameter file.
 
 
 -kmom (integer value) (float value) [optional]
 
 	Output 32-bit k-space momentum images for each integral moment of
-	teh order 0 up to the first integer parameter. The second parameter
+	the order 0 up to the first integer parameter. The second parameter
 	defines the maximum range of moment integration in mrad. Output
-	moment images contain all (m+1) components of moments of a given
-	order m.
-	Moment form: m = order, l = component {0, ... , m+1}
+	moment images are saved for each of the (m+1) components for a 
+	moment of order m.
+	Moment form: m = order, l = component {0, ... , m}
 	<k^m_l> = Sum[kx^(m-l) ky^l I(kx,ky)]_{kx,ky} / <I_tot>
 	<I_tot> = Sum[I(kx,ky)]_{kx,ky}
-	A suffix "_com<m>" is added to the output file names, where	<m>
-	specifes the moment order. (STEM only)
+	A suffix "_kmom<m>-<l>" is added to the output file names, where
+	<m>	specifes the moment order and <l> is the index of the
+	component beginning with 0 up to m. (STEM only)
 
 
 -vtx (integer number) [optional]
@@ -419,15 +432,12 @@ and format of the main parameter file and optional secondary parameter files
 are defined below.
 
 
-INPUT FILE FORMATS
-
-DEFINITION OF THE MSA MAIN PARAMETER FILE
+5.1) Definition of the MSA parameter file format
 
 The parameter file is written as line based unformatted ascii or ansi table.
 The file is separated by block tags: '[Microscope Parameters]' and 
 '[Multislice Parameters]' these two block tags must appear, otherwise 
 parameters will not be read in properly.
-
 
 What follows this line is a commented example of an MSA parameter file:
 '[Microscope Parameters]'
@@ -496,11 +506,9 @@ What follows this line is a commented example of an MSA parameter file:
 7
 (End of the MSA parameter file).
 
-
-
-The MSA main parameter file allows you to provide an additional parameter
-file defining a series of STEM detectors to be used in the calculation of
-STEM image intensity data. This file may further link to additional files
+In line 5, the MSA main parameter file allows you to link to an additional
+parameter file defining a series of STEM detectors to be used in the
+calculation of STEM images. This file may further link to additional files
 specifying the radial detector sensitivity.
 
   [MSA main parameter file]
@@ -514,12 +522,11 @@ specifying the radial detector sensitivity.
                +-(OPTIONAL)-[Individual detector sensitivity profile]
                
                
-
-DEFINITION OF THE DETECTOR PARAMETER FILE FORMAT:
+5.2) Definition of the detector parameter file format
 
 Use a detector parameter file to define a series of detectors. The parameter
 file is a text file consisting of 3 header lines followed by a variable
-number of data lines defining each one detector.
+number of data lines, each defining one detector.
 
 If you define more than one detector, MSA will generate a series of output
 files. A suffix string will be added according to the namestring parameter
@@ -531,24 +538,23 @@ Detector parameter file format used by msa v0.70b+
 line 1:	PRMNAME: string = "[Detector Parameters]"
 line 2: VERSION: long integer = 2016021801 (determines how data is read in)
 line 3:	DETNUM: Integer = Number of detectors defined in the following lines.
-line 4 - line 4+$DETNUM: DETDEF(R1,R2,A1,A2,C1,C2,DN,DS) = Detector definitions.
+line 4 - line 4+$DETNUM: DETDEF(R1,R2,A1,A2,C1,C2,DN,DS) = detector definition
 
-		Detector definitions (DETDEF) consist of 6 parameters
-		 (Float,Float,Float,Float,Float,Float,String,String)
+Detector definitions (DETDEF) consist of 8 parameters
+	(Float,Float,Float,Float,Float,Float,String,String)
 		 
-			parameter 1: R1: inner detector radius theta-1 [mrad]
-			parameter 2: R2: outer detector radius theta-2 [mrad]
-			parameter 3: A1: start azimuth phi-1 [deg]
-			parameter 4: A2: stop azimuth phi-2 [deg]
-			parameter 3: C1: decenter-theta-0-x [mrad]
-			parameter 4: C2: decenter-theta-0-y [mrad]
-			parameter 5: DN: detector name string
-			parameter 6: DS: detector sensitivity profile file name
+	parameter 1: R1: inner detector radius theta1 [mrad]
+	parameter 2: R2: outer detector radius theta2 [mrad]
+	parameter 3: A1: start azimuth phi1 [deg]
+	parameter 4: A2: stop azimuth phi2 [deg]
+	parameter 3: C1: decenter theta0_x [mrad]
+	parameter 4: C2: decenter theta0_y [mrad]
+	parameter 5: DN: detector name string, e.g. "HAADF", "ABF"
+	parameter 6: DS: detector sensitivity profile file name
 
 
-Below you find examples of detector definition files used
-by the program "msa" Versions 0.41b - 0.51b, 0.52b - 0.60b, 0.62b - 0.65b, and
-for later versions 0.70b+.
+Below you find examples of detector definition files currently used
+by the MSA versions 0.70b+.
 
 Example of a CURRENT detector definition file for v0.70b+
 '[Detector Parameters]'           (block ID string for detector definitions)
@@ -559,34 +565,9 @@ Example of a CURRENT detector definition file for v0.70b+
 10.0, 23.0, 0.0, 0.0, 0.0, 0.0, 'ABF', 'prm/GatanDF2-profile.dat'            (3rd ...)
 (End of detector parameter file example)
 
-Example of a detector definition file for v0.62b - v0.64b
-'[Detector Parameters]'           (block ID string for detector definitions)
-2013041001                        (detector file format version)
-3                                 (number of detector definitions following, only this number of lines will be read in the following, additional lines are ignored.)
-90.0, 220.0, 0.0, 0.0, 0.0, 0.0, 'HAADF'    (1st detector definition: inner radius [mrad], outer radius [mrad], start azimuth [deg], stop azimuth [deg], decenter-x [mrad], decenter-y [mrad], detector name string )
-30.0, 90.0, 0.0, 0.0, 0.0, 0.0, 'ADF'       (2nd ...)
-10.0, 23.0, 0.0, 0.0, 0.0, 0.0, 'ABF'       (3rd ...)
-(End of detector parameter file example)
-
-Example of a detector definition file for v0.52b - v0.60b
-'[Detector Parameters]'           (block ID string for detector definitions)
-3                                 (number of detector definitions following, only this number of lines will be read in the following, additional lines are ignored.)
-90.0, 220.0, 0.0, 0.0, 0.0, 0.0, 'HAADF'    (1st detector definition: inner radius [mrad], outer radius [mrad], start azimuth [deg], stop azimuth [deg], decenter-x [mrad], decenter-y [mrad], detector name string )
-30.0, 90.0, 0.0, 0.0, 0.0, 0.0, 'ADF'       (2nd ...)
-10.0, 23.0, 0.0, 0.0, 0.0, 0.0, 'ABF'       (3rd ...)
-(End of detector parameter file example)
-
-Example of a detector definition file for v0.41b - v0.51b
-'[Detector Parameters]'           (block ID string for detector definitions)
-4                                 (number of detector definitions following, only this number of lines will be read in the following, additional lines are ignored.)
-90.0, 220.0, 0.0, 0.0, 'HAADF'    (1st detector definition: inner radius [mrad], outer radius [mrad], start azimuth [deg], stop azimuth [deg], detector name string )
-30.0, 90.0, 0.0, 0.0, 'ADF'       (2nd ...)
-10.0, 23.0, 0.0, 0.0, 'ABF'       (3rd ...)
-0.0, 13.0, 0.0, 0.0, 'BF'         (4th ...)
-(End of detector parameter file example)
 
 
-DEFINITION OF DETECTOR RELATIVE RADIAL SENSITIVITY PROFILES
+5.3) Definition of detector relative radial sensitivity profiles
 
 These file may be used to define the radial sensitivity profile of each
 detector individually. The file name is specified in the detector parameter.
@@ -600,13 +581,13 @@ line 1: HEADER: NRS, PT1 (Integer, Float)
 line 2 - line (NRS+1): DATA : RS(NRS) (Float)
                 RS(NRS) = a list of sensitivity data.
 
-        The first data item of the list (RS(NRS) is associated to the center
-        of the detector area.
-        In order to make the calculation comparable to the experiment,
-        scale the experiment with the average detector sensitivity as
-        calculated from the whole active area. Then scale the detector
-        radial sensitivity profile relaltive to the same value.
-        The resulting relative radial profile should be given in this list.
+The first data item of the list RS(NRS) is associated to the center
+of the detector area.
+In order to make the calculation comparable to the experiment,
+scale the experiment with the average detector sensitivity as
+calculated from the whole active area. Then scale the detector
+radial sensitivity profile relaltive to the same value.
+The resulting relative radial profile should be given in this list.
 
 Example of a detector sensitivity profile definition for v0.70b+
 512, 125.6               (HEADER line defining number of data and theta-1 pixel number)
@@ -623,16 +604,14 @@ Example of a detector sensitivity profile definition for v0.70b+
 
 
 
-OUTPUT FILE FORMATS
-
-DESCIPTION OF THE TEXT OUTPOUT FILE FORMAT
+5.4) Description of the text output file format
 
 The text output file format is meant to provide a simplified access to the
 msa output in STEM mode by calling processes. It contains a header defining
 the detector configuration used followed by a sequence of results for an
 arbitrary number of probe positions.
 
-This is the output file structure:
+This is the output file structure since version 0.92 of MSA:
 <number of detectors>	(= number of detection vectors, begin of header)
 <detector name 1>
 <detector name 2>
@@ -643,107 +622,91 @@ This is the output file structure:
 <plane index 2>
 ...
 <plane index M>			(end of header)
+<number of data items per data line> (1: total intensity, 3: total, elastic and TDS intensity)
 1                       (indicates that a data record follows)
 <px>, <py>              (2D probe scan position index)
-<data item 1 of detector 1>
-<data item 2 of detector 1>
+<data items in plane 1 of detector 1>
+<data items in plane 2 of detector 1>
 ...
-<data item M of detector 1>
-<data item 1 of detector 2>
-<data item 2 of detector 2>
+<data items in plane M of detector 1>
+<data items in plane 1 of detector 2>
+<data items in plane 2 of detector 2>
 ...
-<data item M of detector 2>
+<data items in plane M of detector 2>
 ...
-<data item 1 of detector N>
-<data item 2 of detector N>
+<data items in plane 1 of detector N>
+<data items in plane 2 of detector N>
 ...
-<data item M of detector N>
+<data items in plane M of detector N>
 1                       (indicates that another record follows)
 ...
 0                       (indicates end of file, no more data follows)
 
+Example text output for a calculation of 1 STEM pixel (0,0) at specific
+thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
+3
+'HAADF'
+'ABF'
+'BF'
+8
+0
+1
+2
+4
+8
+12
+20
+28
+1
+1
+0, 0
+0.000000E+00
+0.998987E-05
+0.150068E-04
+0.351879E-04
+0.915395E-04
+0.174323E-03
+0.525912E-03
+0.129828E-02
+0.699997E+00
+0.699407E+00
+0.698740E+00
+0.696954E+00
+0.692029E+00
+0.685826E+00
+0.671836E+00
+0.663951E+00
+0.764751E-02
+0.758834E-02
+0.750789E-02
+0.737502E-02
+0.715142E-02
+0.704146E-02
+0.721977E-02
+0.773697E-02
+0
 
 
 #-----------------------------------------------------------------------------#
 
 
-6) Multislice calculation setup examples
+6) History of changes
 
-
-Slices variants are selected randomly during every multislice calculation from
-alternative frozen lattice (FL) configurations. This allows on the one hand to
-average over different variations on one scan pixel, and on the otherhand to
-applay different configurations from scan pixel to scan pixel.
-
-
-EXAMPLE 1: FROZEN LATTICE CALCULATION WITH MULTIPLE CONFIGURATIONS, OBJECT IS
-           FULLY PERIODIC ALONG Z.
-- Slice file name: [SFN] = 'C:\Data\Simulation\STO\110\sli\slice'
-- Number of distinguished slices in the fully periodic unit cell: [NOSD] = 2 -> slice IDs 0 and 1
-- Number of frozen lattice alternatives: [NFLV] = 100, each of the 2 slice files contains 100 frozen lattice variants.
-- Since the slice files can be large, please check the total ammount of required and available memory before running msa. Avoid memory swapping to disk, this will cause drastic performance losses.
-- Total number of slices in the object: [NOS] = 40 (determines the object thickness = 20*(thickness of slice 1) + 20*(thickness of slice 2))
-- slice ID sequence: 0 1 0 1 0 1 0 1 0 1 ... 0 1 (minimum [NOS] = 40 lines! in the parameter file)
--> For every multislice msa selects randomly from the available alternatives.
-- applied slice 1,  ID=0: Variant 091
-- applied slice 2,  ID=1: Variant 007
-- applied slice 3,  ID=0: Variant 053
-- applied slice 4,  ID=1: Variant 044
-- applied slice 5,  ID=0: Variant 023
-- applied slice 6,  ID=1: Variant 002
-- applied slice 7,  ID=0: Variant 017
-........
-- applied slice 39, ID=0: Variant 038
-- applied slice 40, ID=1: Variant 072
--> when the number of frozen lattice calculations per pixel [NCPP] is larger than one, the random selection multislice is repeated [NCPP]-times and the obtained [NCPP] results are averaged.
--> every scan pixel is calculated with a different frozen lattice configuration
-
-
-EXAMPLE 2: FROZEN LATTICE CALCULATION WITH MULTIPLE CONFIGURATIONS,
-           OBJECT NOT PERIODIC ALONG Z, e.g. a nanoparticle.
-- Slice file name: [SFN] = 'C:\Data\Simulation\PTP\sli\slice'
-- Number of distinguished slices in the fully periodic unit cell: [NOSD] = 50 -> slice IDs 0 ... 49
-- Number of frozen lattice alternatives: [NFLV] = 10, each of the 50 slice files contains 10 frozen lattice variants.
-- Since the slice files can be large, please check the total ammount of required and available memory before running msa. Avoid memory swapping to disk, this will cause drastic performance losses.
-- Total number of slices in the object: [NOS] = 50
-- slice ID sequence: 0 1 2 3 4 5 ... 49 (minimum [NOS] = 50 lines! in the parameter file)
--> For every multislice msa selects randomly from the available alternatives.
-- applied slice 1,  ID=0: Variant 002
-- applied slice 2,  ID=1: Variant 007
-- applied slice 3,  ID=2: Variant 003
-- applied slice 4,  ID=3: Variant 004
-- applied slice 5,  ID=4: Variant 003
-- applied slice 6,  ID=5: Variant 002
-- applied slice 7,  ID=6: Variant 001
-........
-- applied slice 49, ID=48: Variant 008
-- applied slice 50, ID=49: Variant 006
--> when the number of frozen lattice calculations per pixel [NCPP] is larger than one, the random selection multislice is repeated [NCPP]-times and the obtained [NCPP] results are averaged.
--> every scan pixel is calculated with a slightly different frozen lattice configuration
-
-
-EXAMPLE 3: TEM SIMULATION OF A FULLY PERIODIC OBJECT WITHOUT FL CALCULATION
-- supply slice data containing the periodic unit cell along x and y, apply Debye-Waller factors and absorption potentials during slice generation
-- Integer factor to internally repeat supercell data in horizontal direction, x = 8
-- Integer factor to internally repeat supercell data in vertical direction, y = 10
-- Slice file name: [SFN] = 'C:\Data\Simulation\STO\110\sli\slitem'
-- Number of distinguished slices in the fully periodic unit cell: [NOSD] = 2 -> slice IDs 0 and 1
-- Number of frozen lattice alternatives: [NFLV] = 1 (actually no frozen lattice)
--> In total 2 slice files should be named as
-- - Slice 1 , slice ID= 0: 'C:\Data\Simulation\STO\110\sli\slitem_001.sli'
-- - Slice 2 , slice ID= 1: 'C:\Data\Simulation\STO\110\sli\slitem_002.sli'
--> These 2 files will be read in and the data is repeated 8 times along x and 10 times along y after loading.
-- Total number of slices in the object: [NOS] = 80
-- slice ID sequence: 0 1 0 1 0 1 0 1 0 1 ... 0 1 (minimum [NOS] = 80 lines! in the parameter file)
-- use the /ctem flag to start with a plane incident wave
--> result is saved as wave function data in complex-64-bit
-
-
-#-----------------------------------------------------------------------------#
-
-
-7) History of changes
-
+190118: JB: Version 0.92
+- Modified the output with option -kmom introduced 190111 with version
+  0.90. Output images are generated for each component of each calculated
+  moment. The images are with one 32-bit float item per scan pixel and can
+  thus be reload by MSA to apply partial spatial coherence just like with
+  normal STEM images.
+- Added the option -detslc <file name>, which allows to set the detection
+  planes via an additional parameter file. The file should be a text list
+  of slice indices with one number per line. Index 0 identifies the plane
+  with the incident wave function. This option overrides the respective
+  input made by the parameter file. Output will only be generated for the
+  planes listed by the provided file.
+- Modified the format of text output generated with the switch /txtout,
+  see section 5.4 in this file. The files store now also elastic and
+  TDS data.
 190115: JB: Version 0.91
 - Option /3dout works now for all output types, wave functions, images
   and diffraction patterns.
