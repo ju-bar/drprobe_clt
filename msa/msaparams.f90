@@ -2066,6 +2066,7 @@ SUBROUTINE MSP_SetDetectionPlanes()
     end do
     MSP_detpln = j ! store number of slots
     ! - close
+    close(unit=lfu, iostat=nerr)
   else ! flag periodic plane sequence
     if (MSP_detslc>0) then ! periodic readout with zero plane and max. thickness
       iper = min(MSP_detslc,noslc)
@@ -2334,7 +2335,7 @@ SUBROUTINE MSP_InitTextOutput(nerr)
   write(unit=sline, fmt='(I)') nslc                            ! line 2+ndet+nkmom: number of detection planes ( = length of detector arrays)
   write(unit=lfu, fmt='(A)') trim(adjustl(sline))
   do i=0, nslcmax                                              ! line 3+ndet+nkmom -> 2+ndet+nkmom+nslc: detection plane indices
-    if (MSP_ldetpln(i)<0) cycle ! skip this slice
+    if (MSP_ldetpln(i) < 0) cycle ! skip this plane
     write(unit=sline, fmt='(I)') i
     write(unit=lfu, fmt='(A)') trim(adjustl(sline))
   end do
@@ -2424,8 +2425,8 @@ SUBROUTINE MSP_WriteTextOutput(nerr)
   write(unit=lfu, fmt='(A)') trim(adjustl(stmp1))//", "//trim(adjustl(stmp2)) ! scan pixel numbers
   if (ndet>0) then ! write detector readout results
     do k=1, ndet ! loop over detectors
-      do i=0, nslcmax ! loop over thickness
-        if (MSP_ldetpln(i)<0) cycle ! skip this plane, no detection here
+      do i=0, nslcmax ! loop over output thickness
+        if (MSP_ldetpln(i) < 0) cycle ! skip this plane (no detection here)
         rsig(1) = MSP_detresult(k,i) ! default with total intensity only
         if (nsig==3) then ! include elastic and tds data
           rsig(2) = MSP_detresult_ela(k,i) ! elastic signal
@@ -2438,8 +2439,8 @@ SUBROUTINE MSP_WriteTextOutput(nerr)
   end if
   if (nkmom>0) then ! write k-moment components
     do k=1, nkmom ! loop over components
-      do i=0, nslcmax ! loop over thickness
-        if (MSP_ldetpln(i)<0) cycle ! skip this plane, no detection here
+      do i=0, nslcmax ! loop over output thickness
+        if (MSP_ldetpln(i) < 0) cycle ! skip this plane (no detection here)
         rsig(1) = MSP_Kmomresult(k,i) ! default with total intensity only
         if (nsig==3) then ! include elastic and tds data
           rsig(2) = MSP_Kmomresult_ela(k,i) ! elastic signal

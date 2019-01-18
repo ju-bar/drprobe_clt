@@ -4504,7 +4504,7 @@ SUBROUTINE ExportProbeIntensity(sfile)
   character(len=MSP_ll) :: isfile, sexpfile(3)
   integer*4 :: nintout, nwavavg, ntransform, nuidx
   integer*4 :: nx, ny, nerr, nalloc, i, j, k
-  integer*4 :: islc, iout
+  integer*4 :: islc, iout, nslc
   real*4 :: rnorm, pint, rsca
   real*4, dimension(:,:), allocatable :: pimg, pela, ptds
   complex*8, dimension(:,:), allocatable :: wave !, work
@@ -4548,6 +4548,7 @@ SUBROUTINE ExportProbeIntensity(sfile)
   !
   nuidx = 1
   if (MSP_3dout > 0) nuidx = 0 ! switch off using the index for file names
+  nslc = MS_stacksize ! max. number of object slices
 ! ------------
 
 ! ------------
@@ -4561,11 +4562,15 @@ SUBROUTINE ExportProbeIntensity(sfile)
       allocate(ptds(nx,ny), stat=nalloc)
     end if
     iout = 0 ! initialize output plane counter
-    do k=0, MSP_pint_num-1 ! Loop over all exit-planes.
-      islc = MSP_hdetpln(k) ! get slice index for this detection plane
-      if (MSP_pint_nac(k)==0) cycle ! ignore planes which didn't recieve data
+    do islc=0, nslc ! Loop over all slices
+      k = MSP_ldetpln(islc) ! get storage slot
+      if (k < 0) cycle ! nothing stored for islc
       ! normalize (we assume that wave and images have the same number of contributions)
-      rnorm = 1.0/real(MSP_pint_nac(k))
+      if (MSP_pint_nac(k)>0) then
+        rnorm = 1.0/real(MSP_pint_nac(k))
+      else
+        rnorm = 1.0
+      end if
       !
       ! get total intensity
       pimg(1:nx,1:ny) = MSP_pimg(1:nx,1:ny,k) * rnorm
@@ -4634,11 +4639,15 @@ SUBROUTINE ExportProbeIntensity(sfile)
       allocate(ptds(nx,ny), stat=nalloc)
     end if
     iout = 0
-    do k=0, MSP_pint_num-1 ! Loop over all exit-planes.
-      islc = MSP_hdetpln(k) ! get slice index for this detection plane
-      if (MSP_pint_nac(k)==0) cycle ! ignore planes which didn't recieve data
+    do islc=0, nslc ! Loop over all slices
+      k = MSP_ldetpln(islc) ! get storage slot
+      if (k < 0) cycle ! nothing stored for islc
       ! normalize (we assume that wave and images have the same number of contributions)
-      rnorm = 1.0/real(MSP_pint_nac(k))
+      if (MSP_pint_nac(k)>0) then
+        rnorm = 1.0/real(MSP_pint_nac(k))
+      else
+        rnorm = 1.0
+      end if
       !
       ! get total intensity
       pimg(1:nx,1:ny) = MSP_pdif(1:nx,1:ny,k) * rnorm
@@ -4892,7 +4901,7 @@ SUBROUTINE ExportWaveAvg(sfile)
   character(len=*), intent(in) :: sfile
   character(len=MSP_ll) :: isfile, sexpfile
   integer*4 :: nerr, k, nx, ny, nuidx
-  integer*4 :: islc, iout
+  integer*4 :: nslc, islc, iout
   real*4 :: rnorm
   complex*8, dimension(:,:), allocatable :: wave
   external :: SaveDataC8
@@ -4925,16 +4934,21 @@ SUBROUTINE ExportWaveAvg(sfile)
   end if
   nuidx = 1
   if (MSP_3dout) nuidx = 0 ! slice index usage flag in file names
+  nslc = MS_stacksize
 ! ------------
 
 ! ------------
 ! OUTPUT OF AVERAGE WAVE FUNCTION
   iout=0
-  do k=0, MS_wave_avg_num-1 ! Loop over all exit-planes.
-    islc = MSP_hdetpln(k) ! slice number
-    if (MS_wave_avg_nac(k)==0) cycle ! ignore planes which didn't recieve data
-    ! normalize
-    rnorm = 1.0/real(MS_wave_avg_nac(k))
+  do islc = 0, nslc ! Loop over all sample slices
+    k = MSP_ldetpln(islc) ! get storage slot
+    if (k < 0) cycle ! skip, nothing stored for islc
+    ! normalization factor
+    if (MS_wave_avg_nac(k)>0) then
+      rnorm = 1.0/real(MS_wave_avg_nac(k))
+    else
+      rnorm = 1.0
+    end if
     wave(1:nx, 1:ny) = MS_wave_avg(1:nx, 1:ny, k) * rnorm
     call sinsertslcidx(islc*nuidx,MS_nslid*nuidx,trim(isfile),"_avg",".wav",sexpfile)
     ! export to file

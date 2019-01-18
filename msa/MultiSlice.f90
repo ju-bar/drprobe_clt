@@ -1895,8 +1895,8 @@ SUBROUTINE MS_Start(istart)
 ! ------------
 ! optional wave export after each slice, also saves incoming wave
   if (MS_ldetpln(0) >= 0) then
-    MS_wave_avg_idx = MS_hdetpln(0) ! store incoming wave in channel 0 regardless of its actual plane.
-    MS_pint_idx = 0
+    MS_wave_avg_idx = MS_ldetpln(0) ! store incoming wave in channel 0 regardless of its actual plane.
+    MS_pint_idx = MS_ldetpln(0)
     call ExportWave(trim(MS_wave_filenm), 0) ! export incident plane wave function
   end if
 

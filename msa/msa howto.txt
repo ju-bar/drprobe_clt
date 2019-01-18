@@ -703,7 +703,8 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
   of slice indices with one number per line. Index 0 identifies the plane
   with the incident wave function. This option overrides the respective
   input made by the parameter file. Output will only be generated for the
-  planes listed by the provided file.
+  planes listed by the provided file. The output will be in ordered sequence
+  of selected slices, even for not sorted input.
 - Modified the format of text output generated with the switch /txtout,
   see section 5.4 in this file. The files store now also elastic and
   TDS data.

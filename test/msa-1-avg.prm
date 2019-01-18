@@ -51,7 +51,7 @@
 'test/sto_001_4x4_300keV_fl50'          Slice file series name [SFN]. Expected file names are [SFN]+"_###.sli" where ### is a three digit number.
 2                                       Number of slice files to load.
 50                                      Number of frozen lattice variants per slice.
-100                                     Minimum number of frozen lattice variations averaged per scan pixel in STEM mode.
+30                                      Minimum number of frozen lattice variations averaged per scan pixel in STEM mode.
 2                                       Detector readout period in slices.
 32                                      Number of slices in the object.
 0                                       Slice ID
