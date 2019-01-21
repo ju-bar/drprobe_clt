@@ -4197,7 +4197,7 @@ SUBROUTINE ExportSTEMData(sfile)
           do i=0, MS_stacksize ! loop over all slices beginning with incident probe plane (0)
             if (MSP_ldetpln(i) < 0) cycle ! skip this slice
             ! - write the total intensity data at correct position to files
-            ipos = l1 + datapos + MSP_ldetpln(i)*ndatanum
+            ipos = datapos + MSP_ldetpln(i)*ndatanum
             ! - get the signal of current plane and component
             rsignal(1) = MSP_Kmomresult(l1+j, i) ! total signal
             if (nfil>1) then ! store also ela and tds
@@ -4256,8 +4256,6 @@ SUBROUTINE ExportSTEMData(sfile)
                   &  //trim(spfile(iff))//"].")
               end if
             end do
-            ! - write the data at correct position
-            ipos = l1 + datapos
             ! - get the signal of current plane and component
             rsignal(1) = MSP_Kmomresult(j+l1, i) ! total signal
             if (nfil>1) then ! store also ela and tds
@@ -4266,7 +4264,7 @@ SUBROUTINE ExportSTEMData(sfile)
             end if
             ! - store
             do iff=1, nfil 
-              write(unit=lfu(iff), rec=ipos, iostat=nerr) rsignal(iff)
+              write(unit=lfu(iff), rec=datapos, iostat=nerr) rsignal(iff)
             end do
             ! - report stored signal values
             write (unit=MSP_stmp,fmt='(A,<nfil>G13.5,A)') &

@@ -5,7 +5,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-01-18                                                          #
+#   Date: 2019-01-21                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -59,6 +59,7 @@ Result of the calculation is:
   
 
 #-----------------------------------------------------------------------------#
+
 
 3) License
 
@@ -250,7 +251,7 @@ Command-line calling options for the program msa.exe:
 	Applies a universal Debye-Waller factor to the projected slice
 	potentials. The float value is the isotropic Debye-Waller parameter
 	(Biso) in nm^2.  Alternatively, the option -uuni can be used to
-	define vibration amplitude (Uiso) values in in Å^2. Requires that
+	define vibration amplitude (Uiso) values in Å^2. Requires that
 	the slice files	provide potential data, not possible if phase
 	grating data is	provided.
 
@@ -258,7 +259,7 @@ Command-line calling options for the program msa.exe:
 /ctem [optional]
 
 	Activates CTEM mode calculating a coherent(!) wave function.
-    STEM image calculations are carried out if this switch is not
+	STEM image calculations are carried out if this switch is not
 	present.
 
 
@@ -603,7 +604,6 @@ Example of a detector sensitivity profile definition for v0.70b+
 (End of detector sensitivity profile definition example)
 
 
-
 5.4) Description of the text output file format
 
 The text output file format is meant to provide a simplified access to the
@@ -692,7 +692,7 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 6) History of changes
 
-190118: JB: Version 0.92
+190121: JB: Version 0.92
 - Modified the output with option -kmom introduced 190111 with version
   0.90. Output images are generated for each component of each calculated
   moment. The images are with one 32-bit float item per scan pixel and can
