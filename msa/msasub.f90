@@ -3231,8 +3231,8 @@ SUBROUTINE DetectorReadoutElastic(nerr)
           MS_work(i,j) = MS_wave_avg(i,j, ipln)
         end do
       end do
-      ! call MS_FFT(work,MS_dimx,MS_dimy,'backwards')
-      call MS_FFT_WORK(-1)
+      ! call MS_FFT(work,MS_dimx,MS_dimy,'forwards') ! RS -> FS
+      call MS_FFT_WORK(1)
       wave(1:nx,1:ny) = MS_work(1:nx,1:ny) * sqrt(rsca) * renorm ! renormalize after iDFT and averaging
     else ! Fourier-space averages, can take data as is, but renormalize
       wave(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny, ipln) * renorm
@@ -3279,8 +3279,8 @@ SUBROUTINE DetectorReadoutElastic(nerr)
           !call FDNCS2M(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a 2-fold butterfly
           call DSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
           MSP_Kmomresult_ela(idy, islc) = rval ! store elastic channel result
-          if (m>0) then ! normalize by the 0-th moment MSP_Kmomresult_ela(1, islc)
-            MSP_Kmomresult_ela(idy, islc) = MSP_Kmomresult_ela(idy, islc) / MSP_Kmomresult_ela(1, islc)
+          if (m>0) then ! normalize by the 0-th moment of the total (!) MSP_Kmomresult(1, islc)
+            MSP_Kmomresult_ela(idy, islc) = MSP_Kmomresult_ela(idy, islc) / MSP_Kmomresult(1, islc)
           end if
         end do
       end do

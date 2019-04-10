@@ -96,7 +96,7 @@ The programs are written in Fortran 90 code for Intel Fortran compilers.
 
 Current versions:
 * CELSLC: 0.70
-* MSA: 0.92
+* MSA: 0.93
 * WAVIMG: 0.70
 
 The code of the program MSA links to "libfftwf-3.3.lib"
@@ -108,7 +108,6 @@ from http://www.fftw.org/ (accessed April 2018).
 
 * keep up with new code from [JMultiSlice](https://github.com/ju-bar/JMultiSliceLib)
   - investigate if the CUDA code can be used in this project
-* add notes on experimental and undocumented features to the howto files.
 * add a wrapper tool for applying external transition potentials for EELS and EDX
 * add partial import of wavefunctions and images from 3d data sets with
   MSA and WAVIMG.

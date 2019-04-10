@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 0.92b                                  #
+#   HOWTO use the program MSA, Version 0.93b                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-01-21                                                          #
+#   Date: 2019-04-10                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -692,6 +692,9 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 6) History of changes
 
+190410: JB: Version 0.93
+- Fixed a bug causing false elastic and tds k-space momentum values when
+  averaging real-space wavefunctions.  
 190121: JB: Version 0.92
 - Modified the output with option -kmom introduced 190111 with version
   0.90. Output images are generated for each component of each calculated

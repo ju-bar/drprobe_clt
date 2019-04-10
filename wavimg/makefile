@@ -29,7 +29,7 @@ FFTs_x.o: ../common/FFTs_x.f
 random.o: ../common/random.f90
 	$(f90comp) -c $(switch) ../common/random.f90
 TCCformalism.o: AberrationFunctions.mod wavimgprm.mod TCCformalism.f90
-	$(f90comp) -c $(switch) TCCformalism.F90
+	$(f90comp) -c $(switch) TCCformalism.f90
 wavimgsubs.o: AberrationFunctions.mod wavimgprm.mod wavimgsubs.f90
 	$(f90comp) -c $(switch) wavimgsubs.f90
 # Main

@@ -1,13 +1,13 @@
 !**********************************************************************
 !
-!  PROGRAM: msa, version 0.92
+!  PROGRAM: msa, version 0.93
 !  FILE: msa.f90
 !  PURPOSE:  Entry point for the console application MSA.
 !            Multislice calculation for electron diffraction
 !
 !**********************************************************************
 !                                                                      
-!   Date: 2018-01-18
+!   Date: 2019-04-10
 !                                                                      
 !   Author: Juri Barthel                                               
 !           Ernst Ruska-Centre                                         
@@ -79,7 +79,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "0.92b 64-bit  -  2019 Jan  21  -"
+  MSP_verApp  =                   "0.93b 64-bit  -  2019 Apr  10  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -128,7 +128,11 @@ program msa
 ! ------------
 ! K-MOMENT ANALYSIS (added 2019-01-11 JB)
   if (MSP_Kmomout > 0) then
-    
+    write(unit=MSP_stmp,fmt=*) MSP_KmomMmax
+    write(unit=MSP_stmp2,fmt='(F10.1)') MSP_KmomRange
+    call PostMessage("Extracting diffraction space integral moments within "// &
+         & trim(adjustl(MSP_stmp2))//" mrad up to order "//&
+         & trim(adjustl(MSP_stmp))//".")
   end if
 ! ------------
 
