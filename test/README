@@ -1,6 +1,6 @@
 Image simulation tests with the drprobe_clt tools
 by J. Barthel (ju.barthel@fz-juelich.de)
-2019 - Jan - 16
+2019 - May - 03
 Forschungszentrum Juelich GmbH, 52425 Juelich, Germany
 
 The following example calls are for test simulations and have
@@ -8,7 +8,7 @@ no other specific purpose as to provide a starting point for
 checking the functionality of program options.
 There is no guarantee that the calls work on your system.
 You may have to adopt them to your local operating system,
-and file structure, and option you want to test.
+file structure, and option you want to test.
 The intention is to call the tools from the drprobe_clt
 main source folder. All relevant input data should be present
 in the subfolder 'test' which is contained in the repository
@@ -23,6 +23,9 @@ msa\x64\Release\msa -prm test/msa-1.prm -out test/img.dat /3dout
 msa\x64\Release\msa -prm test/msa-1.prm -in test/img_HAADF.dat -out test/img_HAADF_psc.dat /3dout
 msa\x64\Release\msa -prm test/msa-1.prm -in test/img_ABF.dat -out test/img_ABF_psc.dat /3dout
 msa\x64\Release\msa -prm test/msa-1.prm -in test/img_BF.dat -out test/img_BF_psc.dat /3dout
+
+1.1) Diffraction pattern calculation for one scan position
+msa\x64\Release\msa -prm test/msa-1.prm -out test/img.dat /3dout -px 0 -py 0 /pdif
 
 2) STEM HAADF thickness series simulation with subsequent source
 convolutions. The example tests the separation of elastic and
@@ -39,6 +42,9 @@ REM : Wait until the started processes are finished!
 msa\x64\Release\msa -prm test/msa-1.prm -in test/img_HAADF_tot.dat -out test/img_HAADF_tot_psc.dat /3dout
 msa\x64\Release\msa -prm test/msa-1.prm -in test/img_HAADF_ela.dat -out test/img_HAADF_ela_psc.dat /3dout
 msa\x64\Release\msa -prm test/msa-1.prm -in test/img_HAADF_tds.dat -out test/img_HAADF_tds_psc.dat /3dout
+
+2.1) Diffraction pattern calculation for one scan position
+msa\x64\Release\msa -prm test/msa-1-avg.prm -out test/img.dat /3dout -px 0 -py 0 /silavwaveft /pdif
 
 3) HR-TEM NCSI image simulation:
 

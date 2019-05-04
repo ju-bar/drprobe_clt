@@ -15,7 +15,7 @@
 !               This is a reduced and single-thread version of the     !
 !               original file, designed for use with the program ms.   !
 !                                                                      !
-!    Version  : 1.1.0, Jan 08, 2019                                    !
+!    Version  : 1.1.1, May 02, 2019                                    !
 !                                                                      !
 !   Linked Libs: libfftwf-3.3.lib                                      !
 !   Includes   : fftw3.f03.in                                          !
@@ -93,6 +93,8 @@ MODULE STEMfunctions
   !public :: STF_FFT
   public :: STF_ApertureFunction
   public :: STF_ApertureFunctionS
+  public :: STF_ApertureFunctionA
+  public :: STF_GaussianFunctionA
   public :: STF_PrepareProbeWaveFourier
   public :: STF_PrepareVortexProbeWaveFourier
   public :: STF_PreparePlaneWaveFourier
@@ -223,7 +225,11 @@ MODULE STEMfunctions
   real*4, public :: STF_caperture_movey ! [mrad]
   DATA STF_caperture_movey /0.0/
   integer*4, public :: STF_cap_type ! 0 = sigmoid(top-hat), 1 = gaussian
-  Data STF_cap_type /0/
+  DATA STF_cap_type /0/
+  real*4, public :: STF_capasym ! relative asymmetry of the aperture rmax/rmean-1
+  DATA STF_capasym /0.0/
+  real*4, public :: STF_capasymdir ! direction of the large aperture axis in rad
+  DATA STF_capasymdir /0.0/
   
 ! beam tilt
   real*4, public :: STF_beam_tiltx ! [mrad]
@@ -1479,6 +1485,7 @@ SUBROUTINE STF_PrepareProbeWaveFourier(wave, nx, ny, sampx,sampy)
   
   integer*4 :: i, j, nx2, ny2
   real*4 :: wx, wy, wy2, chi, power, anglethresh, threshwidth
+  real*4 :: arm, ara, aldir, ax, ay
   real*4 :: tpower, rval, itogx, itogy, itowx, itowy
   real*4 :: camx, camy, lbtx, lbty, wap
   complex*8 :: cval
@@ -1505,11 +1512,16 @@ SUBROUTINE STF_PrepareProbeWaveFourier(wave, nx, ny, sampx,sampy)
   itowy = itogy*STF_lamb
   anglethresh = max(STF_caperture*STF_RELANGTHRESH,0.25*(itowx+itowy))
   threshwidth = 0.5*(itowx+itowy)*STF_APSMOOTHPIX
+  arm = STF_caperture * 0.001 ! mean aperture radius [rad]
+  ara = STF_capasym ! aperture asymmetry
+  aldir = STF_capasymdir ! aperture asymmetry direction (long axis)
+  ax = sampx * real(nx) / STF_lamb ! grid width in wavelength units = 1 / itowx
+  ay = sampy * real(ny) / STF_lamb ! grid height in wavelength units = 1 / itowy
+  camx = STF_caperture_movex*0.001 ! aperture decenter x [rad]
+  camy = STF_caperture_movey*0.001 ! aperture decenter y [rad]
+  lbtx = STF_beam_tiltx*0.001 ! beam tilt x [rad]
+  lbty = STF_beam_tilty*0.001 ! beam tilt y [rad]
   STF_PreparedWavePower = 0.0
-  camx = STF_caperture_movex*0.001
-  camy = STF_caperture_movey*0.001
-  lbtx = STF_beam_tiltx*0.001
-  lbty = STF_beam_tilty*0.001
 ! ------------
 
 
@@ -1525,10 +1537,14 @@ SUBROUTINE STF_PrepareProbeWaveFourier(wave, nx, ny, sampx,sampy)
       wap = wy2 + (wx-camx)**2
       ! aperture
       if (STF_cap_type==0) then ! set sigmoid aperture function
-        call STF_TABBED_SIGMOID(sqrt(wap),anglethresh,threshwidth,rval)
-        power = 1.0-rval
+        call STF_ApertureFunctionA(wx, wy, camx, camy, arm, ara, aldir, ax, ay, 2*STF_APSMOOTHPIX, rval)
+        power = rval
+        !call STF_TABBED_SIGMOID(sqrt(wap),anglethresh,threshwidth,rval)
+        !power = 1.0-rval
       else if (STF_cap_type==1) then ! set gaussian aperture function
-        power = exp(-wap/(anglethresh*anglethresh))
+        call STF_GaussianFunctionA(wx, wy, camx, camy, arm, ara, aldir, ax, ay, rval)
+        power = rval
+        !power = exp(-wap/(anglethresh*anglethresh))
       else ! set zero beam only
         power = 0.0
         if (sqrt(wap)<min(itowx,itowy)) then
@@ -1536,7 +1552,7 @@ SUBROUTINE STF_PrepareProbeWaveFourier(wave, nx, ny, sampx,sampy)
         end if
       end if
       ! check aperture
-      if (power<STF_APERTURETHRESH) cycle ! apply condenser aperture
+      if (power<STF_APERTURETHRESH) cycle ! skip beam of insignificant amplitude
       ! aberration function
       chi = STF_AberrationFunction(wx,wy)
       cval = cmplx(cos(chi),-sin(chi)) ! phase plate
@@ -1546,8 +1562,10 @@ SUBROUTINE STF_PrepareProbeWaveFourier(wave, nx, ny, sampx,sampy)
     end do
   end do
 !  write(unit=*,fmt=*) "FS-power:",tpower
-  wave(1:nx,1:ny) = wave(1:nx,1:ny) / sqrt(STF_PreparedWavePower) ! normalize
-  STF_PreparedWavePower = 1.0
+  if (STF_PreparedWavePower>0.0) then
+    wave(1:nx,1:ny) = wave(1:nx,1:ny) / sqrt(STF_PreparedWavePower) ! normalize
+    STF_PreparedWavePower = 1.0
+  end if
 ! ------------
 
 ! ------------
@@ -1585,6 +1603,7 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(wave, oam, nx, ny, sampx, sampy)
   
   integer*4 :: i, j, nx2, ny2
   real*4 :: wx, wy, wy2, chi, power, anglethresh, threshwidth
+  real*4 :: arm, ara, aldir, ax, ay
   real*4 :: tpower, rval, itogx, itogy, itowx, itowy
   real*4 :: camx, camy, lbtx, lbty, wap, vtx
   complex*8 :: cval
@@ -1610,11 +1629,16 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(wave, oam, nx, ny, sampx, sampy)
   itowy = itogy*STF_lamb
   anglethresh = max(STF_caperture*STF_RELANGTHRESH,0.25*(itowx+itowy))
   threshwidth = 0.5*(itowx+itowy)*STF_APSMOOTHPIX
+  arm = STF_caperture * 0.001 ! mean aperture radius [rad]
+  ara = STF_capasym ! aperture asymmetry
+  aldir = STF_capasymdir ! aperture asymmetry direction (long axis)
+  ax = sampx * real(nx) / STF_lamb ! grid width in wavelength units = 1 / itowx
+  ay = sampy * real(ny) / STF_lamb ! grid height in wavelength units = 1 / itowy
+  camx = STF_caperture_movex*0.001 ! aperture decenter x [rad]
+  camy = STF_caperture_movey*0.001 ! aperture decenter y [rad]
+  lbtx = STF_beam_tiltx*0.001 ! beam tilt x [rad]
+  lbty = STF_beam_tilty*0.001 ! beam tilt y [rad]
   STF_PreparedWavePower = 0.0
-  camx = STF_caperture_movex*0.001
-  camy = STF_caperture_movey*0.001
-  lbtx = STF_beam_tiltx*0.001
-  lbty = STF_beam_tilty*0.001
 ! ------------
 
 
@@ -1630,10 +1654,14 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(wave, oam, nx, ny, sampx, sampy)
       wap = wy2 + (wx-camx)**2
       ! aperture
       if (STF_cap_type==0) then ! set sigmoid aperture function
-        call STF_TABBED_SIGMOID(sqrt(wap),anglethresh,threshwidth,rval)
-        power = 1.0-rval
+        call STF_ApertureFunctionA(wx, wy, camx, camy, arm, ara, aldir, ax, ay, 2*STF_APSMOOTHPIX, rval)
+        power = rval
+        !call STF_TABBED_SIGMOID(sqrt(wap),anglethresh,threshwidth,rval)
+        !power = 1.0-rval
       else if (STF_cap_type==1) then ! set gaussian aperture function
-        power = exp(-wap/(anglethresh*anglethresh))
+        call STF_GaussianFunctionA(wx, wy, camx, camy, arm, ara, aldir, ax, ay, rval)
+        power = rval
+        !power = exp(-wap/(anglethresh*anglethresh))
       else ! set zero beam only
         power = 0.0
         if (sqrt(wap)<min(itowx,itowy)) then
@@ -1658,8 +1686,10 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(wave, oam, nx, ny, sampx, sampy)
     end do
   end do
 !  write(unit=*,fmt=*) "FS-power:",tpower
-  wave(1:nx,1:ny) = wave(1:nx,1:ny) / sqrt(STF_PreparedWavePower) ! normalize
-  STF_PreparedWavePower = 1.0
+  if (STF_PreparedWavePower > 0.0) then
+    wave(1:nx,1:ny) = wave(1:nx,1:ny) / sqrt(STF_PreparedWavePower) ! normalize
+    STF_PreparedWavePower = 1.0
+  end if
 ! ------------
 
 ! ------------
@@ -2076,6 +2106,162 @@ END SUBROUTINE STF_ApertureFunctionS
 
 !**********************************************************************!
 !**********************************************************************!
+SUBROUTINE STF_ApertureFunctionA(kx, ky, kcx, kcy, klim, alim, adir, ax, ay, s, val)
+! function: calculates an aperture function value for a given
+!           k-space coordinate and aperture radius to be used on
+!           a discrete grid. The aperture edge is smoothed over a
+!           range of s pixels also for non-isotropic k-space samplings.
+!           This function supports an asymmetric aperture.
+! -------------------------------------------------------------------- !
+! parameter:
+! (input)
+!  real*4 :: kx, ky ! k-space coordinate [1/nm]
+!  real*4 :: kcx, kxy ! k-space coordinate of the aperture center [1/nm]
+!  real*4 :: klim ! size of the aperture (radius) [1/nm]
+!  real*4 :: alim ! asymmetry of the aperture (max. radius / mean radius - 1)
+!  real*4 :: adir ! direction of the large aperture radius [rad]
+!  real*4 :: ax, ay ! size of the real-space grid [nm]
+!                   ! 1/ax, 1/ay are the Fourier-space sampling rates
+!  real*4 :: s ! smoothness of the aperture edge [pixels]
+! (output)
+!  real*4 :: val ! aperture value
+! -------------------------------------------------------------------- !
+
+  implicit none
+
+! ------------
+! DECLARATION
+  integer*4, parameter :: subnum = 4100
+  real*4, intent(in) :: kx, ky ! k-space coordinate [1/nm]
+  real*4, intent(in) :: kcx, kcy ! k-space coordinate of the aperture center [1/nm]
+  real*4, intent(in) :: klim ! size of the aperture (radius) [1/nm]
+  real*4, intent(in) :: alim ! asymmetry of the aperture
+  real*4, intent(in) :: adir ! direction of the large aperture radius [rad]
+  real*4, intent(in) :: ax, ay ! size of the real-space grid [nm]
+                   ! 1/ax, 1/ay are the Fourier-space sampling rates
+  real*4, intent(in) :: s ! smoothness of the aperture edge [pixels]
+  real*4, intent(out) :: val ! aperture value
+  real*4 :: dkx, dky, dk2, dkm ! k-space decenter [1/nm]
+  real*4 :: dpx, dpy, dpm ! Fourier pixel decenter
+  real*4 :: dlr ! relative length of the decenter w.r.t. aperture radius
+  real*4 :: dlpx, dlpy, dpl ! relative distances to exact aperture edge
+! ------------
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > STF_ApertureFunctionA: INIT."
+  val = 0.0
+  if (klim <= 0.0) return ! closed aperture, exit
+  dkx = kx - kcx
+  dky = ky - kcy
+  dk2 = dkx*dkx+dky*dky
+  dkm = sqrt(dk2)
+! ------------
+
+! ------------
+  if (dkm > 0.0) then ! handle default case (beam is somewhere in aperture area)
+    dpx = dkx*ax
+    dpy = dky*ay
+    dpm = sqrt(dpx*dpx + dpy*dpy) ! aperture edge distance with respect to kx,ky
+    dlr = klim*(1. - alim**2)/sqrt( dk2*(1 + alim**2) &
+      & + 2*(dky**2 - dkx**2)*alim*cos(2*adir) & 
+      & - 4*dkx*dky*alim*sin(2*adir) )
+    dlpx = dkx*dlr*ax ! rescale to aperture edge pixel distance along x
+    dlpy = dky*dlr*ay ! rescale to aperture edge pixel distance along y
+    dpl = sqrt(dlpx*dlpx + dlpy*dlpy) ! pixel distance to aperture edge
+    val = (1. - tanh((dpm - dpl)*STF_pi/s))*0.5 ! aperture value
+  else ! handle on-axis case
+    val = 1.0 ! ... always transmit this beam
+  endif
+! ------------
+
+! ------------
+!  write(unit=*,fmt=*) " > STF_ApertureFunctionA: EXIT."
+  return
+
+END SUBROUTINE STF_ApertureFunctionA
+!**********************************************************************!
+
+
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE STF_GaussianFunctionA(kx, ky, kcx, kcy, klim, alim, adir, ax, ay, val)
+! function: calculates an gaussian function value for a given
+!           k-space coordinate and 1/e radius to be used on
+!           a discrete grid. 
+!           This function supports an asymmetric gaussians.
+! -------------------------------------------------------------------- !
+! parameter:
+! (input)
+!  real*4 :: kx, ky ! k-space coordinate [1/nm]
+!  real*4 :: kcx, kxy ! k-space coordinate of the aperture center [1/nm]
+!  real*4 :: klim ! 1/e radius (1 sigma) [1/nm]
+!  real*4 :: alim ! asymmetry of the aperture (max. radius / mean radius - 1)
+!  real*4 :: adir ! direction of the large aperture radius [rad]
+!  real*4 :: ax, ay ! size of the real-space grid [nm]
+!                   ! 1/ax, 1/ay are the Fourier-space sampling rates
+! (output)
+!  real*4 :: val ! aperture value
+! -------------------------------------------------------------------- !
+
+  implicit none
+
+! ------------
+! DECLARATION
+  integer*4, parameter :: subnum = 4200
+  real*4, intent(in) :: kx, ky ! k-space coordinate [1/nm]
+  real*4, intent(in) :: kcx, kcy ! k-space coordinate of the aperture center [1/nm]
+  real*4, intent(in) :: klim ! 1/e radius (1 sigma) [1/nm]
+  real*4, intent(in) :: alim ! asymmetry of the aperture
+  real*4, intent(in) :: adir ! direction of the large aperture radius [rad]
+  real*4, intent(in) :: ax, ay ! size of the real-space grid [nm]
+                   ! 1/ax, 1/ay are the Fourier-space sampling rates
+  real*4, intent(out) :: val ! aperture value
+  real*4 :: dkx, dky, dk2, dkm ! k-space decenter [1/nm]
+  real*4 :: dpx, dpy, dpm ! Fourier pixel decenter
+  real*4 :: dlr ! relative length of the decenter w.r.t. aperture radius
+  real*4 :: dlpx, dlpy, dpl ! relative distances to exact aperture edge
+! ------------
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > STF_GaussianFunctionA: INIT."
+  val = 0.0
+  if (klim <= 0.0) return ! closed aperture, exit
+  dkx = kx - kcx
+  dky = ky - kcy
+  dk2 = dkx*dkx+dky*dky
+  dkm = sqrt(dk2)
+! ------------
+
+! ------------
+  if (dkm > 0.0) then ! handle default case (beam is somewhere in aperture area)
+    dpx = dkx*ax
+    dpy = dky*ay
+    dpm = sqrt(dpx*dpx + dpy*dpy) ! distance with respect to kx,ky
+    dlr = klim*(1. - alim**2)/sqrt( dk2*(1 + alim**2) &
+      & + 2*(dky**2 - dkx**2)*alim*cos(2*adir) & 
+      & - 4*dkx*dky*alim*sin(2*adir) )
+    dlpx = dkx*dlr*ax ! rescale to 1/e pixel distance along x
+    dlpy = dky*dlr*ay ! rescale to 1/e pixel distance along y
+    dpl = sqrt(dlpx*dlpx + dlpy*dlpy) ! pixel distance to 1/e
+    val = exp( -dpm*dpm/(dpl*dpl))
+  else ! handle on-axis case
+    val = 1.0 ! ... always transmit this beam
+  endif
+! ------------
+
+! ------------
+!  write(unit=*,fmt=*) " > STF_GaussianFunctionA: EXIT."
+  return
+
+END SUBROUTINE STF_GaussianFunctionA
+!**********************************************************************!
+
+
+
+!**********************************************************************!
+!**********************************************************************!
 FUNCTION STF_HT2WL(ht)
 ! function: calculates wavelength [nm] from high-tension [kV]
 ! -------------------------------------------------------------------- !
@@ -2189,7 +2375,7 @@ END MODULE STEMfunctions
 
 ! ------------
 ! DECLARATION
-!  integer*4, parameter :: subnum = 4100
+!  integer*4, parameter :: subnum = 4300
 !
 ! ------------
 

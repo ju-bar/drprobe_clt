@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 0.93b                                  #
+#   HOWTO use the program MSA, Version 0.94b                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-04-10                                                          #
+#   Date: 2019-05-03                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -442,7 +442,7 @@ parameters will not be read in properly.
 
 What follows this line is a commented example of an MSA parameter file:
 '[Microscope Parameters]'
-25.000000					(semi angle of incident wave (mrad) in STEM mode)
+25.000000					(semi angle of incident wave (mrad) in STEM mode, you may add parameters for relative asymmetry and asymmetry direction of the aperture)
 80.000000					(lower semi angle of fourier-space detector (mrad))
 220.00000					(upper semi angle of fourier-space detector (mrad))
 1, 'detectors.prm'			(switch for using a detector definition file, and the name of the detector definition file, attention: the output file name will change when using more than one detector, the detector definitions in the preceeding two lines are ignored when using a detector definition file, alle detector definitions are ignored in CTEM mode)
@@ -692,6 +692,15 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 6) History of changes
 
+190503: JB: Version 0.94
+- Added optional asymmetric probe convergence angle distribution. The
+  asymmetry can be set from the parameter file by adding two more numbers
+  to the line defining the probe convergence angle.
+  Example: 25.0 0.1 0.45
+           This defines an elliptical probe semi-convergence of 25 mrad
+		   mean value, with a maximum of 25*(1+0.1) mrad along 0.45 rad 
+		   and 25*(1-0.1) mrad along 0.45 + Pi/2 rad of the diffraction
+		   plane.
 190410: JB: Version 0.93
 - Fixed a bug causing false elastic and tds k-space momentum values when
   averaging real-space wavefunctions.  

@@ -12,7 +12,7 @@
 !                                                                      !
 !    Purpose  : parameters, parameter I/O and memory management for    !
 !               the program MSA (see msa.f90)                          !
-!    Version  : 1.3.2, Apr 10, 2019                                    !
+!    Version  : 1.3.3, May 03, 2019                                    !
 !    To Link  : MultiSlice.f90                                         !
 !               STEMfunctions.f90                                      !
 !                                                                      !
@@ -803,10 +803,11 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
 ! DECLARATION
   integer*4, parameter :: subnum = 400
   integer*4, intent(in) :: nunit
-  integer*4 :: anum, idx, i
+  integer*4 :: anum, idx, i, j
   real*4 :: ax, ay, rlamb
   logical :: isopen
   character*STF_aberration_longname_length :: aname
+  character(len=1024) :: sline
 ! ------------
 
 
@@ -823,7 +824,11 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
 
 ! ------------
 ! 
-  read(unit=nunit,fmt=*,err=17) STF_caperture  ! (semi angle of incident wave (mrad)
+  read(unit=nunit,fmt='(a1024)',err=14) sline
+  read(unit=sline,fmt=*,iostat=j) STF_caperture, STF_capasym, STF_capasymdir  ! (semi angle of incident wave (mrad)
+  if (j/=0) then ! incomplete input (not the full form)
+    read(unit=sline,fmt=*,err=17) STF_caperture ! try reading this number again to be sure we have something
+  end if
   read(unit=nunit,fmt=*,err=17) MS_detminang ! (lower semi angle of fourier-space detector (mrad))
   read(unit=nunit,fmt=*,err=17) MS_detmaxang ! (upper semi angle of fourier-space detector (mrad))
   read(unit=nunit,fmt=*,err=16) MSP_usedetdef, MSP_detfile ! (switch for using a detector definition file, and the name of the detector definition file, ignored in CTEM mode)
@@ -855,6 +860,7 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
   MS_lamb = STF_lamb
   MS_ht = STF_ht
   if (STF_lamb < 0.0001 .or. STF_lamb > 0.1 ) goto 18
+  if (abs(STF_capasym) >= 1.0) STF_capasym = 0.0 ! deactivate elliptic source, invalid ellipticity
 !   CHECKS
 ! ***********************
     
@@ -864,6 +870,12 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
     call PostMessage("[Microscope Parameters] input report:")
     write(unit=MSP_stmp,fmt='(A,G12.4)') "semi angle of incident wave (mrad):",STF_caperture
     call PostMessage(trim(MSP_stmp))
+    if (abs(STF_capasym)>0.0) then
+      write(unit=MSP_stmp,fmt='(A,G12.4)') "- convergence asymmetry:",STF_capasym
+      call PostMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,G12.4)') "- asymmetry main direction (rad):",STF_capasymdir
+      call PostMessage(trim(MSP_stmp))
+    end if
     write(unit=MSP_stmp,fmt='(A,G12.4)') "lower semi angle of fourier-space detector (mrad):",MS_detminang
     call PostMessage(trim(MSP_stmp))
     write(unit=MSP_stmp,fmt='(A,G12.4)') "upper semi angle of fourier-space detector (mrad):",MS_detmaxang
@@ -903,6 +915,7 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
 !  write(unit=*,fmt=*) " > MSP_READBLOCK_microscope: EXIT."
   return
   
+14 call CriticalError("Failed line from parameter file.")
 15 call CriticalError("Failed reading string parameter from file.")
 16 call CriticalError("Failed reading integer parameter from file.")
 17 call CriticalError("Failed reading float parameter from file.")
