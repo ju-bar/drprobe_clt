@@ -262,9 +262,9 @@ MODULE MSAparams
   integer*4, public :: MSP_pdifmode
   DATA MSP_pdifmode /0/ ! off by default
   !
-  ! REMARK: If either of the two above modes is active in STEM simulations, the calculation will be done with
-  !         an explicit random probe offset, simulating the chosen type of partial spatial coherence, and with
-  !         an explicit random probe defocus, simulating partial temporal coherence.
+  ! AVERAGE DIFFRACTION EXTRACTION, extract Fourier-space intensity distribution, (0: OFF, 1: ON)
+  integer*4, public :: MSP_padifmode
+  DATA MSP_padifmode /0/ ! off by default
   !
   ! VORTEX PROBE FLAG AND ORBITAL ANGULAR MOMENTUM
   integer*4, public :: MSP_Vortex
@@ -436,6 +436,8 @@ MODULE MSAparams
 ! probe image and diffraction data
   real*4, dimension(:,:,:), allocatable, public :: MSP_pimg ! probe image data for each plane
   real*4, dimension(:,:,:), allocatable, public :: MSP_pdif ! probe diffraction data for each plane
+  real*4, dimension(:,:,:), allocatable, public :: MSP_padif ! averaged probe diffraction data for each plane
+  real*4, dimension(:,:,:), allocatable, public :: MSP_padif_ela ! averaged elastic probe diffraction data for each plane
   integer*4, dimension(:), allocatable, public :: MSP_pint_nac ! # accumulations of probe intensities
   integer*4, public :: MSP_pint_num ! number of probe image intensities per scan position
   DATA MSP_pint_num /0/

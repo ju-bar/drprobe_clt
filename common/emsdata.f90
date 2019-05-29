@@ -1681,8 +1681,8 @@ SUBROUTINE EMS_SLI_loaddata(sfile,nx,ny,nv,cdata,szz,nerr)
 ! ------------
 ! open binary file
   call EMS_GetFreeLFU(nlfu)
-  open(unit=nlfu, file=trim(sfile), form='binary', access='sequential', &
-     & iostat=nerr, status="old", action="read", share='DENYNONE' )
+  open(unit=nlfu, file=trim(sfile), form='BINARY', access='STREAM', &
+     & iostat=nerr, status='OLD', action='READ', share='DENYNONE' )
   if (nerr/=0) then
     call EMS_ERROR("Failed to connect to file", subnum+1)
     return
@@ -1783,8 +1783,8 @@ SUBROUTINE EMS_SLI_loadparams(sfile,nx,ny,nv,ht,szx,szy,szz,nerr)
 ! ------------
 ! open binary file
   call EMS_GetFreeLFU(nlfu)
-  open(unit=nlfu, file=trim(sfile), form='binary', access='sequential', &
-     & iostat=nerr, status="old", action="read", share='DENYNONE' )
+  open(unit=nlfu, file=trim(sfile), form='BINARY', access='STREAM', &
+     & iostat=nerr, status='OLD', action='READ', share='DENYNONE' )
   if (nerr/=0) then
     nfail = 1
     call EMS_ERROR("Failed to connect to file ["//trim(sfile)//"]", subnum+nfail)
@@ -2050,8 +2050,8 @@ SUBROUTINE EMS_SLI_save(sfile,nx,ny,nv,szx,szy,szz,ht,cdata,nerr)
 ! open binary file
   call EMS_GetFreeLFU(nlfu)
   call createfilefolder(trim(sfile),nerr)
-  open(unit=nlfu, file=trim(sfile), form='binary', access='sequential', &
-     & iostat=nerr, status="replace", action="write", share='DENYRW' )
+  open(unit=nlfu, file=trim(sfile), form='BINARY', access='STREAM', &
+     & iostat=nerr, status='REPLACE', action='WRITE', share='DENYRW' )
   if (nerr/=0) then
     call EMS_ERROR("Failed to connect to file", subnum+2)
     return
@@ -2063,6 +2063,8 @@ SUBROUTINE EMS_SLI_save(sfile,nx,ny,nv,szx,szy,szz,ht,cdata,nerr)
 ! With sequential file access you MUST WRITE THE DATA IN IT'S
 ! INTENDED SEQUENCE to the file unit. Using FSEEK to jump back
 ! will erase data writen before and beyond the jump-point.
+!
+! USING access='STREAM' evades this problem
 !
 ! ------------
 

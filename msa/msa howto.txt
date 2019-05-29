@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 0.94b                                  #
+#   HOWTO use the program MSA, Version 0.95b                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-05-03                                                          #
+#   Date: 2019-05-29                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -405,6 +405,28 @@ or are still under development:
 	(suffix "_ela") and the thermal-diffuse scattering (suffix "_tds").
 
 
+/padif [optional]
+
+	Activates output of probe position averaged diffraction patterns.
+	A suffix "_padif" is added to the output file name. (STEM only)
+	A second suffix "_tot" is added to indicate total intensity output.
+	In combination with the switches /avwave, /avwaveft, /silavwave, or
+	/silavwaveft further diffraction patterns are generated for the
+	elastic wave function (suffix "_ela") and the thermal-diffuse
+	scattering (suffix "_tds").
+	Output files will be opened with exclusive access right in order
+	to avoid mistakes when multiple processes are working on the same
+	problem and would like to write to the same file. A wait & repeat
+	is included for opening the files covering about 5 seconds with
+	up to 100 file access trials separated by 50 ms waiting time.
+	Using a RAM disk for output is recommended but not required.
+	It is important to delete any pre-existing output file for padif
+	data, otherwise new calls will add more data to the existing files.
+	This can be used to increase the number of samples averaging over
+	frozen lattice configurations, but you'll need to normalize the
+	data yourself.
+
+
 /epc [optional]
 
 	Activates explicit averaging over the partial coherence parameters
@@ -691,6 +713,10 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 
 6) History of changes
+
+190528: JB: Version 0.95
+- Added optional output of probe position averaged diffraction patterns
+  in STEM mode with the switch /padif.
 
 190503: JB: Version 0.94
 - Added optional asymmetric probe convergence angle distribution. The

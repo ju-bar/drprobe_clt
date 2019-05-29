@@ -1,6 +1,6 @@
 Image simulation tests with the drprobe_clt tools
 by J. Barthel (ju.barthel@fz-juelich.de)
-2019 - May - 03
+2019 - May - 28
 Forschungszentrum Juelich GmbH, 52425 Juelich, Germany
 
 The following example calls are for test simulations and have
@@ -14,6 +14,11 @@ main source folder. All relevant input data should be present
 in the subfolder 'test' which is contained in the repository
 [https://github.com/ju-bar/drprobe_clt].
 
+Program versions:
+CELSLC: 0.70
+MSA: 0.95
+WAVIMG: 0.70
+
 
 1) STEM HAADF, ABF and BF thickness series simulation with
 subsequent source convolutions:
@@ -26,6 +31,10 @@ msa\x64\Release\msa -prm test/msa-1.prm -in test/img_BF.dat -out test/img_BF_psc
 
 1.1) Diffraction pattern calculation for one scan position
 msa\x64\Release\msa -prm test/msa-1.prm -out test/img.dat /3dout -px 0 -py 0 /pdif
+
+1.2) Probe position averaged diffraction pattern calculation
+msa\x64\Release\msa -prm test/msa-1.prm -out test/img.dat /3dout /padif
+
 
 2) STEM HAADF thickness series simulation with subsequent source
 convolutions. The example tests the separation of elastic and
@@ -45,6 +54,17 @@ msa\x64\Release\msa -prm test/msa-1.prm -in test/img_HAADF_tds.dat -out test/img
 
 2.1) Diffraction pattern calculation for one scan position
 msa\x64\Release\msa -prm test/msa-1-avg.prm -out test/img.dat /3dout -px 0 -py 0 /silavwaveft /pdif
+
+2.2) Probe position averaged diffraction pattern calculation using multiple processes
+REM : Add a few seconds delay between process starts!
+start msa\x64\Release\msa -prm test/msa-1-avg.prm -out test/img.dat /3dout -py 0 -ly 3 /silavwaveft /padif
+start msa\x64\Release\msa -prm test/msa-1-avg.prm -out test/img.dat /3dout -py 4 -ly 7 /silavwaveft /padif
+start msa\x64\Release\msa -prm test/msa-1-avg.prm -out test/img.dat /3dout -py 8 -ly 11 /silavwaveft /padif
+start msa\x64\Release\msa -prm test/msa-1-avg.prm -out test/img.dat /3dout -py 12 -ly 15 /silavwaveft /padif
+start msa\x64\Release\msa -prm test/msa-1-avg.prm -out test/img.dat /3dout -py 16 -ly 19 /silavwaveft /padif
+REM : This will take about 20 minutes due to the 30 times averaging repeat per scan position.
+REM : 30 repeats is not enough to safely separate elastic and tds channels. Convergence begins at around 100 repeats.
+
 
 3) HR-TEM NCSI image simulation:
 

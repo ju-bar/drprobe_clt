@@ -806,6 +806,57 @@ subroutine createfilefolder(sfilepath,nerr)
   return
 end subroutine createfilefolder
 
+  
+!**********************************************************************!
+! opens a file for exclusive (non-shared) binary read&write access  
+subroutine fileopenexclrw(sfile, lun, nexist, nerr)
+  use IFPORT
+  integer*4, parameter :: ntrymax = 100
+  integer*4, parameter :: nwaitms = 50
+  character(len=*), intent(in) :: sfile ! file name
+  integer*4, intent(out) :: lun, nexist, nerr
+  integer*4 :: ilun, ioerr, iopentry
+  logical :: fexist, fopen
+  fopen = .FALSE.
+  fexist = .FALSE.
+  nerr = 0
+  ioerr = 0
+  nexist = 0
+  lun = 0
+  ilun = 0
+  iopentry = 0
+  do while ((.not.fopen) .and. iopentry < ntrymax)
+    ! check whether file already exists
+    inquire(file=trim(sfile),exist=fexist)
+    call GetFreeLFU(ilun,20,99) ! get a logical file unit
+    if (fexist) then ! file exists, open -> load -> add -> store
+      ! open an existing file (exclusive access)
+      open ( unit=ilun, file=trim(sfile), iostat=ioerr, &
+        &    form='BINARY', action='READWRITE', status='OLD', &
+        &    share='DENYRW', position='REWIND', access='STREAM' )
+    else ! file doesn't exists -> create -> store
+      ! open a new file (exclusive access)
+      open ( unit=ilun, file=trim(sfile), iostat=ioerr, &
+        &    form='BINARY', action='READWRITE', status='NEW', &
+        &    share='DENYRW', access='STREAM' )
+    end if
+    iopentry = iopentry + 1
+    if (nerr/=0) then
+      call sleepqq(nwaitms)
+      cycle ! -> opening loop
+    end if
+    INQUIRE(unit=ilun, opened=fopen)
+  end do ! while (.not.fopen)
+  if ((.not.fopen) .and. iopentry>=ntrymax) then
+    nerr = 1
+    return
+  end if
+  if (fexist) nexist = 1
+  if (fopen) lun = ilun
+  return
+end subroutine fileopenexclrw
+!**********************************************************************!
+  
 
 !**********************************************************************!
 !**********************************************************************!
@@ -932,6 +983,188 @@ SUBROUTINE AppendDataC8(sfile,dat,n,nerr)
 END SUBROUTINE AppendDataC8
 !**********************************************************************!
 
+  
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE CreateDataR4(sfile,n,nerr)
+! function: creates a file with n float zeros
+! -------------------------------------------------------------------- !
+! parameter: 
+! -------------------------------------------------------------------- !
+
+  implicit none
+
+! ------------
+! DECLARATION
+  character(len=*), intent(in) :: sfile
+  integer*4, intent(in) :: n
+  integer*4, intent(inout) :: nerr
+  
+  integer*4 :: lu, nalloc
+  external :: GetFreeLFU
+  external :: createfilefolder
+  real*4, allocatable :: fa(:)
+! ------------
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > CreateDataR4: INIT."
+  nerr = 0
+  nalloc = 0
+  allocate(fa(n),stat=nalloc)
+  if (nalloc/=0) then
+    call CriticalError("CreateDataR4: Failed to allocate memory.")
+  end if
+  fa = 0.
+  call GetFreeLFU(lu,20,99)
+! ------------
+
+! ------------
+  !
+  ! open file, connect to lun
+  !
+  call createfilefolder(trim(sfile),nerr)
+  open(unit=lu,file=trim(sfile),iostat=nerr,&
+     & form='binary',action='write',status='replace')
+  if (nerr/=0) then
+    call CriticalError("CreateDataR4: Failed to create file ["//trim(sfile)//"].")
+  end if
+  !
+  ! write data to file, sequential binary
+  !
+  write(unit=lu,iostat=nerr) fa
+  if (nerr/=0) then
+    call CriticalError("CreateDataR4: Failed to initialize file.")
+  end if
+  !
+  ! close and disconnect
+  !
+  close(unit=lu)
+  !
+  ! done
+  !
+  deallocate(fa,stat=nalloc)
+! ------------
+
+! ------------
+!  write(unit=*,fmt=*) " > CreateDataR4: EXIT."
+  return
+
+END SUBROUTINE CreateDataR4
+!**********************************************************************!
+  
+  
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE AddDataR4(sfile,dat,n,np,nerr)
+! function: adss real*4 data array to file at location np
+! -------------------------------------------------------------------- !
+! parameter: 
+! -------------------------------------------------------------------- !
+
+  use IFPORT
+  
+  implicit none
+
+! ------------
+! DECLARATION
+  integer*4, parameter :: nbuf = 1024 ! use a fix size write buffer
+  
+  character(len=*), intent(in) :: sfile
+  integer*4, intent(in) :: n, np
+  real*4, intent(in) :: dat(n)
+  integer*4, intent(inout) :: nerr
+  
+  integer*4 :: lu, nalloc, npos, nposn, nrem, nnow
+  external :: GETFreeLFU
+  real*4 :: buf(nbuf)
+! ------------
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > AddDataR4: INIT."
+  nerr = 0
+  nalloc = 0
+  buf = 0.
+  call GetFreeLFU(lu,20,99)
+! ------------
+
+! ------------
+  !
+  ! open file, connect to lun, using shared access
+  ! Warning: This can cause trouble on multi-process calls
+  !          To avoid or at least keep chances low for simultaneous access:
+  !          - keep nbuf low 
+  !          - call only once per process and file
+  !
+  open(unit=lu, file=trim(sfile), iostat=nerr, &
+     & form='binary', action='write', status='old', share='DENYNONE')
+  if (nerr/=0) goto 100
+  !
+  !
+  nrem = n
+  npos = np
+  nposn = 1
+  !
+  ! while items remain to be written
+  do while (nrem>0)
+    !
+    ! determine number of bytes for next block
+    nnow = min(nrem,nbuf)
+    !
+    ! go to requested position in file
+    nerr = FSEEK(lu, npos, 0)
+    if (nerr/=0) goto 103
+    !
+    ! read to buffer
+    read(unit=lu,iostat=nerr) buf(1:nnow)
+    if (nerr/=0) goto 101
+    !
+    ! add from input
+    buf(1:nnow) = buf(1:nnow) + dat(nposn:nposn+nnow-1)
+    !
+    ! go back to requested position in file
+    nerr = FSEEK(lu, npos, 0)
+    if (nerr/=0) goto 103
+    !
+    ! write data to file, sequential binary
+    write(unit=lu,iostat=nerr) buf(1:nnow)
+    if (nerr/=0) goto 102
+    !
+    nrem = nrem - nnow
+    npos = npos + nnow
+    nposn = nposn + nnow
+    !
+  end do
+  !
+  ! close and disconnect
+  !
+  close(unit=lu)
+  !
+  ! done
+  !
+! ------------
+
+! ------------
+!  write(unit=*,fmt=*) " > AddDataR4: EXIT."
+  return
+  
+100 continue
+  call CriticalError("AddDataR4: Failed to open file ["//trim(sfile)//"].")
+  return
+101 continue
+  call CriticalError("AddDataR4: Failed to read data from file ["//trim(sfile)//"].")
+  return
+102 continue
+  call CriticalError("AddDataR4: Failed to write data to file ["//trim(sfile)//"].")
+  return
+103 continue
+  call CriticalError("AddDataR4: Failed to position in file ["//trim(sfile)//"].")
+  return
+
+END SUBROUTINE AddDataR4
+!**********************************************************************!
+  
 
 !**********************************************************************!
 !**********************************************************************!
@@ -1339,6 +1572,7 @@ SUBROUTINE ParseCommandLine()
   MSP_ctemmode = 0
   MSP_pimgmode = 0
   MSP_pdifmode = 0
+  MSP_padifmode = 0
   MSP_ScanPixelX = -1
   MSP_ScanPixelY = -1
   MSP_LastScanPixelX = -1
@@ -1776,6 +2010,10 @@ SUBROUTINE ParseCommandLine()
       nfound = 1
       MSP_pdifmode = 1
       
+    case ("/padif")
+      nfound = 1
+      MSP_padifmode = 1
+      
     case ("/wave")
       nfound = 1
       MS_wave_export = 1
@@ -1878,7 +2116,7 @@ SUBROUTINE ParseCommandLine()
 ! ------------
 ! check wave export
   if (MS_wave_export > 0 .or. MS_wave_avg_export > 0 .or. &
-    & MSP_pimgmode > 0 .or. MSP_pdifmode > 0) then
+    & MSP_pimgmode > 0 .or. MSP_pdifmode > 0 .or. MSP_padifmode > 0) then
   ! preset file names and backup names
     MS_wave_filenm = MSP_outfile
     MS_wave_filenm_bk = MS_wave_filenm
@@ -4347,13 +4585,25 @@ SUBROUTINE InitProbeIntegration()
     if (nerr/=0) goto 101
     MSP_pimg = 0.0
   end if
-  if (MSP_pdifmode/=0) then ! array is already allocated
+  if (MSP_pdifmode/=0 .or. MSP_padifmode/=0) then ! array is already allocated
     if (allocated(MSP_pdif)) deallocate(MSP_pdif,stat=nerr) ! deallocate
     allocate(MSP_pdif(1:nx, 1:ny, 0:nepw-1),stat=nerr) ! allocate
     if (nerr/=0) goto 101
     MSP_pdif = 0.0
+    if (MSP_padifmode/=0) then
+      if (allocated(MSP_padif)) deallocate(MSP_padif,stat=nerr) ! deallocate
+      allocate(MSP_padif(1:nx, 1:ny, 0:nepw-1),stat=nerr) ! allocate
+      if (nerr/=0) goto 101
+      MSP_padif = 0.0
+      if (MS_wave_avg_export>0) then
+        if (allocated(MSP_padif_ela)) deallocate(MSP_padif_ela,stat=nerr) ! deallocate
+        allocate(MSP_padif_ela(1:nx, 1:ny, 0:nepw-1),stat=nerr) ! allocate
+        if (nerr/=0) goto 101
+        MSP_padif_ela = 0.0
+      end if
+    end if
   end if
-  if (MSP_pimgmode/=0 .or. MSP_pdifmode/=0) then ! array are allocated
+  if (MSP_pimgmode/=0 .or. MSP_pdifmode/=0 .or. MSP_padifmode/=0) then ! arrays are allocated
     if (allocated(MSP_pint_nac)) deallocate(MSP_pint_nac,stat=nerr) ! deallocate
     MSP_pint_num = 0
     allocate(MSP_pint_nac(0:nepw-1),stat=nerr)
@@ -4411,10 +4661,12 @@ SUBROUTINE ResetProbeIntegration()
   if (MSP_pimgmode/=0 .and. allocated(MSP_pimg)) then ! array is already allocated
     MSP_pimg = 0.0
   end if
-  if (MSP_pdifmode/=0 .and. allocated(MSP_pdif)) then ! array is already allocated
+  if ((MSP_pdifmode/=0 .or. MSP_padifmode/=0) .and. allocated(MSP_pdif)) then ! array is already allocated
     MSP_pdif = 0.0
+    !! Do not reset MSP_padif and MSP_padif_ela here! These will accumulate over probe positions.
   end if
-  if ((MSP_pimgmode/=0 .or. MSP_pdifmode/=0) .and. allocated(MSP_pint_nac)) then ! array is already allocated
+  if ((MSP_pimgmode/=0 .or. MSP_pdifmode/=0 .or. MSP_padifmode/=0) &
+    & .and. allocated(MSP_pint_nac)) then ! array is already allocated
     MSP_pint_nac = 0
   end if
   MS_pint_idx = 0
@@ -4461,6 +4713,8 @@ SUBROUTINE UnInitProbeIntegration()
 ! Deallocate the array holding the average wavefunctions
   if (allocated(MSP_pimg)) deallocate(MSP_pimg, stat=nerr)
   if (allocated(MSP_pdif)) deallocate(MSP_pdif, stat=nerr)
+  if (allocated(MSP_padif)) deallocate(MSP_padif, stat=nerr)
+  if (allocated(MSP_padif_ela)) deallocate(MSP_padif_ela, stat=nerr)
   if (allocated(MSP_pint_nac)) deallocate(MSP_pint_nac, stat=nerr)
 ! reset the access and accumulation indices
   MSP_pint_num = 0
@@ -4472,6 +4726,321 @@ SUBROUTINE UnInitProbeIntegration()
   return
 
 END SUBROUTINE UnInitProbeIntegration
+!**********************************************************************!
+  
+!**********************************************************************!
+! Warining: No controls are done here to check whether the file is OK.
+SUBROUTINE AddImageToOpenFile(lun, lunpos, img, imgbuf, nx, ny, nerr)
+  use IFPORT
+  integer*4, intent(in) :: lun, lunpos, nx, ny
+  real*4, intent(in) :: img(1:nx,1:ny)
+  real*4, intent(inout) :: imgbuf(1:nx,1:ny)
+  integer*4, intent(inout) :: nerr
+  integer*4 :: ioerr
+  ioerr = 0
+  nerr = 0
+  ! read old data from file
+  ioerr = fseek(lun, lunpos, 0)
+  if (ioerr/=0) then
+    nerr = 1
+    return
+  end if
+  read(unit=lun,iostat=ioerr) imgbuf(1:nx,1:ny)
+  if (ioerr/=0) then
+    nerr = 2
+    return
+  end if
+  ! add the new data to the old data
+  imgbuf(1:nx,1:ny) = imgbuf(1:nx,1:ny) + img(1:nx,1:ny)
+  ! write the data for slice islc in slot k
+  ioerr = fseek(lun, lunpos, 0)
+  if (ioerr/=0) then
+    nerr = 1
+    return
+  end if
+  write(unit=lun,iostat=ioerr) imgbuf(1:nx,1:ny)
+  if (nerr/=0) then
+    nerr = 3
+    return
+  end if
+  return
+end SUBROUTINE AddImageToOpenFile
+!**********************************************************************!
+  
+  
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE ExportProbeAvgDif(sfile)
+! function: Exports the averaged diffraction pattern accumulated
+!           in MSP_padif* to files.
+!           - loops through all exit planes used for recording
+!
+!           This function will open with exclusive access since it
+!           may need to read existing data before writing new data.
+!           This will allow multiple-processes to write to the same
+!           file. A repeat and waiting scheme is implemented to
+!           queue up file acces from multiple processes.
+!
+
+  use IFPORT
+  use MultiSlice
+  use MSAparams
+
+  implicit none
+  
+! ------------
+! DECLARATION
+  character(len=*), intent(in) :: sfile
+  character(len=MSP_ll) :: isfile, sexpfile(3)
+  integer*4 :: nerr, nexist, nela, nslc, lun, islc, iout, k
+  integer*4 :: nx, ny, nslotbytes
+  real*4, allocatable :: patmp(:,:), patds(:,:)
+  external :: fileopenexclrw ! (sfile, lun, nexist, nerr)
+  external :: createfilefolder ! (sfile,nerr) this file
+  external :: sinsertslcidx ! (idx,idxlen,sfnin,sfnadd,sfnext,sfnout) this file
+! ------------
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > ExportProbeAvgDif: INIT."
+  nerr = 0
+  if (MSP_padifmode==0 .or. (.not.allocated(MSP_padif))) goto 99
+  nx = MS_dimx
+  ny = MS_dimy
+  if (nx <= 0 .or. ny <= 0) goto 99 ! no valid setup
+  nslotbytes = nx*ny*4 ! set number of bytes per slot
+  iout = 0
+  lun = 0
+  nslc = MS_stacksize ! max. number of object slices
+  nela = 0 ! init without elastic pattern data (0)
+  if (MS_wave_avg_export>0 .and. allocated(MSP_padif)) nela = 1 ! there should be elastic data -> trigger tds output
+  if (LEN_TRIM(sfile)==0) then ! set a default output file name in case of invalid input
+    isfile = "probe.dat"
+  else ! use the input file name
+    isfile = trim(sfile)
+  end if
+  allocate(patmp(1:nx,1:ny), stat=nerr)
+  if (nerr/=0) then
+    call CriticalError("Failed to allocate memory for storing <padif> data.")
+    goto 99
+  end if
+  patmp = 0
+  if (nela>0) then
+    allocate(patds(1:nx,1:ny), stat=nerr)
+    if (nerr/=0) then
+      call CriticalError("Failed to allocate memory for storing <padif_tds> data.")
+      goto 99
+    end if
+    patds = 0
+  end if
+! ------------
+
+! ------------
+  if (MSP_3dout > 0) then ! full stack output (open file only once)
+    ! prepare file names
+    call sinsertslcidx(0,0,trim(isfile),"_padif_tot",".dat",sexpfile(1))
+    call sinsertslcidx(0,0,trim(isfile),"_padif_ela",".dat",sexpfile(2))
+    call sinsertslcidx(0,0,trim(isfile),"_padif_tds",".dat",sexpfile(3))
+    if (iout==0) call createfilefolder(trim(sexpfile(1)),nerr) ! try to create the folder
+    iout = 1
+    !
+    ! * TOTAL INTENSITY DATA 
+    !
+    ! file opening
+    call fileopenexclrw(sexpfile(1), lun, nexist, nerr)
+    if (nerr/=0) goto 100
+    ! work on the open file
+    if (nexist>0) then ! existing file -> add the data
+      do islc=0, nslc ! Loop over all slices
+        k = MSP_ldetpln(islc) ! get storage slot
+        if (k < 0) cycle ! nothing stored for islc
+        ! add data to slot k in the file
+        call AddImageToOpenFile(lun, k*nslotbytes, &
+           & MSP_padif(1:nx,1:ny,k), patmp(1:nx,1:ny), nx, ny , nerr)
+        if (nerr/=0) goto 101
+      end do
+    else ! new file -> just store all data
+      do islc=0, nslc ! Loop over all slices
+        k = MSP_ldetpln(islc) ! get storage slot
+        if (k < 0) cycle ! nothing stored for islc
+        ! write the data for slice islc in slot k
+        write(unit=lun,iostat=nerr) MSP_padif(1:nx,1:ny,k)
+        if (nerr/=0) then
+          nerr = 3
+          goto 101
+        end if
+      end do
+    end if
+    close(unit=lun) ! close the file
+    !
+    if (nela>0) then ! elastic and tds data is present
+      !
+      ! * ELASTIC INTENSITY DATA 
+      !
+      ! file opening
+      call fileopenexclrw(sexpfile(2), lun, nexist, nerr)
+      if (nerr/=0) goto 100
+      ! work on the open file
+      if (nexist>0) then ! existing file -> add the data
+        do islc=0, nslc ! Loop over all slices
+          k = MSP_ldetpln(islc) ! get storage slot
+          if (k < 0) cycle ! nothing stored for islc
+          ! add data to slot k in the file
+          call AddImageToOpenFile(lun, k*nslotbytes, &
+             & MSP_padif_ela(1:nx,1:ny,k), patmp(1:nx,1:ny), nx, ny , nerr)
+          if (nerr/=0) goto 101
+        end do
+      else ! new file -> just store all data
+        do islc=0, nslc ! Loop over all slices
+          k = MSP_ldetpln(islc) ! get storage slot
+          if (k < 0) cycle ! nothing stored for islc
+          ! write the data for slice islc in slot k
+          write(unit=lun,iostat=nerr) MSP_padif_ela(1:nx,1:ny,k)
+          if (nerr/=0) then
+            nerr = 3
+            goto 101
+          end if
+        end do
+      end if
+      close(unit=lun) ! close the file
+      !
+      ! * TDS INTENSITY DATA 
+      !
+      ! file opening
+      call fileopenexclrw(sexpfile(3), lun, nexist, nerr)
+      if (nerr/=0) goto 100
+      ! work on the open file
+      if (nexist>0) then ! existing file -> add the data
+        do islc=0, nslc ! Loop over all slices
+          k = MSP_ldetpln(islc) ! get storage slot
+          if (k < 0) cycle ! nothing stored for islc
+          ! get the tds data
+          patds(1:nx,1:ny) = MSP_padif(1:nx,1:ny,k) - MSP_padif_ela(1:nx,1:ny,k)
+          ! add data to slot k in the file
+          call AddImageToOpenFile(lun, k*nslotbytes, &
+             & patds(1:nx,1:ny), patmp(1:nx,1:ny), nx, ny , nerr)
+          if (nerr/=0) goto 101
+        end do
+      else ! new file -> just store all data
+        do islc=0, nslc ! Loop over all slices
+          k = MSP_ldetpln(islc) ! get storage slot
+          if (k < 0) cycle ! nothing stored for islc
+          ! get the tds data
+          patds(1:nx,1:ny) = MSP_padif(1:nx,1:ny,k) - MSP_padif_ela(1:nx,1:ny,k)
+          ! write the data for slice islc in slot k
+          write(unit=lun,iostat=nerr) patds(1:nx,1:ny)
+          if (nerr/=0) then
+            nerr = 3
+            goto 101
+          end if
+        end do
+      end if
+      close(unit=lun) ! close the file
+    end if
+    !
+  else ! single slice output (need to open many files)
+    do islc=0, nslc ! Loop over all slices
+      k = MSP_ldetpln(islc) ! get storage slot
+      if (k < 0) cycle ! nothing stored for islc
+      ! prepare file names
+      call sinsertslcidx(islc,MS_nslid,trim(isfile),"_padif_tot",".dat",sexpfile(1))
+      call sinsertslcidx(islc,MS_nslid,trim(isfile),"_padif_ela",".dat",sexpfile(2))
+      call sinsertslcidx(islc,MS_nslid,trim(isfile),"_padif_tds",".dat",sexpfile(3))
+      if (iout==0) call createfilefolder(trim(sexpfile(1)),nerr) ! try to create the folder
+      iout = iout + 1
+      !
+      ! * TOTAL INTENSITY DATA 
+      !
+      ! open the file 
+      call fileopenexclrw(sexpfile(1), lun, nexist, nerr)
+      if (nerr/=0) goto 100
+      ! work on the open file
+      if (nexist>0) then ! existing file -> add the data
+        ! add data to the file
+        call AddImageToOpenFile(lun, 0, MSP_padif(1:nx,1:ny,k), &
+          & patmp(1:nx,1:ny), nx, ny , nerr)
+        if (nerr/=0) goto 101
+      else ! new file -> just store all data
+        ! write the data
+        write(unit=lun,iostat=nerr) MSP_padif(1:nx,1:ny,k)
+        if (nerr/=0) then
+          nerr = 3
+          goto 101
+        end if
+      end if
+      close(unit=lun) ! close the file
+      !
+      if (nela>0) then ! elastic and tds data
+        !
+        ! * ELASTIC INTENSITY DATA 
+        !
+        ! open the file 
+        call fileopenexclrw(sexpfile(2), lun, nexist, nerr)
+        if (nerr/=0) goto 100
+        ! work on the open file
+        if (nexist>0) then ! existing file -> add the data
+          ! add data the file
+          call AddImageToOpenFile(lun, 0, MSP_padif_ela(1:nx,1:ny,k), &
+            & patmp(1:nx,1:ny), nx, ny , nerr)
+          if (nerr/=0) goto 101
+        else ! new file -> just store all data
+          ! write the data
+          write(unit=lun,iostat=nerr) MSP_padif_ela(1:nx,1:ny,k)
+          if (nerr/=0) then
+            nerr = 3
+            goto 101
+          end if
+        end if
+        close(unit=lun) ! close the file
+        !
+        ! * TDS INTENSITY DATA 
+        !
+        ! get the tds data
+        patds(1:nx,1:ny) = MSP_padif(1:nx,1:ny,k) - MSP_padif_ela(1:nx,1:ny,k)
+        ! open the file 
+        call fileopenexclrw(sexpfile(1), lun, nexist, nerr)
+        if (nerr/=0) goto 100
+        ! work on the open file
+        if (nexist>0) then ! existing file -> add the data
+          ! add data to slot k in the file
+          call AddImageToOpenFile(lun, 0, patds(1:nx,1:ny), &
+            & patmp(1:nx,1:ny), nx, ny , nerr)
+          if (nerr/=0) goto 101
+        else ! new file -> just store all data
+          ! write the data for slice islc in slot k
+          write(unit=lun,iostat=nerr) patds(1:nx,1:ny)
+          if (nerr/=0) then
+            nerr = 3
+            goto 101
+          end if
+        end if
+        close(unit=lun) ! close the file
+        !
+      end if
+      !
+    end do ! islc=0, nslc ! Loop over all slices
+  end if
+! ------------
+  
+! ------------
+99 continue
+  if (allocated(patmp)) deallocate(patmp,stat=nerr)
+  if (allocated(patds)) deallocate(patds,stat=nerr)
+  return
+100 continue
+  close(unit=lun) ! close the file
+  call CriticalError("Failed to open file for <padif> output.")
+  goto 99
+101 continue
+  close(unit=lun) ! close the file
+  if (nerr==1) call CriticalError("Failed to position in file for <padif> output.")
+  if (nerr==2) call CriticalError("Failed to read old data from file for adding <padif> data.")
+  if (nerr==3) call CriticalError("Failed to write <padif> data to output file.")
+  goto 99
+
+  return
+  
+END SUBROUTINE ExportProbeAvgDif
 !**********************************************************************!
 
 
@@ -4503,11 +5072,12 @@ SUBROUTINE ExportProbeIntensity(sfile)
   integer*4 :: nintout, nwavavg, ntransform, nuidx
   integer*4 :: nx, ny, nerr, nalloc, i, j, k
   integer*4 :: islc, iout, nslc
-  real*4 :: rnorm, pint, rsca
+  real*4 :: rnorm, pint, rsca, rscas
   real*4, dimension(:,:), allocatable :: pimg, pela, ptds
   complex*8, dimension(:,:), allocatable :: wave !, work
   external :: SaveDataC8, SaveDataR4 ! (sfile,dat,n,nerr) this file
   external :: AppendDataC8, AppendDataR4 ! (sfile,dat,n,nerr) this file
+  external :: AddDataR4 ! (sfile,dat,n,nerr) this file
   external :: sinsertslcidx ! (idx,idxlen,sfnin,sfnadd,sfnext,sfnout) this file
 ! ------------
 
@@ -4521,9 +5091,10 @@ SUBROUTINE ExportProbeIntensity(sfile)
   ny = MS_dimy
   if (nx <= 0 .or. ny <= 0) return ! no valid setup
   if (MS_pint_export<=0) return ! no valid setup
-  if (MSP_pdifmode>0) nintout = 1
+  if (MSP_pdifmode>0 .or. MSP_padifmode>0) nintout = 1
   if (MSP_pimgmode>0) nintout = nintout + 2
   rsca = 1.0 / real(nx*ny) ! for DFT renormalizations
+  rscas = 1.0 / real(MSP_SF_ndimx*MSP_SF_ndimy) ! for average diffraction pattern normalization
   !
   ! Handle the case of present average wave function data.
   ! In this case, we want to export the elastic images as well as 
@@ -4628,7 +5199,7 @@ SUBROUTINE ExportProbeIntensity(sfile)
 
 ! ------------
 ! OUTPUT OF PROBE INTENSITIES IN FOURIER SPACE
-  if (MSP_pdifmode==1) then
+  if (MSP_pdifmode==1 .or. MSP_padifmode==1) then
     ! allocations
     allocate(pimg(nx,ny), stat=nalloc)
     if (nwavavg>0) then
@@ -4649,15 +5220,21 @@ SUBROUTINE ExportProbeIntensity(sfile)
       !
       ! get total intensity
       pimg(1:nx,1:ny) = MSP_pdif(1:nx,1:ny,k) * rnorm
-      ! prepare file names and save
-      call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pdif_tot",".dat",sexpfile(1))
-      call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pdif_ela",".dat",sexpfile(2))
-      call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pdif_tds",".dat",sexpfile(3))
-      if (MSP_3dout > 0 .and. iout >0) then ! /3dout append
-        call AppendDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! append to old file
-      else ! single file per plane
-        call PostMessage("  Writing total probe diffraction intensity to file ["//trim(sexpfile(1))//"].")
-        call SaveDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! save to new file
+      !
+      if (MSP_padifmode==1) then ! add to average diffraction pattern
+        MSP_padif(1:nx,1:ny,k) = MSP_padif(1:nx,1:ny,k) + pimg(1:nx,1:ny)*rscas ! ... normalized to number of scan points
+      end if
+      if (MSP_pdifmode==1) then ! ouput of diffraction pattern per scan position
+        ! prepare file names and save
+        call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pdif_tot",".dat",sexpfile(1))
+        call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pdif_ela",".dat",sexpfile(2))
+        call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pdif_tds",".dat",sexpfile(3))
+        if (MSP_3dout > 0 .and. iout >0) then ! /3dout append
+          call AppendDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! append to old file
+        else ! single file per plane
+          call PostMessage("  Writing total probe diffraction intensity to file ["//trim(sexpfile(1))//"].")
+          call SaveDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! save to new file
+        end if
       end if
       ! 
       if (nwavavg>0) then
@@ -4678,14 +5255,19 @@ SUBROUTINE ExportProbeIntensity(sfile)
           end do
         end do
         ptds = pimg - pela
-        if (MSP_3dout > 0 .and. iout > 0) then ! /3dout -> single files append
-          call AppendDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! append ela
-          call AppendDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! append tds
-        else ! individual files per plane
-          call PostMessage("  Writing elastic probe diffraction intensity to file ["//trim(sexpfile(2))//"].")
-          call SaveDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! save ela
-          call PostMessage("  Writing TDS probe diffraction intensity to file ["//trim(sexpfile(3))//"].")
-          call SaveDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! save tds
+        if (MSP_padifmode==1) then ! add elastic diffraction pattern to average elastic diffraction pattern
+          MSP_padif_ela(1:nx,1:ny,k) = MSP_padif_ela(1:nx,1:ny,k) + pela(1:nx,1:ny)*rscas ! ... normalized to number of scan points
+        end if
+        if (MSP_pdifmode==1) then ! output of elastic diffraction pattern per scan position
+          if (MSP_3dout > 0 .and. iout > 0) then ! /3dout -> single files append
+            call AppendDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! append ela
+            call AppendDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! append tds
+          else ! individual files per plane
+            call PostMessage("  Writing elastic probe diffraction intensity to file ["//trim(sexpfile(2))//"].")
+            call SaveDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! save ela
+            call PostMessage("  Writing TDS probe diffraction intensity to file ["//trim(sexpfile(3))//"].")
+            call SaveDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! save tds
+          end if
         end if
       end if
       !
@@ -4699,7 +5281,7 @@ SUBROUTINE ExportProbeIntensity(sfile)
     if (allocated(pela)) deallocate(pela, stat=nalloc)
     if (allocated(ptds)) deallocate(ptds, stat=nalloc)
     !
-  end if ! (MSP_pdifmode==1)
+  end if ! (MSP_pdifmode==1 .or. MSP_padifmode==1)
 ! ------------
 
 ! ------------
@@ -5098,7 +5680,7 @@ SUBROUTINE ExportWave(sfile, islice)
         end do
       end if
     end if
-    if (MSP_pdifmode>0) then ! Fourier-space intensity accumulation
+    if (MSP_pdifmode>0 .or. MSP_padifmode>0) then ! Fourier-space intensity accumulation
       ! accumulate probe diffraction pattern from MS_wave
       do j=1, MS_dimy
         do i=1, MS_dimx

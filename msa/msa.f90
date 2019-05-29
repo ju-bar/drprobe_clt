@@ -7,7 +7,7 @@
 !
 !**********************************************************************
 !                                                                      
-!   Date: 2019-05-03
+!   Date: 2019-05-28
 !                                                                      
 !   Author: Juri Barthel                                               
 !           Ernst Ruska-Centre                                         
@@ -79,7 +79,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "0.94b 64-bit  -  2019 may  03  -"
+  MSP_verApp  =                   "0.95b 64-bit  -  2019 May  29  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -190,14 +190,16 @@ program msa
 
 ! ------------
 ! probe image calculation warning
-  if ((1==MSP_pimgmode .or. 1==MSP_pdifmode) .and. MSP_ctemmode/=0) then
+  if ((1==MSP_pimgmode .or. 1==MSP_pdifmode .or. 1==MSP_padifmode) .and. MSP_ctemmode/=0) then
     call PostWarning("Probe intensity integration is not available in CTEM mode.")
     if (1==MSP_pimgmode) call PostSureMessage("- Option /pimg is ignored.")
     if (1==MSP_pdifmode) call PostSureMessage("- Option /pdif is ignored.")
+    if (1==MSP_padifmode) call PostSureMessage("- Option /padif is ignored.")
     MSP_pimgmode = 0
     MSP_pdifmode = 0
+    MSP_padifmode = 0
   end if
-  if (1==MSP_pimgmode .or. 1==MSP_pdifmode) then
+  if (1==MSP_pimgmode .or. 1==MSP_pdifmode .or. 1==MSP_padifmode) then
     call PostWarning("Performing probe intensity integrations, increased computation time!.")
     MS_pint_export = 1 ! This triggers the multislice into the wave export routine
   end if
@@ -476,6 +478,13 @@ LH: do
   if (0==MSP_ctemmode) then ! stem
     call MSP_FinishTextOutput(nerr)
     if (nerr/=0) call CriticalError("Failed to finalize text output.")
+  end if
+! ------------
+  
+! ------------
+! OUTPUT POSITION AVERAGED DIFFRACTION PATTERN
+  if (MSP_padifmode>0) then
+    call ExportProbeAvgDif(trim(MS_wave_filenm_bk))
   end if
 ! ------------
 
