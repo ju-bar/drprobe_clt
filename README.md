@@ -95,9 +95,9 @@ wavimg -prm test/wavimg-2.prm -out test/img_ctem.dat
 The programs are written in Fortran 90 code for Intel Fortran compilers.
 
 Current versions:
-* CELSLC: 0.70
-* MSA: 0.94
-* WAVIMG: 0.70
+* CELSLC: 1.0
+* MSA: 1.0
+* WAVIMG: 1.0
 
 The code of the program MSA links to "libfftwf-3.3.lib"
 MSA uses data output by FFTW and is in no form based on work represented by

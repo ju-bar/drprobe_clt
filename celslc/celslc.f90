@@ -11,7 +11,7 @@
 !
 ! PURPOSE: Implementations of program CELSLC
 !
-! VERSION: 0.70b (20181128)
+! VERSION: 1.0.0 (20190611)
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -151,6 +151,14 @@ program celslc
     if (CS_scaf_table==2) call PostMessage("Using atomic form factors of Waasmaier & Kirfel.")
   end if
   !
+  ! handle external potentials
+  if (nextpot>0) then
+    call PrepExtPotentials(nerr)
+    if (nerr/=0) then
+      call CriticalError("Failed to prepare additional external potentials.")
+    end if
+  end if
+  !
   call PostRuntime("program initialized")
   !
   if (nffdec==1) then ! output ff decay data
@@ -208,7 +216,7 @@ program celslc
       CS_atdwf = buniv
     end if
     !
-    if (block==1) then ! re-orientations
+    if (blk==1) then ! re-orientations
       !
       call PostMessage("Re-orienting the super-cell to new projection axes.")
       call CS_ORIENT_CELL(bloh,blok,blol, blyh,blyk,blyl, blsa,blsb,blsc, nerr)
@@ -358,7 +366,6 @@ program celslc
   ! *** FINISH *** !
   !
   call PostMessage("Finished.")
-  call Outroduce()
   !
   ! ****************************************************************** !
   

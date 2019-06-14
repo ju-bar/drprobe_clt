@@ -6,7 +6,7 @@
 !
 ! by J. Barthel, Forschungszentrum Jülich GmbH, Jülich, Germany
 !                RWTH Aachen University, Aachen, Germany
-! 2018-May-29
+! 2019-June-12
 !
 ! requires extended source lines ( option "/extend_source:132" )
 !
@@ -115,7 +115,7 @@ function wakisca(g,dw,z,akv,dwfflg,absflg)
   integer*4, intent(in) :: z
   logical, intent(in) :: dwfflg, absflg
   complex*8 :: wakisca
-  real*4, external :: waki, wakiabs
+  real*4, external :: waki, wakiabs, wakiabsap
 ! local variables
   real*4 :: dwa, sa, dewa
   real*4 :: k0, rc
@@ -149,8 +149,16 @@ function wakisca(g,dw,z,akv,dwfflg,absflg)
   if ((dwfflg).and.(absflg).and.(abs(dwa)>=thrima).and.(abs(fr)>=thrima)) then
 !   wave number in [A^-1] 
     k0  = kpre * sqrt((2.0*e0kv + akv) * akv) ! 2*Pi*k ! andere k-Notation hier: Aufpassen!
-	fi  = rc * rc * wakiabs(0.1*g, dwa, a2, k0/twopi) * k0 ! apply double relativistic correction and divide by (2*pi*k)
+	  fi  = rc * rc * wakiabs(0.1*g, dwa, a2, k0/twopi) * k0 ! apply double relativistic correction and divide by (2*pi*k)
     !if (dwfflg) fi = fi * dewa ! apply the Debye Waller factor to the absorptive part
+  end if
+  
+  if ((.not.dwfflg).and.(absflg).and.(abs(g)<abs(dw))) then
+    ! calculate absorptive form factor due to a blocking aperture
+    ! the aperture limit is set by the input dw in this case
+    ! input dw assumed in [1/nm] units
+    k0  = kpre * sqrt((2.0*e0kv + akv) * akv) ! 2*Pi*k ! andere k-Notation hier: Aufpassen!
+    fi  = rc*rc*wakiabsap(0.1*g, 0.1*dw, a2, k0/twopi) * k0 ! call the aperture integrator
   end if
 !
 !-------[ang] to [nm]
@@ -253,7 +261,7 @@ end function wakiscar
 !      = ( e/(h*c)*10^-7 [A/kV] ) * Sqrt[ (2*E0_keV + HT_kV)*HT_kV ]
 ! output: (real*4)
 !   wakiabs = absorptive form factor without the required pre-factor
-!             DWF * gamma^2 / (2*pi*k0)
+!             gamma^2 / (2*pi*k0)
 !
 function wakiabs(ga,dwa,a,k0)
 !
@@ -417,9 +425,135 @@ function wakimug(theta,phi)
   
   return
     
-end function wakimug
+  end function wakimug
 
 
+  
+! ******************************************************************** !
+!
+! wakiabsap
+!
+! This function starts a numerical integration of the absorptive
+! form factor for electron scattering form factors given in the
+! Waasmaier and Kirfel parameterization. The absorption is due to
+! an aperture, TDS is ignored.
+!
+! input: (real*4)
+!   ga = diffraction vector magnitude [1/A]
+!   apa = Aperture radius [1/A]
+!   a(14) = parameters from Wa&Ki's table (defines the atom)
+!   k0 = incident beam vacuum wave vector magnitude [1/A] = 1/Lambda
+!      = ( e/(h*c)*10^-7 [A/kV] ) * Sqrt[ (2*E0_keV + HT_kV)*HT_kV ]
+! output: (real*4)
+!   wakiabs = absorptive form factor without the required pre-factor
+!             gamma^2 / (2*pi*k0)
+!
+function wakiabsap(ga,apa,a,k0)
+!
+  implicit none
+!
+  real*4, intent(in) :: ga, apa, a(14), k0
+!
+  real*4 :: wakiabsap
+!
+  real*4 :: wakia(14)
+  real*8 :: si0, si1, fa, pi0, pi1
+  real*8 :: wakig, wakib, wakik
+! common blocks ...
+  common /waki1/ wakia        !  for wakiscar1
+  common /waki2/ wakig, wakib, wakik !  for integrand wakimug
+!
+  real*8, external :: dsgrid2d ! link integration.f90 !
+  real*8, external :: wakimugap ! integrand functions
+!
+  wakiabsap = 0.0
+  if (abs(ga)<abs(apa)) then ! only calculate if inside the aperture
+    wakia = a ! set the Waasmaier and Kirfel parameters to be used
+    wakig = dble(ga) ! store sa for the integrand wakimug
+    wakib = dble(apa) ! store aperture radius for both integrands
+    wakik = k0
+  ! set integration range
+    si0 = 0.d+0 ! 0
+    si1 = 3.1415926535898D+0 ! Pi
+    pi0 = 0.d+0 ! 0
+    pi1 = 3.1415926535898D+0 ! Pi
+  ! call the numerical integrator
+  ! use a grid of 128 pixels along theta with a square sampling
+  !           and  64 pixels along phi with linear sampling
+  !           phi on the half side only (symmteric) therefore:    * 2
+    fa = dsgrid2d(wakimugap,si0,si1,pi0,pi1,2.0d+0,1.0d+0,128,64) * 2.0D+0
+    wakiabsap = real(fa, kind=4 )
+  end if
+  return
+  end function wakiabsap
+!
+! ******************************************************************** !
+
+
+  
+  
+!**********************************************************************!
+!
+! function wakimugap(theta,phi)
+!
+! returns the integrand for the absorptive form factor at g=wakig
+! for aperture radius parameter ap=wakib
+! for incident electron wave vector k=wakik
+! for atom defined by ai = wakia
+!
+! Set the values of common block parameters before using this function!
+! uses common blocks /waki1/ and /waki2/
+!
+function wakimugap(theta,phi)
+  
+  implicit none
+  
+  real*8, intent(in) :: theta, phi
+  real*8 :: wakimugap
+  real*8 :: k, q, g, qg, ap, ct, st, cp, twok, sg, sq, sqg
+  real*8 :: fq, fqg, apg, apq, apqg
+  real*8 :: wakig, wakib, wakik
+  common /waki2/ wakig, wakib, wakik
+  
+  real*8, external :: wakiscar1 ! form factor function
+                                ! uses common block /waki1/
+  wakimugap = 0.0D+0
+  ct = dcos(theta)
+  st = dsin(theta)
+  cp = dcos(phi)
+  ! q = scattering vector length of Q in the ewald sphere
+  ! Q = (qx, qy, qz) = K' - K
+  ! qx = k * sin(theta) * cos(phi)
+  ! qy = k * sin(theta) * sin(phi)
+  ! qz = k * ( cos(theta) - 1 )
+  ! k = |K| = wakik
+  k = wakik
+  twok = k+k
+  ! q = Sqrt[ 2 k^2 (1 - Cos[q]) ]
+  q = k * dsqrt( 2.D+0 - 2.D+0 * ct )
+  ! g = length of some reciprocal space vector G = (gx, gy, gz)
+  !     with gx = g, gy = 0, gz = 0 (obda)
+  g = wakig
+  ! qg = length of the difference vector Q - G
+  qg = dsqrt( g*g + twok*k - twok*(k*ct + g*cp*st) )
+  ap = 0.5D+0 * wakib ! aperture gmax / 2
+  sg = 0.5D+0 * g ! g/2
+  sq = 0.5D+0 * q ! q/2
+  sqg = 0.5D+0 * qg ! qg/2
+  fq = wakiscar1(sq) ! f(s) = f(g/2)
+  fqg = wakiscar1(sqg) ! f(s) = f(g/2)
+  apg = 1.0D+0
+  apq = 1.0D+0
+  apqg = 1.0D+0
+  if (sg>=ap) apg = 0.0D+0 ! aperture on g
+  if (sq>=ap) apq = 0.0D+0 ! aperture on q
+  if (sqg>=ap) apqg = 0.0D+0 ! aperture on q-g
+  wakimugap = fq*fqg * (apg - apq*apqg) * st
+  
+  return
+    
+end function wakimugap
+  
 
 !**********************************************************************!
 !

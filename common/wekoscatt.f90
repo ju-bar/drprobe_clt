@@ -6,7 +6,7 @@
 !
 ! by J. Barthel, Forschungszentrum Jülich GmbH, Jülich, Germany
 !                RWTH Aachen University, Aachen, Germany
-! 2018-May-29
+! 2019-June-12
 !
 ! requires extended source lines ( option "/extend_source:132" )
 !
@@ -23,6 +23,7 @@
 !       J.B.    14.11.2014 (added function "dwfjbr" returning a dwf.)
 !       J.B.    30.06.2017 (added parameters for L, z=0, vacancy, V&B-parameters play no role)
 !       J.B.    29.05.2018 (added f^2(theta) integrals, wekof2)
+!       J.B.    12.06.2019 (added absorptive form factors due to an aperture, no TDS assumed)
 ! 
 ! ******************************************************************** !
 !----------------------------------------------------------------------
@@ -68,10 +69,17 @@
 !                     no relativistic correction and no DWF applied.
 !                     atomic form factor parameters wakia are
 !                     defined in common block /waki1/
-! wekoabs(g,dw,a,b,k0) : function) (real*4) [A]
+! wekoabs(g,dw,a,b,k0) : (function) (real*4) [A]
 !                     returns the absorptive form factor for given
 !                     Weickenmeier & Kohl parameters a(2) and b(6),
 !                     Debye-Waller parameter dw [A^2] = Biso, and
+!                     spatial frequency g [1/A] = scattering vector
+!                     g = 2*s [1/A] (real*4)
+!                     wave number k0 [1/A]
+! wekoabsap(g,ap,a,b,k0) : (function) (real*4) [A]
+!                     returns the absorptive form factor for given
+!                     Weickenmeier & Kohl parameters a(2) and b(6),
+!                     aperture limit ap [1/A], and
 !                     spatial frequency g [1/A] = scattering vector
 !                     g = 2*s [1/A] (real*4)
 !                     wave number k0 [1/A]
@@ -106,7 +114,10 @@
 !	=====
 !
 !	The scattering amplitudes are multiplied by an additional 
-!	factor 4pi.
+!	factor 4pi compared to other implementations. This factor is
+! compensated again by the potential pre-factor used in calling code
+! but kept alive here for historic reasons allowing comparisons with
+! old EMS code.
 !	
 ! ******************************************************************** !
 
@@ -147,7 +158,7 @@ function wekosca(g,dw,z,akv,dwfflg,absflg)
   real*4 :: k0, rc
   real*4 :: fr, fi
   real*4 ::	a(2), b(6) ! coefficients of the weko parameterization
-  real*4, external :: weko, wekoimag, getdwf, wekoabs
+  real*4, external :: weko, wekoimag, getdwf, wekoabs, wekoabsap
   external :: getweko
 !	
 ! relativistic correction
@@ -164,13 +175,23 @@ function wekosca(g,dw,z,akv,dwfflg,absflg)
 ! form factor, relativistic correction, 4*Pi and DWF
   fr 	= rc * weko(a, b, sa) * fourpi * dewa ! real part of the scattering factor
   fi	= 0.0 ! preset imag part to zero
-! calculate imag scatt      
+!      
   if ((dwfflg).and.(absflg).and.(abs(ua)>=tiny).and.(abs(fr)>=tiny)) then
-    !wave number in [A^-1] 0.506774 = 2*Pi*e/(h*c) * 1E-7 [A^-1 * kV^-1]
+    ! calculate absorptive form factor due to thermal diffuse scattering
+    ! wave number in [A^-1] 0.506774 = 2*Pi*e/(h*c) * 1E-7 [A^-1 * kV^-1]
     k0  = 0.506774 * sqrt((2*elrmkv + akv) * akv) ! 2*Pi*k ! andere k-Notation hier: Aufpassen!
-    fi  = rc*rc*wekoimag (ga, ua, a, b) / k0
+    fi  = rc*rc*wekoimag(ga, ua, a, b) / k0
     !fi  = rc*rc*wekoabs(0.1*g, dwa, a, b, k0/twopi)*k0
   end if
+!
+  if ((.not.dwfflg).and.(absflg).and.(abs(g)<abs(dw))) then
+    ! calculate absorptive form factor due to a blocking aperture
+    ! the aperture limit is set by the input dw in this case
+    ! input dw assumed in [1/nm] units
+    k0  = 0.506774 * sqrt((2*elrmkv + akv) * akv) ! 2*Pi*k ! andere k-Notation hier: Aufpassen!
+    fi  = rc*rc*wekoabsap(0.1*g, 0.1*dw, a, b, k0/twopi) * k0 ! call the aperture integrator
+  end if
+!
 ! [ang] to [nm]
   wekosca = 0.1 * cmplx (fr, fi)
   return
@@ -343,7 +364,8 @@ end function wekoimag
 !
 ! This function starts a numerical integration of the absorptive
 ! form factor for electron scattering form factors given in the
-! Weickenmeier & Kohl parameterization.
+! Weickenmeier & Kohl parameterization. The absorption is due to
+! thermal diffuse scattering.
 !
 ! input: (real*4)
 !   ga = diffraction vector magnitude [1/A]
@@ -353,8 +375,8 @@ end function wekoimag
 !   k0 = incident beam vacuum wave vector magnitude [1/A] = 1/Lambda
 !      = ( e/(h*c)*10^-7 [A/kV] ) * Sqrt[ (2*E0_keV + HT_kV)*HT_kV ]
 ! output: (real*4)
-!   wakiabs = absorptive form factor without the required pre-factor
-!             DWF * gamma^2 / (2*pi*k0)
+!   wekoabs = absorptive form factor without the required pre-factor
+!             gamma^2 / (2*pi*k0)
 !
 function wekoabs(ga,dwa,a,b,k0)
 !
@@ -404,7 +426,7 @@ end function wekoabs
 ! function wekomug(theta,phi)
 !
 ! returns the integrand for the absorptive form factor at g=wekog
-! for debye-waller parameter b=wekob
+! for debye-waller parameter b=wekodw
 ! for incident electron wave vector k=wekok
 ! for atom defined by ai = wekoa and bi=wekob
 !
@@ -414,8 +436,6 @@ end function wekoabs
 function wekomug(theta,phi)
   
   implicit none
-  
-  real*8, parameter :: twopi = 6.283185307179586476925286766559
   
   real*8, intent(in) :: theta, phi
   real*8 :: wekomug
@@ -460,6 +480,131 @@ function wekomug(theta,phi)
 end function wekomug
 
 
+  
+! ******************************************************************** !
+!
+! wekoabsap
+!
+! This function starts a numerical integration of the absorptive
+! form factor for electron scattering form factors given in the
+! Weickenmeier & Kohl parameterization. The absorption is due to
+! an aperture blocking transmission >= a given k.
+!
+! input: (real*4)
+!   ga = diffraction vector magnitude [1/A]
+!   apa = aperture limit (gmax) [1/A]
+!   a(2) = parameters ai from We&Ko's table (defines the atom)
+!   b(6) = parameters bi from We&Ko's table (defines the atom)
+!   k0 = incident beam vacuum wave vector magnitude [1/A] = 1/Lambda
+!      = ( e/(h*c)*10^-7 [A/kV] ) * Sqrt[ (2*E0_keV + HT_kV)*HT_kV ]
+! output: (real*4)
+!   wakiabs = absorptive form factor without the required pre-factor
+!             gamma^2 / (2*pi*k0)
+!
+function wekoabsap(ga,apa,a,b,k0)
+!
+  implicit none
+! 
+  real*4, intent(in) :: ga, apa, a(2), b(6), k0
+! 
+  real*4 :: wekoabsap
+! 
+  real*4 :: wekoa(2), wekob(6)
+  real*8 :: si0, si1, fa, pi0, pi1
+  real*8 :: wekog, wekodw, wekok
+! common blocks ...
+  common /weko1/ wekoa, wekob !  for wekoscar1
+  common /weko2/ wekog, wekodw, wekok !  for integrands wakimu0 and wakimug
+! 
+  real*8, external :: dsgrid2d ! link integration.f90 !
+  real*8, external :: wekomugap ! integrand function
+! 
+  wekoabsap = 0.0
+  if (ga < apa) then ! only calculate inside the aperture
+    wekoa = a ! set the We&Ko parameters ai to be used
+    wekob = b ! set the We&Ko parameters bi to be used
+    wekog = dble(ga) ! store ga for the intagrand wekomug
+    wekodw = dble(apa) ! store aperture limit for both integrands
+    wekok = k0 ! store the incident electron wave vector [1/A]
+  ! set integration range
+    si0 = 0.d+0 ! 0
+    si1 = 3.1415926535898D+0 ! Pi
+    pi0 = 0.d+0 ! 0
+    pi1 = 3.1415926535898D+0 ! Pi
+  ! call the numerical integrator
+  ! use a grid of 128 pixels along theta with a square sampling
+  !           and  64 pixels along phi with linear sampling
+  !           phi on the half side only (symmteric) therefore:    * 2
+    fa = dsgrid2d(wekomugap,si0,si1,pi0,pi1,2.0d+0,1.0d+0,128,64) * 2.0D+0
+    wekoabsap = real(fa, kind=4 )
+  end if
+  return
+end function wekoabsap
+!
+! ******************************************************************** !
+  
+  
+!**********************************************************************!
+!
+! function wekomugap(theta,phi)
+!
+! returns the integrand for the absorptive form factor at g=wekog
+! for blocking aperture radius gmax=wekodw
+! for incident electron wave vector k=wekok
+! for atom defined by ai = wekoa and bi=wekob
+!
+! Set the values of common block parameters before using this function!
+! uses common blocks /weko1/ and /weko2/
+!
+function wekomugap(theta,phi)
+  
+  implicit none
+  
+  real*8, intent(in) :: theta, phi
+  real*8 :: wekomugap
+  real*8 :: k, q, g, qg, sgmax, ct, st, cp, twok, sg, sq, sqg
+  real*8 :: fq, fqg, apg, apq, apqg
+  real*8 :: wekog, wekodw, wekok
+  common /weko2/ wekog, wekodw, wekok
+  
+  real*8, external :: wekoscar1 ! form factor function
+                                ! uses common block /weko1/
+  wekomugap = 0.0D+0
+  ct = dcos(theta)
+  st = dsin(theta)
+  cp = dcos(phi)
+  ! q = scattering vector length of Q in the ewald sphere
+  ! Q = (qx, qy, qz) = K' - K
+  ! qx = k * sin(theta) * cos(phi)
+  ! qy = k * sin(theta) * sin(phi)
+  ! qz = k * ( cos(theta) - 1 )
+  ! k = |K| = wekok
+  k = wekok
+  twok = k+k
+  ! q = Sqrt[ 2 k^2 (1 - Cos[q]) ]
+  q = k * dsqrt( 2.D+0 - 2.D+0 * ct )
+  ! g = length of some reciprocal space vector G = (gx, gy, gz)
+  !     with gx = g, gy = 0, gz = 0 (obda)
+  g = wekog
+  ! qg = length of the difference vector Q - G
+  qg = dsqrt( g*g + twok*k - twok*(k*ct + g*cp*st) )
+  sgmax = wekodw * 0.5D+0
+  sg = g * 0.5D+0
+  sq = q * 0.5D+0
+  sqg = qg * 0.5D+0
+  fq = wekoscar1(sq) ! f(g/2)
+  fqg = wekoscar1(sqg)
+  apg = 1.0D+0
+  apq = 1.0D+0
+  apqg = 1.0D+0
+  if (sg>=sgmax) apg = 0.0D+0 ! aperture on g
+  if (sq>=sgmax) apq = 0.0D+0 ! aperture on q
+  if (sqg>=sgmax) apqg = 0.0D+0 ! aperture on q-g
+  wekomugap = fq*fqg * (apg - apq*apqg) * st
+  
+  return
+    
+end function wekomugap
 
 
 ! ******************************************************************** !

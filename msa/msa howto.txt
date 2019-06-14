@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 0.95b                                  #
+#   HOWTO use the program MSA, Version 1.0.0                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-05-29                                                          #
+#   Date: 2019-06-12                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -577,9 +577,9 @@ Detector definitions (DETDEF) consist of 8 parameters
 
 
 Below you find examples of detector definition files currently used
-by the MSA versions 0.70b+.
+by the MSA versions 1.0+.
 
-Example of a CURRENT detector definition file for v0.70b+
+Example of a CURRENT detector definition file for v1.0+
 '[Detector Parameters]'           (block ID string for detector definitions)
 2016021801                        (detector file format version)
 3                                 (number of detector definitions following, only this number of lines will be read in the following, additional lines are ignored.)
@@ -597,7 +597,7 @@ detector individually. The file name is specified in the detector parameter.
 It is again a text file containing a header line followed by a list of values.
 
 Detector radial relative sensitivity profile parameter files format
-as used by MSA from version v0.70+ on:
+as used by MSA from version 1.0+ on:
 line 1: HEADER: NRS, PT1 (Integer, Float)
                 NRS = Number of radial sensitivity data following from line 2 on
                 PT1 = Pixel number identifying the detector theta-1 location
@@ -612,7 +612,7 @@ calculated from the whole active area. Then scale the detector
 radial sensitivity profile relaltive to the same value.
 The resulting relative radial profile should be given in this list.
 
-Example of a detector sensitivity profile definition for v0.70b+
+Example of a detector sensitivity profile definition for v1.0+
 512, 125.6               (HEADER line defining number of data and theta-1 pixel number)
 0.0                      (Fist data item associated to the detector center)
 0.0                      (Second item)
@@ -633,7 +633,7 @@ msa output in STEM mode by calling processes. It contains a header defining
 the detector configuration used followed by a sequence of results for an
 arbitrary number of probe positions.
 
-This is the output file structure since version 0.92 of MSA:
+This is the output file structure since version 1.0 of MSA:
 <number of detectors>	(= number of detection vectors, begin of header)
 <detector name 1>
 <detector name 2>
@@ -713,6 +713,9 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 
 6) History of changes
+
+190612: JB: Version 1.0.0
+- Raised version number to 1.0.
 
 190528: JB: Version 0.95
 - Added optional output of probe position averaged diffraction patterns

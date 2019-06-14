@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementations for image simulations
 !
-! VERSION: 0.70, J.B., 14.09.2018
+! VERSION: 1.0.0, J.B., 12.06.2019
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -34,12 +34,11 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program: [wavimg]                                 |")
-  call PostMessage(" | Version: 0.70b 64-bit  -  2018 Sept 14  -         |")
+  call PostMessage(" | Version: 1.0.0 64-bit  -  2019 June 12  -         |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
   call PostMessage(" +---------------------------------------------------+")
-  call PostMessage("")
   call PostMessage("")
   
   return
@@ -64,9 +63,7 @@ subroutine Outroduce
   character(len=400) :: smsg
   
   write(unit=smsg,fmt='(A,I3,A,I3,A)') "Number of warnings: ",numw,",  number of errors: ",nume,"."
-  call PostMessage("")
   call PostMessage(trim(smsg))
-  call PostMessage("")
   
   return
 
@@ -98,7 +95,6 @@ subroutine ExplainUsage()
   call PostMessage("       [/sil deactivates console output, switch]")
   call PostMessage("       [/dbg activates extra debug console output, switch]")
   call PostMessage("       [/nli no loop image output in map output mode, switch]")
-  call Outroduce()
 
   return
 
@@ -128,9 +124,7 @@ subroutine CriticalError(smessage)
 
   nume = nume + 1
   
-  write(unit=*,fmt='(A)') " "
-  write(unit=*,fmt='(A)') "Error: "//trim(smessage)
-  write(unit=*,fmt='(A)') "Critical error. Halting program."
+  write(unit=*,fmt='(A)') "Critical error: "//trim(smessage)
   write(unit=*,fmt='(A)') " "
   call Outroduce()
   stop
@@ -492,7 +486,7 @@ subroutine ParseCommandLine()
   cnt = command_argument_count()
   if (cnt==0) then
     call ExplainUsage()
-    call CriticalError("Missing required arguments.")
+    call CriticalError("Missing required program arguments.")
   end if
   nprm = 0
   nfoc_ex = 0

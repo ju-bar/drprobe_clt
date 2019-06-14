@@ -1,13 +1,13 @@
 !**********************************************************************
 !
-!  PROGRAM: msa, version 0.94
+!  PROGRAM: msa, version 1.0.0
 !  FILE: msa.f90
 !  PURPOSE:  Entry point for the console application MSA.
 !            Multislice calculation for electron diffraction
 !
 !**********************************************************************
 !                                                                      
-!   Date: 2019-05-28
+!   Date: 2019-06-12
 !                                                                      
 !   Author: Juri Barthel                                               
 !           Ernst Ruska-Centre                                         
@@ -79,7 +79,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "0.95b 64-bit  -  2019 May  29  -"
+  MSP_verApp  =                   "1.0.0 64-bit  -  2019 June 12  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -543,7 +543,6 @@ LH: do
 ! UNINIT OTHER MODULES
   call EMS_UNINIT()
   call MSP_UNINIT()
-  call Outroduce()
 ! ------------
 
 ! ------------

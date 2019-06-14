@@ -1,10 +1,10 @@
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program WAVIMG, Version 0.70b                               #
+#   HOWTO use the program WAVIMG, Version 1.0.0                               #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2018-09-14                                                          #
+#   Date: 2018-06-12                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -127,7 +127,7 @@ The parameter file is written as line based unformatted ascii table.
      When copying examples from here, do not include the separation lines "---- ... ----" in your file!
      These lines are added here to emphasize the parameter file lists.
 
-Valid version 0.55b+ (0.55b)
+Valid version 1.0+
 ------------------------------------------------------------------------------------------------------
 ! line 01: '<wave name>'                ! Wave function file name string used to locate existing wave functions. Use quotation marks when the string includes space characters.
 ! line 02: <nx>, <ny>                   ! Dimension of the wave data in pixels, <nx> = number of horizontal wave pixels, <ny> = number of vertical wave pixels.
@@ -224,7 +224,7 @@ This factor denotes the required compression of the experimental
 MTF on the Fourier space sampling of the simulation.
 
 
-6.3) On using the loop functionality of version 0.50b+:
+6.3) On using the loop functionality:
 If you want to use a loop over wavefunctions, the 'loop id string'
 parameter is used to identify the wavefunctions of each step of the loop.
 The 'loop id string' is used as a sub-string preceeding a 3 digit number, which
@@ -281,7 +281,7 @@ Examples for defining contrast damping due to vibration:
 - Option 2: 1, 0.02 -> (OLD) isotropic vibration envelope
 - Option 3: 2, 0.022, 0.018, 20.0 -> (NEW) anisotropic vibration envelope
 
-6.5) On using list-directed aberration parameter variation (Version 0.55b+)
+6.5) On using list-directed aberration parameter variation
 The list directed aberration parameter variation requires an additional
 input file, which specifies a list of aberration vectors to be applied
 with each step of the WAVIMG parameter loop. Aberration vectors specified
@@ -320,6 +320,8 @@ Here is an example, which defines a combined defocus and CS variation:
 
 7) History of changes
 
+190612: JB: Bersion 1.0.0
+- Raised the version number to 1.0.
 180702: JB: Version 0.70b
 - Pixelation (sinc) will be triggered with the usage of an MTF for
   image output.

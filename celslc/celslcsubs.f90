@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementation of subroutines for CELSLC
 !
-! VERSION: 0.70b, J.B., 28.11.2018
+! VERSION: 1.0.0, J.B., 12.06.2019
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -47,38 +47,16 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program [celslc]                                  |")
-  call PostMessage(" | Version: 0.70b 64-bit  -  2018 Nov  28            |")
+  call PostMessage(" | Version: 1.0.0 64-bit  -  2019 June 11            |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage("")
-  call PostMessage("")
   
   return
 
 end subroutine Introduce
-
-!**********************************************************************!
-!
-! subroutine Outroduce
-!
-! writes introduction info to console
-!
-! INPUT: none
-!
-! IN/OUTPUT: none
-!
-subroutine Outroduce
-  use celslcprm  
-  implicit none
-  
-  call PostMessage("")
-  call PostMessage("")
-  
-  return
-
-end subroutine Outroduce
 
 
 !**********************************************************************!
@@ -98,10 +76,7 @@ subroutine CriticalError(smessage)
   
   character*(*) :: smessage
 
-  write (unit=stdout,fmt='(A)') " "
-  write (unit=stdout,fmt='(A)') trim(smessage)
-  write (unit=stdout,fmt='(A)') "Critical error. Halting program."
-  write (unit=stdout,fmt='(A)') " "
+  write (unit=stdout,fmt='(A)') "Critical error: "//trim(smessage)
   stop
 
   return
@@ -542,9 +517,8 @@ subroutine ExplainUsage()
   call PostMessage(' [-rev         -> slicing in reversed sequence]')
   call PostMessage(' [-ssc <number> = single slice calculation]')
   call PostMessage(' [-tla <x,y,z>  = additional shift of atoms]')
-  call PostMessage('')
   call PostMessage(' [] = optional parameters')
-  call Outroduce()
+  call PostMessage('')
   
   return
 
@@ -574,15 +548,17 @@ subroutine ParseCommandLine()
   integer*4, external :: getfreelun
   real*4, external :: HT2WL
   character(len=512) :: smsg
+  character(len=1024) :: stmp
 
 ! ------------
 ! initialize
 !  write(unit=stdout,fmt=*) " > ParseCommandLine: INIT."
   i = 0
+  stmp = ""
   cnt = command_argument_count()
   if (cnt==0) then
     call ExplainUsage()
-    call CriticalError("No arguments found.")
+    call CriticalError("Missing required program arguments.")
   end if
   nprm = 0
   nout = 0
@@ -608,7 +584,7 @@ subroutine ParseCommandLine()
   ssc = 0
   buni = 0
   buniv = 0.0
-  block = 0
+  blk = 0
   bloh = 0.0
   blok = 0.0
   blol = 0.0
@@ -625,6 +601,8 @@ subroutine ParseCommandLine()
   csprm_runtimes=0
   nffdec = 0
   nf2dec = 0
+  nextpot = 0
+  sextpot = ""
 
 ! ------------
 ! LOOP OVER ALL GIVEN ARGUMENTS
@@ -649,16 +627,17 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-cel <file name>).")
       end if
       call get_command_argument (i, buffer, len, status)
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-cel <file name>)")
       end if
       write(unit = scellfile, fmt='(A)') buffer(1:len)
       inquire(file=trim(scellfile),exist=fex)
       if (.not.fex) then
+        call ExplainUsage()
         call CriticalError("Invalid argument: Specified super-cell file ["//trim(scellfile)//"] does not exist.")
       end if
       nprm = 1
@@ -668,16 +647,17 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-cif <file name>).")
       end if
       call get_command_argument (i, buffer, len, status)
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-cif <file name>).")
       end if
       write(unit = scellfile, fmt='(A)') buffer(1:len)
       inquire(file=trim(scellfile),exist=fex)
       if (.not.fex) then
+        call ExplainUsage()
         call CriticalError("Invalid argument: Specified super-cell file ["//trim(scellfile)//"] does not exist.")
       end if
       nfin = 1
@@ -689,12 +669,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-slc <file name>).")
       end if
       call get_command_argument (i, buffer, len, status) ! outputfile
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-slc <file name>).")
       end if
       write(unit = sslcfile, fmt='(A)') buffer(1:len)
       nout = 1
@@ -705,12 +685,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-ht <number>).")
       end if
       call get_command_argument (i, buffer, len, status) ! outputfile
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-ht <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) ht
       if (status/=0 .or. ht<10.0 .or. ht>1300.0) then
@@ -726,12 +706,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-nx <number>).")
       end if
       call get_command_argument (i, buffer, len, status) ! outputfile
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-nx <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) nx
       if (status/=0 .or. nx<fft_dmin .or. nx>fft_dmax) then
@@ -746,12 +726,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-ny <number>).")
       end if
       call get_command_argument (i, buffer, len, status) ! outputfile
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-ny <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) ny
       if (status/=0 .or. nx<fft_dmin .or. nx>fft_dmax) then
@@ -766,12 +746,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-nz <number>).")
       end if
       call get_command_argument (i, buffer, len, status) ! outputfile
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-nz <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) nz
       if (status/=0 .or. nz>2048) then
@@ -786,17 +766,66 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-nv <number>).")
       end if
       call get_command_argument (i, buffer, len, status) ! outputfile
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-nv <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) nv
       if (status/=0 .or. nv<1 .or. nv>2048) then
         call ExplainUsage()
         call CriticalError("Failed to read number of variants per slice.")
+      end if
+      
+    ! EXTERNAL POTENTIAL (INDIVIDUAL)
+    case ("-addpoti")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error (-addpoti <number> <file name>).")
+      end if
+      call get_command_argument (i, buffer, len, status) ! individual external potential
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error (-addpoti <number> <file name>).")
+      end if
+      write(unit=stmp, fmt='(A)') buffer(1:len)
+      i = i + 1
+      if (i>cnt) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error (-addpoti <number> <file name>).")
+      end if
+      call get_command_argument (i, buffer, len, status) ! individual external potential
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error (-addpoti <number> <file name>).")
+      end if
+      write(unit=stmp, fmt='(A," ",A)') trim(stmp), buffer(1:len)
+      if (nextpot<=ext_pot_max) then
+        nextpot = nextpot + 1
+        sextpot(nextpot) = stmp
+      end if
+      
+    ! EXTERNAL POTENTIAL (ALL)
+    case ("-addpot")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error (-addpot <file name>).")
+      end if
+      call get_command_argument (i, buffer, len, status) ! all slice external potential
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error (-addpot <file name>).")
+      end if
+      write(unit=stmp, fmt='("0 ",A)') buffer(1:len)
+      if (nextpot<=ext_pot_max) then
+        nextpot = nextpot + 1
+        sextpot(nextpot) = stmp
       end if
       
     ! FORM-FACTOR DECAY DATA OUTPUT
@@ -806,12 +835,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-ffdec <number>).")
       end if
       call get_command_argument (i, buffer, len, status) ! outputfile
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-ffdec <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) vffdec
       if (status/=0 .or. vffdec<=0.0 .or. vffdec>=1.0) then
@@ -827,12 +856,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-f2dec <number>).")
       end if
       call get_command_argument (i, buffer, len, status) ! outputfile
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-f2dec <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) vf2dec
       if (status/=0 .or. vffdec<=0.0 .or. vffdec>=1.0) then
@@ -862,12 +891,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-abf <number>).")
       end if
       call get_command_argument (i, buffer, len, status) ! outputfile
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-abf <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) abf
       if (status/=0 .or. abf<0.0 .or. abf>1.0) then
@@ -897,12 +926,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-fx <file name>).")
       end if
       call get_command_argument (i, buffer, len, status) ! input file
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-fx <file name>).")
       end if
       write(unit = sfxfile, fmt='(A)') buffer(1:len)
       nfx = 1
@@ -913,14 +942,14 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-fe <file name>).")
       end if
       call get_command_argument (i, buffer, len, status) ! input file
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-fe <file name>).")
       end if
-      write(unit = sfefile, fmt='(A)') buffer(1:len)
+      write(unit=sfefile, fmt='(A)') buffer(1:len)
       nfe = 1
     
     ! SLICE IN REVERSED ORDER 
@@ -946,12 +975,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-inf <number>).")
       end if
       call get_command_argument (i, buffer, len, status) ! input file format
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-inf <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) nfin
       if (status/=0 .or. nfin<0) then
@@ -965,12 +994,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-ssc <number>).")
       end if
       call get_command_argument (i, buffer, len, status) ! single slice caclualtion index
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-ssc <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) ssc
       if (status/=0 .or. ssc<0) then
@@ -985,12 +1014,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-buni <number>).")
       end if
       call get_command_argument (i, buffer, len, status) ! universal Biso parameter
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-buni <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) buniv
       if (status/=0 .or. buniv<0.0) then
@@ -1001,16 +1030,16 @@ subroutine ParseCommandLine()
     ! CREATE A RE-ORIENTED ORTHOGONAL SUPER-CELL FROM INPUT STRUCTURE
     case ("-prj")
       nfound = 1
-      block = 1
+      blk = 1
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-prj <9 numbers>).")
       end if
       call get_command_argument (i, buffer, len, status) ! h,k,l,m,n,o,a,b,c
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-prj <9 numbers>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) bloh,blok,blol,blyh,blyk,blyl,blsa,blsb,blsc
       if (status/=0) then
@@ -1025,12 +1054,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-tla <3 numbers>).")
       end if
       call get_command_argument (i, buffer, len, status) ! x,y,z
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-tla <3 numbers>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) tlax,tlay,tlaz
       if (status/=0) then
@@ -1044,12 +1073,12 @@ subroutine ParseCommandLine()
       i = i + 1
       if (i>cnt) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-nsca <number>).")
       end if
       call get_command_argument (i, buffer, len, status) ! form factor table index
       if (status/=0) then
         call ExplainUsage()
-        call CriticalError("Command line parsing error.")
+        call CriticalError("Command line parsing error (-nsca <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) nsca
       if (status/=0 .or. nsca<0 .or. nsca>2 ) then
@@ -1123,13 +1152,13 @@ SUBROUTINE CheckCommandLine
   if (n3dp>1) n3dp = 1
   if (nrev<0) nrev = 0
   if (nrev>1) nrev = 1
-  if (nfl==1) then ! turn OFF dwf and abs
+  if (nfl==1) then ! turn OFF dwf and !abs
     ndwf = 0
-    nabs = 0
+    !nabs = 0
   else
     nv = 1 ! set number of variants back to default 1.
     if (ndwf==0) then ! turn OFF abs
-      nabs = 0
+      !nabs = 0
     end if
   end if
   if (nabs==1) then ! turn OFF abf
@@ -1172,15 +1201,15 @@ SUBROUTINE CheckCommandLine
                     & " equidistant slices of the super-cell.")
   end if
   if (ndwf==1) call PostMessage("Using Debye-Waller factors.")
-  if (nabs==1) call PostMessage("Using absorption potentials.")
+  if (nabs==1) call PostMessage("Using absorptive form factors.")
   if (nabf==1) then
     write(unit=smsg,fmt='(F8.3)') abf
-    call PostMessage("Using absorption potentials with fix absorption factor "&
+    call PostMessage("Using frational absorptive form factors, fraction: " &
      &   //trim(adjustl(smsg))//".")
   else
     abf = 0.0
   end if
-  if (nfl==1) call PostMessage("Generating frozen lattice configurations.")
+  if (nfl==1) call PostMessage("Generating frozen-lattice configurations.")
   if (nfl==1.and.nv==1) call PostWarning(&
      & "Only one frozen lattice configuration is generated per slice.")
   if (nv>1) call PostMessage("Generating several variants per slice.")
@@ -1200,7 +1229,7 @@ SUBROUTINE CheckCommandLine
     write(unit=smsg,fmt='(F8.3)') buniv
     call PostMessage("Using B_ISO = "//trim(adjustl(smsg))//" nm^2 for all atoms.")
   end if
-  if (block==1) then
+  if (blk==1) then
     call PostMessage("Re-orienting input structure to an orthogonal super-cell")
     write(unit=smsg,fmt='(F8.5,", ",F8.5,", ",F8.5)') blsa,blsb,blsc
     call PostMessage("- size: "//trim(adjustl(smsg))//" (nm)")
@@ -1230,6 +1259,9 @@ SUBROUTINE CheckCommandLine
     write(unit=smsg,fmt=*) vf2dec
     call PostMessage("Output of k-values where loss of scattering power exceeds "// &
        & trim(adjustl(smsg))//" to file f2dec.txt")
+  end if
+  if (nextpot>0) then
+    call PostMessage("External potentials will be added from files.")
   end if
 
   return
@@ -1338,9 +1370,162 @@ subroutine writeslcprm(sfile)
   
   return
 
-end subroutine writeslcprm
+  end subroutine writeslcprm
 
 
+  
+!**********************************************************************!
+!
+! subroutine PrepExtPotentials
+!
+! Prepares the array with external potential data by reading data
+! from files specified by input options.
+!
+! Relativistic correction is applied here
+!
+subroutine PrepExtPotentials(ierr)
+  
+  use celslcprm
+  use CellSlicer
+  
+  implicit none
+  
+  ! parameters
+  integer*4, intent(inout) :: ierr
+  integer*4 :: nalloc, i, j, n, islc, ioerr, nbytes, nslcbytes, nslcfile
+  logical :: fex
+  real*4 :: relcor
+  real*8 :: accre, accim
+  complex*8 :: cval
+  complex*8, allocatable :: cepin(:,:,:)
+  character(len=200) :: snum
+  character(len=1024) :: stmp, sfilename
+  external :: loaddatac8 ! (sfile, n, noff, a, nerr) / binio2.f90
+  
+  ! init
+  ierr = 0
+  ioerr = 0
+  nalloc = 0
+  fex = .FALSE.
+  cval = cmplx(0.,0.)
+  nslcbytes = nx*ny*8 ! number of bytes per slice potential
+  relcor = 1.0 + ht / CS_elm0 ! relativistic correction
+  CS_extpot_mean = cval
+  if (allocated(CS_extpot)) deallocate(CS_extpot, stat=nalloc)
+  if (nextpot<=0) goto 99 ! not using external potentials
+  
+  ! allocate external potential memory, allocation state is used as trigger by CS_* routines
+  allocate(CS_extpot(nx,ny,nz),stat=nalloc)
+  if (nalloc/=0) goto 101
+  CS_extpot = cval
+  
+  ! building potentials
+  do i=1, nextpot
+    ! paring input option string
+    stmp = sextpot(i)
+    j = INDEX(stmp," ")
+    n = len_trim(stmp)
+    if (n<3) goto 102
+    read(unit=stmp, fmt=*, iostat=ioerr) islc
+    if (j==0.or.ioerr/=0) goto 103
+    if (j>=len_trim(stmp)) goto 104
+    if (islc<0 .or. islc>nz) goto 105
+    sfilename = stmp(j+1:len_trim(stmp))
+    ! checking file
+    INQUIRE(file=trim(sfilename),exist=fex,size=nbytes)
+    if (.not.fex) goto 106
+    nslcfile = nbytes / nslcbytes ! number of potentials slices in the file
+    if (nslcfile>0) then ! load data from file (otherwise ignore this input)
+      if (islc > 0) nslcfile = 1 ! limit the number of planes to 1 in case of individual slice option
+      cval = cmplx(0.,0.)
+      ! allocate the temp array
+      if (allocated(cepin)) deallocate(cepin,stat=nalloc)
+      allocate(cepin(nx,ny,nslcfile),stat=nalloc)
+      if (nalloc/=0) goto 101
+      cepin = cval
+      ! load the potential
+      write(unit=stmp,fmt=*) nslcfile
+      call PostMessage("Reading "//trim(adjustl(stmp))// &
+        & " potential slices from file ["//trim(sfilename)//"].")
+      call loaddatac8(trim(sfilename), nx*ny*nslcfile, 0, cepin, ioerr)
+      if (ioerr/=0) goto 107
+      if (islc==0) then
+        do j=1, nz ! loop over slices
+          n = 1 + modulo(j-1,nslcfile) ! get periodic index in input
+          CS_extpot(1:nx,1:ny,j) = cepin(1:nx,1:ny,n) ! set potential
+        end do
+      else ! single slice input
+        CS_extpot(1:nx,1:ny,islc) = cepin(1:nx,1:ny,1) ! set potential
+      end if
+    else
+      call PostWarning("Insuffient data in potential file ["// &
+        & trim(sfilename)//"].")
+    end if
+  end do
+  
+  ! calculate mean external potential (using double precision accumulators)
+  accre = 0.D+0
+  accim = 0.D+0
+  do n=1, nz
+    do j=1, ny
+      do i=1, nx
+        cval = CS_extpot(i,j,n)
+        accre = accre + dble(real(cval))
+        accim = accim + dble(imag(cval))
+      end do
+    end do
+  end do
+  cval = cmplx( real(accre/dble(nx*ny), kind=4), real(accim/dble(nx*ny), kind=4) )
+  CS_extpot_mean = cval
+  
+  ! applying relativistic correction
+  CS_extpot = CS_extpot * relcor
+  
+  ! exit point
+99 continue
+  if (allocated(cepin)) deallocate(cepin, stat=nalloc)
+  return
+  
+  ! error handlings
+101 ierr = 1
+  write(unit=snum,fmt=*) nalloc
+  call CriticalError("Failed to allocate memory (external "// &
+     & "potentials, code "//trim(adjustl(snum))//").")
+  goto 99
+102 ierr = 2
+  write(unit=snum,fmt=*) i
+  call CriticalError("Failed to parse input option (external "// &
+     & "potentials, #"//trim(adjustl(snum))//").")
+  goto 99
+103 ierr = 3
+  write(unit=snum,fmt=*) ioerr
+  call CriticalError("Failed to read slice index from input option (external "// &
+     & "potentials, code "//trim(adjustl(snum))//").")
+  goto 99
+104 ierr = 4
+   write(unit=snum,fmt=*) i
+  call CriticalError("Failed to read file name from input option (external "// &
+     & "potentials, #"//trim(adjustl(snum))//").")
+  goto 99
+105 ierr = 5
+  write(unit=snum,fmt=*) islc
+  call CriticalError("Invalid slice index found in input option (external "// &
+     & "potentials, index = "//trim(adjustl(snum))//").")
+  goto 99
+106 ierr = 6
+  call CriticalError("Cannot find file ["//trim(sfilename)// &
+     & "] for loading external potentials).")
+  goto 99
+107 ierr = 7
+  write(unit=snum,fmt=*) ioerr
+  call CriticalError("Failed to read external potential from file ["// &
+     & trim(sfilename)//"] (external "// &
+     & "potentials, code "//trim(adjustl(snum))//").")
+  goto 99
+  
+  return
+  
+end subroutine PrepExtPotentials
 
 
 
@@ -1375,6 +1560,10 @@ subroutine CEL2SLC()
   call CS_GET_MEANINNERPOT(mpot, ht, nerr)
   write(unit=smsg,fmt='(F10.5)') mpot
   call PostMessage("- mean inner potential: "//trim(adjustl(smsg))//" V")
+  if (allocated(CS_extpot)) then
+    write(unit=smsg,fmt='(F10.5)') real(CS_extpot_mean)
+    call PostMessage("  included external mean potential: "//trim(adjustl(smsg))//" V")
+  end if
   wl1 = HT2WL(ht+0.001*mpot)
   write(unit=smsg,fmt='(F10.5)') wl1*1000.
   call PostMessage("- wavelength corrected for refraction: "//trim(adjustl(smsg))//" pm")

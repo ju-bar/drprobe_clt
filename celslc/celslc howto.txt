@@ -1,10 +1,10 @@
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program CELSLC, Version 0.70b                               #
+#   HOWTO use the program CELSLC, Version 1.0                                 #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2018-11-28                                                          #
+#   Date: 2019-06-12                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -235,21 +235,22 @@ Detailed explanations of options:
            the scattering power at large angles is drastically reduced.
   
   
-  -abs         -> apply built-in absorption factors
+  -abs         -> apply absorptive form factors
   
-  By applying the option -abs absorptive form factors are calculated
-  according to A. Weickenmeier and H. Kohl [Acta Cryst. A47 (1991)
-  590-597]. The option -abs can only be used in combination with the
-  option -dwf. Using the option -abs will override and deactivate the
-  option -abf.
+  In combination with -dwf and for default form factors, absorptive
+  form factors are calculated according to A. Weickenmeier and H. Kohl
+  [Acta Cryst. A47 (1991) 590-597].
+  When omitting the option -dwf, absorptive form factors are
+  calculated to register electron loss beyond the 2/3 Nyquist
+  anti-alias aperture usually applied in multislice calculations.
+  Using the option -abs will override and deactivate the option -abf.
   
   
-  -abf <number> = apply fix rel. absorption
+  -abf <number> = apply fractional absorptive form factors
   
   By applying the option -abf absorptive form factors are calculated
   as a fraction of the elastic form factors. The fraction must be
-  specified by the input number. The option -abf can only be used in
-  combination with the option -dwf.
+  specified by the input number.
   
   
   -pot         -> export potentials to files *.pot
@@ -381,6 +382,35 @@ Additional and experimental options:
   1: Weickenmeier & Kohl, Acta Cryst. A 47 (1991) 590 - 597
   2: Waasmaier & Kirfel, Acta Cryst. A 51 (1995) 416 - 431
   The default table (1) is used when this option is omitted.
+
+
+  -addpot <file name> = add external potential stack to projected
+  slice potentials
+
+  The file should contain the electrostatic potential to be added
+  in units of Volt using the same sampling for x and y as indicated
+  by the program call with the options -nx and -ny. Provide the
+  potentials in form of complex numbers, where the real part is the
+  electrostatic potential and the imaginary part represents an
+  absorptive potential. Relativistic correction by a gamma factor
+  will be done upon loading. If the number of potentials provided
+  is lower than the number of slices (option -nz), the provided
+  external potentials will be added to the structure slice potentials
+  in periodic sequence.
+
+
+  -addpoti <number> <file name> = add an external potential to the
+  projected potentials of one slice
+
+  The number identifies a structure slice, beginning with index 1
+  for the first slice.
+  The file should contain the electrostatic potential to be added
+  in units of Volt using the same sampling for x and y as indicated
+  by the program call with the options -nx and -ny. Provide the
+  potentials in form of complex numbers, where the real part is the
+  electrostatic potential and the imaginary part represents an
+  absorptive potential. Relativistic correction by a gamma factor
+  will be done upon loading.
 
 
   -rti = print run-time information
@@ -607,6 +637,18 @@ Example cel files:
 
 7) History of changes:
 
+- 190611. JB: Version 1.0.0
+              Raised version number to 1.0.0.
+			  Added input option for external potentials via program arguments
+			  -addpoti <slice number> <potential file>
+			  -addpot <potential file>
+			  for individual slice or all slice potentials. The options are
+			  processed in order of appearance after all other input parameters
+			  have been set. The file provided by -addpot may contain multiple
+			  potentials which will be applied in periodic sequence.
+			  Added absorptive form factors registering electron loss due to
+			  the anti-alias aperture of the calculation. This is triggered
+			  by the option -abs in cases where the option -dwf is not used.
 - 181128. JB: Version 0.70b
               Dr. Probe CLT source project trees combined in preparation for
 			  depositing to GitHub. Makefiles are included.

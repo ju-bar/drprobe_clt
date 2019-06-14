@@ -7,9 +7,9 @@
 ! 
 ! AUTHOR: Juri Barthel, ju.barthel@fz-juelich.de
 !         RWTH Aachen University, Aachen, Germany
-!         21.09.2015
+!         11.06.2019
 !
-! last modified: J.B. 29.05.2018
+! last modified: J.B. 11.06.2019
 !
 !**********************************************************************!
 !----------------------------------------------------------------------
@@ -43,6 +43,7 @@ MODULE celslcprm
   integer*4, parameter :: stdout = 6        ! standard output unit
   integer*4, parameter :: fft_dmin = 32     ! min. size of fft
   integer*4, parameter :: fft_dmax = 8192   ! max. size of fft
+  integer*4, parameter :: ext_pot_max = 32  ! max. number of external potential definitions
 
 ! ---[ global variables ]---------------------------------------------------------------------------
 
@@ -82,6 +83,7 @@ MODULE celslcprm
   character(len=1024) :: scellfile          ! super-cell file name
   character(len=1024) :: sfxfile            ! file name for x-ray scattering factors
   character(len=1024) :: sfefile            ! file name for el. scattering factor parameters
+  character(len=1024) :: sextpot(ext_pot_max) ! list of external potential input options
   integer*4 :: nfin                         ! input format: 0 = cel, 1 = cif, 10 = asc
   real*4 :: ht, abf, buniv                  ! el. energy, abs., universal Biso
   integer*4 :: nx, ny, nz, nv               ! super-cell discretization
@@ -96,9 +98,10 @@ MODULE celslcprm
                                             ! 0 = default -> 1,
                                             ! 1 = Weickenmeier and Kohl (EMS)
                                             ! 2 = Waasmaier and Kirfel (muSTEM)
+  integer*4 :: nextpot                      ! number of external potential options
   integer*4 :: ssc                          ! index of slice (0 = all, >0 only this slice)
   integer*4 :: buni                         ! flag for using a universal DWF
-  integer*4 :: block                        ! flag for cutting a new block from the input structure
+  integer*4 :: blk                          ! flag for cutting a new block from the input structure
   integer*4 :: ntla                         ! flag for translation of atoms
   integer*4 :: nffdec                       ! flag for form factor decay output
   integer*4 :: nf2dec                       ! flag for form factor loss output
@@ -126,6 +129,7 @@ MODULE celslcprm
   DATA nabf /0/
   DATA nrev /0/
   DATA npot /0/
+  DATA nextpot /0/
   DATA npps /0/
   DATA n3dp /0/
   DATA nfx /0/
@@ -133,7 +137,7 @@ MODULE celslcprm
   DATA nsca /0/
   DATA ssc /0/
   DATA buni /0/
-  DATA block /0/
+  DATA blk /0/
   DATA bloh /0.0/
   DATA blok /0.0/
   DATA blol /0.0/

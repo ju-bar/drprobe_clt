@@ -8,7 +8,7 @@
 !         Jülich, Germany
 !         ju.barthel@fz-juelich.de
 !         first version: 13.12.2008
-!         last version: 21.03.2018
+!         last version: 11.06.2019
 !
 ! Purpose: Data and Methods to create Potential slices
 !          for TEM, from given atomic data in form of supercells
@@ -423,7 +423,10 @@ MODULE CellSlicer
   complex*8, public, allocatable, dimension (:,:) :: CS_scampdat
   complex*8, public, allocatable, dimension (:,:,:) :: CS_scaff2d
   complex*8, public, allocatable, dimension (:,:,:) :: CS_scagn
+  complex*8, public, allocatable, dimension (:,:,:) :: CS_extpot ! external potential data
+  complex*8, public :: CS_extpot_mean ! mean external potential
   real*4, public, allocatable, dimension (:,:,:) :: CS_scadwf
+  DATA CS_extpot_mean /0.0/
 !
 !
 ! slice data
@@ -549,10 +552,10 @@ subroutine CS_UNINIT()
     call CS_DEALLOC_SCAMPMEM(nerr)
     if (nerr/=0) return
   end if
-!  if (allocated(cw)) then
-!    deallocate(cw,stat=nalloc)
-!  end if
-  if (allocated(CS_backup_pot)) then ! deallocate previous potential backup memory
+  if (allocated(CS_extpot)) then ! deallocate external potential arrays
+    deallocate(CS_extpot,stat=nalloc)
+  end if
+  if (allocated(CS_backup_pot)) then ! deallocate previous potential backup
     deallocate(CS_backup_pot,stat=nalloc)
   end if
   
@@ -1684,7 +1687,9 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
       if (dwfflg) dwf = CS_scampdwf(k)  ! get Debye-Waller factor
           
       if (CS_doconsolemsg>0) then
-        write(unit=smsg,fmt='(A,I3,A,F12.8,A)') "Preparing data for Z = ",z," and DW-prm = ",dwf,"."
+        write(unit=smsg,fmt='(A,I3,A,F9.6,A,F7.3,A)') &
+          & "Preparing form factor for Z = ",z,", DW-prm = ",dwf, &
+          & ", absoptive fraction abf = ", CS_absorptionprm,"."
         call CS_MESSAGE(trim(smsg))
       end if
       
@@ -1729,12 +1734,24 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
       z = CS_scampatn(k)    ! get atomic number
       !dz = CS_scampcrg(k)
       dwf = 0.0
-      if (dwfflg) dwf = CS_scampdwf(k)  ! get Debye-Waller factor
-      
-      if (CS_doconsolemsg>0) then
-        write(unit=smsg,fmt='(A,I3,A,F12.8,A)') "Preparing data for Z = ",z," and DW-prm = ",dwf,"."
+      if (dwfflg) then
+        dwf = CS_scampdwf(k)  ! get Debye-Waller factor
+        if (CS_doconsolemsg>0) then
+          write(unit=smsg,fmt='(A,I3,A,F9.6,A)') &
+            & "Preparing absorptive form factor for Z = ",z, &
+            & " and DW-prm = ",dwf," nm^2."
+          call CS_MESSAGE(trim(smsg))
+        end if
+      else ! set dwf to anti-alias aperture radius of the simulation
+        dwf = gmax * CS_PROSIZE_THR 
+        if (CS_doconsolemsg>0) then
+          write(unit=smsg,fmt='(A,I3,A,F9.2,A)') &
+            & "Preparing absorptive form factor for Z = ",z, &
+            & " and aperture = ",dwf," 1/nm."
         call CS_MESSAGE(trim(smsg))
+        end if
       end if
+            
       
       !call CS_PROG_START(CS_scadim,1.0)
     
@@ -1776,7 +1793,9 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
       if (dwfflg) dwf = CS_scampdwf(k)  ! get Debye-Waller factor
       
       if (CS_doconsolemsg>0) then
-        write(unit=smsg,fmt='(A,I3,A,F12.8,A)') "Preparing data for Z = ",z," and DW-prm = ",dwf,"."
+        write(unit=smsg,fmt='(A,I3,A,F9.6,A)') &
+          & "Preparing form factor for Z = ",z, &
+          & " and DW-prm = ",dwf," nm^2."
         call CS_MESSAGE(trim(smsg))
       end if
       
@@ -1935,7 +1954,7 @@ subroutine CS_GET_MEANINNERPOT(meanpot, ht, ierr)
   ! sf0 is in nm !
   !
   ! scale to volts and remove relativistic correction
-  meanpot = pfac * sf0 / rc ! > eV  
+  meanpot = pfac * sf0 / rc + real(CS_extpot_mean) ! > eV  
   
 12 continue
 
@@ -4031,8 +4050,7 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nfl, ndw, wl, pot, nerr)
   !
   ! --- Checks on preferences
   !
-  if (.not.(CS_cellmem_allocated.and. &
-     &      CS_scattamp_prepared)) goto 13
+  if (.not.(CS_cellmem_allocated.and.CS_scattamp_prepared)) goto 13
   
   !
   ! --- Check input parameters
@@ -4377,8 +4395,12 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nfl, ndw, wl, pot, nerr)
   ! - get rid of the helper arrays
   deallocate(ctmp2d,ctmp1d,stat=nerr)
   deallocate(cpotft,stat=nerr)
+  !
+  if (allocated(CS_extpot)) then ! add the external potential array
+    pot = pot + CS_extpot
+  end if
+  !
   return
-  
   !
   ! error handling
   !
@@ -4798,6 +4820,11 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   if (allocated(jld)) deallocate(jld,stat=nerr)
   if (allocated(uatl)) deallocate(uatl,stat=nerr)
   if (allocated(lcw)) deallocate(lcw,stat=nerr)
+  !
+  if (allocated(CS_extpot)) then ! add external slice potential
+    pot(1:nx,1:ny) = pot(1:nx,1:ny) + CS_extpot(1:nx,1:ny,nslc)
+  end if
+  !
   return
   !
   ! error handling
@@ -5090,6 +5117,11 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   if (allocated(lcwrs)) deallocate(lcwrs,stat=nerr)
   if (allocated(jld)) deallocate(jld,stat=nerr)
   if (allocated(lxy)) deallocate(lxy,stat=nerr)
+  !
+  if (allocated(CS_extpot)) then ! add external slice potential
+    pot(1:nx,1:ny) = pot(1:nx,1:ny) + CS_extpot(1:nx,1:ny,nslc)
+  end if
+  !
   return
   !
   ! error handling

@@ -12,7 +12,7 @@
 !                                                                      !
 !    Purpose  : parameters, parameter I/O and memory management for    !
 !               the program MSA (see msa.f90)                          !
-!    Version  : 1.3.3, May 03, 2019                                    !
+!    Version  : 1.3.4, June 12, 2019                                   !
 !    To Link  : MultiSlice.f90                                         !
 !               STEMfunctions.f90                                      !
 !                                                                      !
@@ -3311,10 +3311,8 @@ SUBROUTINE MSP_HALT()
 
 
 ! ------------
-  write(unit=MSP_stdout,fmt='(A,I)') "Errors  :",MSP_err_num
-  write(unit=MSP_stdout,fmt='(A,I)') "Warnings:",MSP_warn_num
-  write(unit=MSP_stdout,fmt='(A)')   "Halting program."
-  write(unit=MSP_stdout,fmt='(A)')   ""
+  write(unit=MSP_stdout,fmt='(A,I2,A,I2)') "Errors: ",MSP_err_num, &
+    & ", Warnings: ",MSP_warn_num
   stop
 ! ------------
 

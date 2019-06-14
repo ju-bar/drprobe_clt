@@ -20,6 +20,8 @@
 !          - tested all routines, removed some bugs.
 !          1.1, J.B., 29.05.2018
 !          - added f^2(theta) integrals
+!          1.2, J.B., 12.06.2019
+!          - added absorptive form factors for apertures
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -136,11 +138,13 @@ MODULE FSCATAB
   public :: FST_GETFE
   public :: FST_GETMU0
   public :: FST_GETMUG
+  public :: FST_GETMUGAP
   public :: FST_GETF2G
   public :: FST_GETSCAR1
   public :: FST_GETSCAC
   public :: FST_GETSCAR
   public :: FST_GETSCAABS
+  public :: FST_GETSCAABSAP
   public :: FST_GETSCAF2
   public :: FST_GETSCADWF
   public :: FST_GETCRG
@@ -317,7 +321,7 @@ subroutine FST_LoadFX(sfile, nerr)
   integer*4 :: lun, ioerr, nline, nitem, i
   real*4 :: fz, fdz, fs, fx
   real*4 :: tabFX(2,FST_ntab_len) ! temporary table of x-ray scattering factors
-  character(len=FST_ll) :: sitem1, sitem2, snum, ssym, smsg
+  character(len=FST_ll) :: sitem1, snum, ssym, smsg
   
   ! initialize
   nerr = 0
@@ -588,9 +592,9 @@ subroutine FST_LoadFEP(sfile, nerr)
   integer*4, intent(inout) :: nerr
   
   logical :: fexists
-  integer*4 :: lun, ioerr, nline, nitem, i, np
+  integer*4 :: lun, ioerr, nline, nitem, np
   real*4 :: fz, fdz, fep(FFE_PRM_MAX), ffe0, ffed(FFE_PRM_MAX), asym
-  character(len=FST_ll) :: sitem1, sitem2, snum, ssym, smsg
+  character(len=FST_ll) :: sitem1, snum, ssym, smsg
   
   ! initialize
   nerr = 0
@@ -805,8 +809,7 @@ subroutine FST_SaveFEP(sfile, nerr, noverride)
   
   logical :: fexists
   integer*4 :: lun, ioerr, nline, nitem, i, nov, np
-  real*4 :: fz, fdz, fep(FFE_PRM_MAX), ffe0, ffed(FFE_PRM_MAX), asym
-  character(len=FST_ll) :: sitem1, sitem2, snum, ssym, smsg
+  character(len=FST_ll) :: snum
   
   ! initialize
   nerr = 0
@@ -962,9 +965,8 @@ subroutine FST_FX2FE(fx, fe, z, dz, n, nerr)
   integer*4, intent(in) :: n
   integer*4, intent(inout) :: nerr
   
-  integer*4 :: i, j, nfit
-  real*4 :: fits(n), fitfe(n)
-  real*4 :: fs, fcprm(6)
+  integer*4 :: i, j
+  real*4 :: fs
   
   ! initialization
   nerr = 0
@@ -981,38 +983,6 @@ subroutine FST_FX2FE(fx, fe, z, dz, n, nerr)
     end if
   end do
   !
-!  !
-!  ! preset fe(0) with a very rough but secure method
-!  !   f(0) = f(0.05) + [ f(0.05)-f(0.1) ] / 2
-!  fe(1,1) = 0.0
-!  fe(2,1) = (3.0*fe(2,2) - fe(2,3)) * 0.5
-!  !
-!  ! interpolate 3 Gaussians ( 6 parameters )
-!  !   fit(s) = sum_i=1,3 A_i * Exp[ -B_i s^2 ]
-!  ! in the low s regime ( 0 > s > 0.5 /A ) of fe
-!  ! and take fe(0) = fit(0) = sum_i=1,3 A_i from
-!  ! this interpolation
-!  !
-!  ! - prepare (extract) the input data of the fit
-!  nfit = 0
-!  fits = 0.0
-!  fitfe = 0.0
-!  do i=2, n
-!    if (fe(1,i)>seps .and. fe(1,i)<scentral+seps) then
-!      nfit = nfit + 1
-!      fits(nfit) = fe(1,i)
-!      fitfe(nfit) = fe(2,i)
-!    end if
-!  end do
-!  ! - do the fit (special subroutine)
-!  call FST_FITCENTRAL(fits(1:nfit),fitfe(1:nfit),nfit,fcprm(1:6),nerr)
-!  !
-!  ! - backup temporary parameters
-!  FST_feptmp(1:6) = fcprm(1:6)
-!  !
-!  ! - calculate fe(0)
-!  fe(2,1) = sum(fcprm(1:3))
-  !
   if (FST_domsg>1) then
     ! - report fe table
     call FST_Message("- Translated table of electron scattering factors:")
@@ -1025,7 +995,6 @@ subroutine FST_FX2FE(fx, fe, z, dz, n, nerr)
   end if
   !
   return
-  
 
 end subroutine FST_FX2FE
 
@@ -1068,7 +1037,7 @@ subroutine FST_FITFE(sfe, n, z, dz, fep, per, nerr)
   real*4, intent(inout) :: fep(prm_num), per(3)
   integer*4, intent(inout) :: nerr
   
-  integer*4 :: i, j, nfit, nprm, uprm(prm_num), niter, nrep, nimp, ntry
+  integer*4 :: i, nfit, nprm, uprm(prm_num), niter, nrep, nimp, ntry
   real*4 :: fits(n), fitfe(n), fitfes(n), rftol, tfemax
   real*4 :: prm(prm_num), lprm(2,prm_num), covprm(prm_num,prm_num)
   real*4 :: fs, fe, chisqr, ffe, fedp(prm_num), sigma, Eval, Rval
@@ -1293,8 +1262,8 @@ function FST_GETFE(sym,s)
   
   real*4 :: FST_GETFE
   
-  integer*4 :: j, np, nat
-  real*4 :: fe, dz, feio
+  integer*4 :: j, np
+  real*4 :: fe, feio
   
   FST_GETFE = -1.0 ! preset with fail
   fe = -1.0
@@ -1352,7 +1321,7 @@ end function FST_GETMU0
 ! function FST_GETMUG(theta,phi)
 !
 ! returns the integrand for the absorptive form factor at g=FST_PRM_G
-! along scattering path (theta,phi)
+! along scattering path (theta,phi) for thermal diffuse scattering
 !
 ! The atom type is identified by an index FST_PRM_J
 ! The incident wave vector is given by FST_PRM_K0
@@ -1364,8 +1333,6 @@ function FST_GETMUG(theta,phi)
   use fitfeprm
   
   implicit none
-  
-  real*8, parameter :: twopi = 6.283185307179586476925286766559
   
   real*8, intent(in) :: theta, phi
   real*8 :: FST_GETMUG
@@ -1409,6 +1376,67 @@ end function FST_GETMUG
 
 !**********************************************************************!
 !
+! function FST_GETMUGAP(theta,phi)
+!
+! returns the integrand for the absorptive form factor at g=FST_PRM_G
+! along scattering path (theta,phi) for aperture blocking
+!
+! The atom type is identified by an index FST_PRM_J
+! The incident wave vector is given by FST_PRM_K0
+! The atom Debye-Waller parameter is FST_PRM_J_BISO
+! Set the values of these parameters before using this function!
+!
+function FST_GETMUGAP(theta,phi)
+  
+  use fitfeprm
+  
+  implicit none
+  
+  real*8, intent(in) :: theta, phi
+  real*8 :: FST_GETMUGAP
+  real*8 :: k, q, g, qg, ap, ct, st, cp, twok, sg, sq, sqg
+  real*8 :: fq, fqg, apg, apq, apqg
+  FST_GETMUGAP = 0.D+0
+  ct = dcos(theta)
+  st = dsin(theta)
+  cp = dcos(phi)
+  ! q = scattering vector length of Q in the ewald sphere
+  ! Q = (qx, qy, qz) = K' - K
+  ! qx = k * sin(theta) * cos(phi)
+  ! qy = k * sin(theta) * sin(phi)
+  ! qz = k * ( cos(theta) - 1 )
+  ! k = |K| = wekok
+  k = dble(FST_PRM_K0)
+  twok = k+k
+  ! q = Sqrt[ 2 k^2 (1 - Cos[q]) ]
+  q = k * dsqrt( 2.D+0 - 2.D+0 * ct )
+  ! g = length of some reciprocal space vector G = (gx, gy, gz)
+  !     with gx = g, gy = 0, gz = 0 (obda)
+  g = dble(FST_PRM_G)
+  ! qg = length of the difference vector Q - G
+  qg = dsqrt( g*g + twok*k - twok*(k*ct + g*cp*st) )
+  ap = dble(FST_PRM_J_BISO) * 0.5D+0
+  sg = g * 0.5D+0
+  sq = q * 0.5D+0
+  sqg = qg * 0.5D+0
+  fq = FST_GETSCAR1(sq) ! f(s) --- f(g/2)
+  fqg = FST_GETSCAR1(sqg)
+  apg = 1.D+0
+  apq = 1.D+0
+  apqg = 1.D+0
+  if (sg<ap) apg = 0.D+0
+  if (sq<ap) apq = 0.D+0
+  if (sqg<ap) apqg = 0.D+0
+  FST_GETMUGAP = fq*fqg * (apg - apq*apqg) * st
+  
+  return
+    
+end function FST_GETMUGAP
+
+
+
+!**********************************************************************!
+!
 ! function FST_GETF2G(theta,phi)
 !
 ! returns the integrand for the squared form factor
@@ -1427,8 +1455,8 @@ function FST_GETF2G(theta)
   
   real*8, intent(in) :: theta
   real*8 :: FST_GETF2G
-  real*8 :: k, q, g, qg, biso, ct, st, sq
-  real*8 :: fq, fqg, dwfg, dwfq, dwfqg
+  real*8 :: k, q, biso, ct, st, sq
+  real*8 :: fq
   
   ct = dcos(theta)
   st = dsin(theta)
@@ -1478,7 +1506,7 @@ function FST_GETSCAR1(s)
   
   real*8, intent(in) :: s
   real*8 :: FST_GETSCAR1
-  integer*4 :: i, j, np, nat
+  integer*4 :: j, np
   real*4 :: fe, sf
   real*8 :: c1, dz, feio
   
@@ -1537,7 +1565,7 @@ function FST_GETSCAABS(sym, g, B, ht)
   
   real*4 :: FST_GETSCAABS
   
-  integer*4 :: i, j, np, nat
+  integer*4 :: j, np
   real*4 :: ga, k0
   real*4 :: dwasp
   real*8 :: si0, si1, fa, pi0, pi1
@@ -1556,21 +1584,89 @@ function FST_GETSCAABS(sym, g, B, ht)
     ! -------[nm] to [A]
     dwasp = 100.0 * B ! parameter of the DWF [A^2]
     FST_PRM_J_BISO = dwasp
-	ga	= 0.1 * g ! scattering angle [1/A]
-	FST_PRM_G = ga  ! store current g [1/A] for use in integrator function
-	FST_PRM_K0 = k0 ! store current k0 [1/A] for use in integrator function
-	! set integration range
-	si0 = 0.d+0 ! 0
-	si1 = dble(0.5*FST_twopi) ! Pi
-	pi0 = 0.d+0 ! 0
-	pi1 = dble(0.5*FST_twopi) ! Pi
-	fa = dsgrid2d(FST_GETMUG,si0,si1,pi0,pi1,2.0d+0,1.0d+0,128,64) * 2.0D+0
-	!
-	FST_GETSCAABS = real(fa, kind=4 )
-	!
+	  ga	= 0.1 * g ! scattering angle [1/A]
+	  FST_PRM_G = ga  ! store current g [1/A] for use in integrator function
+	  FST_PRM_K0 = k0 ! store current k0 [1/A] for use in integrator function
+	  ! set integration range
+	  si0 = 0.d+0 ! 0
+	  si1 = dble(0.5*FST_twopi) ! Pi
+	  pi0 = 0.d+0 ! 0
+	  pi1 = dble(0.5*FST_twopi) ! Pi
+	  fa = dsgrid2d(FST_GETMUG,si0,si1,pi0,pi1,2.0d+0,1.0d+0,128,64) * 2.0D+0
+	  !
+	  FST_GETSCAABS = real(fa, kind=4 )
+	  !
   end if
   
 end function FST_GETSCAABS
+
+
+
+!**********************************************************************!
+!
+! function FST_GETSCAABSAP(sym, g, ap, ht)
+!
+! returns the absorptive form factor for an atom or ion
+! identified by its symbol depending on
+! - diffraction vector g [1/nm]
+! - blocking aperture [1/nm]
+! - high-tension value ht [kV]
+!
+! result: absorptive atomic form factor [A]
+!         contains the screened core potential and the
+!         ionic charge coulomb potentials
+!
+!         no relativistic correction applied
+!         need to multiply by gamma^2/(2*pi*k0)
+!         aperture is applied
+!
+function FST_GETSCAABSAP(sym, g, ap, ht)
+  
+  use fitfeprm
+  
+  implicit none
+    
+  character(len=*), intent(in) :: sym
+  real*4, intent(in) :: g, ap, ht
+  
+  real*4 :: FST_GETSCAABSAP
+  
+  integer*4 :: j, np
+  real*4 :: ga, k0
+  real*4 :: apa
+  real*8 :: si0, si1, fa, pi0, pi1
+  
+  !external :: dqsimp, dqsimp2d
+  real*8, external :: dsgrid2d
+  
+  FST_GETSCAABSAP = 0.0 ! preset
+  if (g<ap) then
+    np = FFE_PRM_MAX ! get number of function parameters from module
+    j  = FST_GETIDX(sym) ! get the list index for the input symbol
+    FST_PRM_J = j ! set the atomic data list index in the module parameter
+    k0 = 0.080655587*sqrt((2.0*FST_elmc2 + ht)*ht) ! = ! k[ht] = ( e/(h*c)*10^-7 [A/kV] ) * Sqrt[ (2*E0_keV + HT_kV)*HT_kV ]
+    !
+    if (j>0) then ! found an entry in the list
+      !
+      ! -------[nm] to [A]
+      apa = 0.1 * ap ! aperture radius [1/A]
+      FST_PRM_J_BISO = apa
+	    ga	= 0.1 * g ! scattering angle [1/A]
+	    FST_PRM_G = ga  ! store current g [1/A] for use in integrator function
+	    FST_PRM_K0 = k0 ! store current k0 [1/A] for use in integrator function
+	    ! set integration range
+	    si0 = 0.d+0 ! 0
+	    si1 = dble(0.5*FST_twopi) ! Pi
+	    pi0 = 0.d+0 ! 0
+	    pi1 = dble(0.5*FST_twopi) ! Pi
+	    fa = dsgrid2d(FST_GETMUGAP,si0,si1,pi0,pi1,2.0d+0,1.0d+0,128,64) * 2.0D+0
+	    !
+	    FST_GETSCAABSAP = real(fa, kind=4 )
+	    !
+    end if
+  end if
+  
+end function FST_GETSCAABSAP
 
 
 !**********************************************************************!
@@ -1604,7 +1700,7 @@ function FST_GETSCAF2(sym, tmax, B, ht)
   
   real*8 :: FST_GETSCAF2
   
-  integer*4 :: i, j, np, nat
+  integer*4 :: j, np
   real*4 :: k0
   real*4 :: dwasp
   real*8 :: si0, si1, fa
@@ -1676,7 +1772,7 @@ function FST_GETSCAC(sym, g, B, ht, dwfflg, absflg)
   
   complex*8 :: FST_GETSCAC
   
-  integer*4 :: i, j, np, nat
+  integer*4 :: j, np
   real*4 :: sa, fe, fr, fa, fi, feio, k0
   real*4 :: dwas, dwasp, rc !, dz
   
@@ -1706,14 +1802,21 @@ function FST_GETSCAC(sym, g, B, ht, dwfflg, absflg)
 	fr 	= rc * fe * FST_fourpi * dwas  ! real form factor  dampened by DWF
 	                                   ! multiplied by relativistic correction and
 	                                   !   4*Pi to be consistent with fscatt.f
-    !
-    ! absorptive form factor calculation
-    if (absflg .and. dwfflg .and. (abs(dwasp)>=thrima) .and. (abs(fr)>=thrima) ) then
-      ! calculate the absorptive form factor
-      fa = FST_GETSCAABS(sym, g, B, ht)
-      fi = rc*rc*fa*k0       ! imaginary form factor
-    end if
-    ! -------[ang] to [nm]
+  !
+  ! absorptive form factor calculation for tds
+  if (absflg .and. dwfflg .and. (abs(dwasp)>=thrima) .and. (abs(fr)>=thrima) ) then
+    ! calculate the absorptive form factor
+    fa = FST_GETSCAABS(sym, g, B, ht)
+    fi = rc*rc*fa*k0       ! imaginary form factor
+  end if
+  !
+  ! absorptive form factor calculation for aperture blocking
+  if (absflg .and. (.not.dwfflg) .and. (abs(g)<abs(B))) then
+    fa = FST_GETSCAABSAP(sym, g, B, ht)
+    fi = rc*rc*fa*k0       ! imaginary form factor
+  end if
+  !
+  ! -------[ang] to [nm]
 	FST_GETSCAC	= 0.1 * cmplx( fr, fi )
 	!
   end if
@@ -1749,7 +1852,7 @@ function FST_GETSCAR(sym, g, B, ht, dwfflg)
   
   real*4 :: FST_GETSCAR
   
-  integer*4 :: i, j, np, nat
+  integer*4 :: j, np
   real*4 :: sa, fe, fr, feio
   real*4 :: dwas, dwasp, rc !, dz
   
@@ -1775,11 +1878,12 @@ function FST_GETSCAR(sym, g, B, ht, dwfflg)
 	fr 	= rc * fe * FST_fourpi ! real scattering power
 	                           ! multiplied by relativistic correction and
 	                           !   4*Pi to be consistent with fscatt.f
-    if (dwfflg) then
-      dwas = exp( -dwasp * sa * sa ) ! DWF
-      fr   = fr  * dwas ! dampened scattering power
-    end if
-    ! -------[ang] to [nm]
+  if (dwfflg) then
+    dwas = exp( -dwasp * sa * sa ) ! DWF
+    fr   = fr  * dwas ! dampened scattering power
+  end if
+  !
+  ! -------[ang] to [nm]
 	FST_GETSCAR	= 0.1 * fr
 	!
   end if
@@ -1813,8 +1917,8 @@ function FST_GETCRG(sym)
   dz = 0.0
   j = FST_GETIDX(sym) ! get the list index for the input symbol
   if (j>0) then ! found an entry in the list
-    !
-    dz = FST_crg(3,j)
+  !
+  dz = FST_crg(3,j)
 	FST_GETCRG	= dz
 	!
   end if
@@ -1825,22 +1929,21 @@ end function FST_GETCRG
 
 !**********************************************************************!
 !
-! function FST_GETSCADWF(g, B, ht, dwfflg)
+! function FST_GETSCADWF(g, B, dwfflg)
 !
 ! returns the debye-waller factor to be applied to a projected potential
 ! depending on
 ! - diffraction vector g [1/nm]
 ! - Debye-Waller parameter B [nm^2]
-! - high-tension value ht [kV]
 ! - flag for using the Debye-Waller factor
 !
-function FST_GETSCADWF(g, B, ht, dwfflg)
+function FST_GETSCADWF(g, B, dwfflg)
   
   use fitfeprm
   
   implicit none
   
-  real*4, intent(in) :: g, B, ht
+  real*4, intent(in) :: g, B
   logical, intent(in) :: dwfflg
   
   real*4 :: FST_GETSCADWF

@@ -403,6 +403,93 @@ subroutine loaddata(sfile, ntype, n, noff, a, nerr)
   nerr = 0
   return
 end subroutine loaddata
+  
+  
+!**********************************************************************!
+!
+! subroutine loaddatac8
+!
+! Loads complex*8 data from file
+!
+! INPUT:
+!   character(len=*) :: sfile   = file name string
+!   integer*4 :: n              = number of samples
+!   integer*4 :: noff           = data offset in bytes
+!
+! IN/OUTPUT
+!   complex*8 :: a(n)           = data array
+!   integer*4 :: nerr           = error code
+!
+subroutine loaddatac8(sfile, n, noff, a, nerr)
+  USE IFPORT
+  implicit none
+  character(len=*), intent(in) :: sfile
+  integer*4, intent(in) :: n, noff
+  complex*8, intent(inout) :: a(1:n)
+  integer*4, intent(inout) :: nerr
+  integer*4 :: lun
+  integer*4 :: ipos
+  integer*4 :: nstat
+  logical :: fexists
+  integer*4, external :: getfreelun
+  !
+  nerr = 0
+  !
+  ! get logical unit number
+  !
+  lun = getfreelun()
+  if (lun<0) then
+    nerr = -1
+    return
+  end if
+  !
+  ! check if file exists
+  !
+  inquire(file=trim(sfile),exist=fexists,iostat=nstat)
+  if (.not.fexists) then
+    nerr = -2
+    return
+  end if
+  !
+  ! open file, connect to lun
+  !
+  open(unit=lun,file=trim(sfile),iostat=nstat,&
+     & form='binary',action='read',status='old')
+  if (nstat/=0) then
+    nerr = -3
+    return
+  end if
+  !
+  ! move to offset position
+  !   be shure that RECL is 1 byte, check compiler options
+  !   or that noff is set appropriately
+  !
+  if (noff>0) then
+    ipos = 0
+    nerr = fseek(lun,noff,ipos)
+    if (nerr/=0) then
+      nerr = -4
+      return
+    end if
+  end if
+  !
+  ! read data from file
+  !
+  read(unit=lun,iostat=nstat) a
+  if (nstat/=0) then
+    nerr = -5
+    return
+  end if
+  !
+  ! close and disconnect
+  !
+  close(unit=lun)
+  !
+  ! done
+  !
+  nerr = 0
+  return
+end subroutine loaddatac8
 
 !**********************************************************************!
 !

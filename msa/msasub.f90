@@ -51,7 +51,6 @@
 !    SUBROUTINE PostDebugMessage(smessage)
 !    SUBROUTINE PostSureMessage(smessage)
 !    SUBROUTINE Introduce()
-!    SUBROUTINE Outroduce()
 !    subroutine CheckLicense()
 !    FUNCTION factorial(n)
 !    FUNCTION binomial(n,k)
@@ -113,9 +112,7 @@ SUBROUTINE CriticalError(smessage)
 
 ! ------------
   MSP_err_num = MSP_err_num + 1
-  write(unit=MSP_stdout,fmt='(A)') " "
-  write(unit=MSP_stdout,fmt='(A)') trim(smessage)
-  write(unit=MSP_stdout,fmt='(A)') "Critical error. Halting program."
+  write(unit=MSP_stdout,fmt='(A)') "Critical error: "//trim(smessage)
   write(unit=MSP_stdout,fmt='(A)') ""
   call MSP_HALT()
 ! ------------
@@ -358,48 +355,6 @@ SUBROUTINE Introduce()
 
 END SUBROUTINE Introduce
 !**********************************************************************!
-
-
-
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE Outroduce()
-! function: Posts a "stop message"
-! -------------------------------------------------------------------- !
-
-  use MSAparams
-  
-  implicit none
-
-! ------------
-! DECLARATION
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > Outroduce: INIT."
-! ------------
-
-! ------------
-  call PostSureMessage("")
-  if (MSP_err_num>0) then
-    write(unit=MSP_stmp,fmt=*) "Errors  :",MSP_err_num
-    call PostSureMessage(trim(MSP_stmp))
-  end if
-  if (MSP_warn_num>0) then
-    write(unit=MSP_stmp,fmt=*) "Warnings:",MSP_warn_num
-    call PostSureMessage(trim(MSP_stmp))
-  end if
-  call PostSureMessage("")
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > Outroduce: EXIT."
-  return
-
-END SUBROUTINE Outroduce
-!**********************************************************************!
-
 
 
 
@@ -1513,7 +1468,6 @@ SUBROUTINE ExplainUsage()
   call PostSureMessage("    [/debug, show more processing output]")
   call PostSureMessage("    [/silent, show no processing output]")
   call PostSureMessage("    [] = optional parameter")
-  call Outroduce()
 ! ------------
 
 ! ------------
@@ -1552,7 +1506,7 @@ SUBROUTINE ParseCommandLine()
   cnt = command_argument_count()
   if (cnt==0) then
     call ExplainUsage()
-    call CriticalError("No arguments found.")
+    call CriticalError("Missing required program arguments.")
   end if
   nprm = 0
   nposx = 0
@@ -2090,7 +2044,7 @@ SUBROUTINE ParseCommandLine()
 ! ------------
   if (nprm==0) then
     call ExplainUsage()
-    call CriticalError("Command line error: missing parameter file option -prm")
+    call CriticalError("Command line error: missing parameter file, option -prm")
   end if
   if (nout==0) then
     call PostWarning("No output file specified, using default output file name ["//trim(MSP_outfile)//"]")
@@ -2140,7 +2094,7 @@ SUBROUTINE ParseCommandLine()
 ! error handling
 100 continue
   call ExplainUsage()
-  call CriticalError("Command line error: missing mandatory options.")
+  call CriticalError("Command line error: missing required program arguments.")
   return
 101 continue ! missing parameter behind -option
   call ExplainUsage()
