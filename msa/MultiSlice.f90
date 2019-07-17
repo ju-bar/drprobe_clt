@@ -11,7 +11,7 @@
 !    -----------------                                                 !
 !                                                                      !
 !    Purpose  : Implementation of a multi-slice algorithm              !
-!    Version  : 1.4.1, Jan 15, 2019                                    !
+!    Version  : 1.4.2, Jul 17, 2019                                    !
 !                                                                      !
 !   Linked Libs: libfftwf-3.3.lib                                      !
 !   Includes   : fftw3.f03.in                                          !
@@ -2108,7 +2108,7 @@ SUBROUTINE MS_ApplyPSpatialCoh(rdata,nx,ny,sx,sy,srcrad,ntype)
   integer*4 :: i, j, ki, kj, i2, j2, ntyuse
   integer*4 :: nkdimx2, nkdimy2, nalloc
   
-  real*4 :: kernprm, kernrad, kernsum, kernval
+  real*4 :: kernprm, kernrad, kernsum, kernval, rprm, afac
   real*4 :: pkx, pky, pkys, pks
   !real*4 :: itowx, itowy, pfac, wx, wy, w2x, w2, wmax, wl
   !real*4 :: apod, apodprm1, apodprm2
@@ -2165,7 +2165,7 @@ SUBROUTINE MS_ApplyPSpatialCoh(rdata,nx,ny,sx,sy,srcrad,ntype)
   
     case (1) ! GAUSSIAN
       !write(*,*) "- Gaussian kernel setup:"
-      kernprm = -1.0/(srcrad*srcrad)
+      kernprm = -LOG(2.)/(srcrad*srcrad)
 !      write(*,*) "  - 1/e HW: ",srcrad," nm"
 !      write(*,*) "  - cut-off: ",kernrad," nm"
 !      write(*,*) "  - nkdimx2: ",nkdimx2
@@ -2187,7 +2187,9 @@ SUBROUTINE MS_ApplyPSpatialCoh(rdata,nx,ny,sx,sy,srcrad,ntype)
       rkernel = rkernel / kernsum
       
     case (2) ! CAUCHY (LORENTZIAN)
-      kernprm = srcrad*srcrad
+      rprm = 1.3047660265 * srcrad
+      afac = 0.5 * rprm / MS_pi
+      kernprm = rprm * rprm
       do j = -nkdimy2, nkdimy2
         pky = real(j)*sy
         pkys = pky*pky
@@ -2195,7 +2197,7 @@ SUBROUTINE MS_ApplyPSpatialCoh(rdata,nx,ny,sx,sy,srcrad,ntype)
           pkx = real(i)*sx
           pks = pkx*pkx + pkys
           if (pks>kernrad*kernrad) cycle ! cut-off
-          kernval = 1.0 / ( pks + kernprm )
+          kernval = afac / ( pks + kernprm )**1.5
           kernsum = kernsum + kernval
           rkernel(i,j) = kernval
         end do

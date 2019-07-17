@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 1.0.0                                  #
+#   HOWTO use the program MSA, Version 1.0.1                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-06-12                                                          #
+#   Date: 2019-07-17                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -713,6 +713,10 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 
 6) History of changes
+
+
+190717: JB: Version 1.0.1
+- Modified STEM source convolution size parameter to act as HWHM.
 
 190612: JB: Version 1.0.0
 - Raised version number to 1.0.
