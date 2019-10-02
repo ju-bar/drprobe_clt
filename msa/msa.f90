@@ -1,13 +1,13 @@
 !**********************************************************************
 !
-!  PROGRAM: msa, version 1.0.1
+!  PROGRAM: msa, version 1.0.4
 !  FILE: msa.f90
 !  PURPOSE:  Entry point for the console application MSA.
 !            Multislice calculation for electron diffraction
 !
 !**********************************************************************
 !                                                                      
-!   Date: 2019-07-17
+!   Date: 2019-09-16
 !                                                                      
 !   Author: Juri Barthel                                               
 !           Ernst Ruska-Centre                                         
@@ -61,12 +61,14 @@ program msa
   use MSAparams
   use STEMfunctions
   use MultiSlice
+  use Plasmon
     
   implicit none
   
 ! ------------
 ! declare constants and variables
-  integer :: nerr, prm_px, prm_py, lpx, lpy, mpx, mpy
+  integer*4 :: i,j
+  integer*4 :: nerr, prm_px, prm_py, lpx, lpy, mpx, mpy
   
   external :: InitRand
   
@@ -79,7 +81,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "1.0.1 64-bit  -  2019 July 17  -"
+  MSP_verApp  =                   "1.0.4 64-bit  -  2019 Oct   2  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -144,7 +146,7 @@ program msa
   call PostSureMessage("Loading parameter file.")
   call LoadParameters(MSP_prmfile)
   call PostRuntime("main parameter input finished", 1)
-  MS_fft_flags = MSP_FFTW_FLAG
+  !MS_fft_flags = MSP_FFTW_FLAG
 ! ------------
 
 ! ------------
@@ -187,7 +189,7 @@ program msa
     call PostSureMessage("- Increase the number of frozen-lattice averages per scan pixel.")
   end if
 ! ------------
-
+  
 ! ------------
 ! probe image calculation warning
   if ((1==MSP_pimgmode .or. 1==MSP_pdifmode .or. 1==MSP_padifmode) .and. MSP_ctemmode/=0) then
@@ -229,8 +231,7 @@ program msa
   end if
   call PostRuntime("parameter input finished", 1)
 ! ------------
-
-
+  
 ! ------------
 ! HANDLE COMMAND-LINE PARAMETER OVERRIDES
   MS_nslid = MSP_nslid
@@ -289,7 +290,66 @@ program msa
   call PostRuntime("supercell data prepared", 1)
 ! ------------
 
-
+! ------------
+! PREPARE PLASMON SCATTERING CALCULATIONS
+  call PL_deinit()
+  if (MSP_do_plasm/=0) then ! plasmon excitation calculations used
+    ! set remaining input parameters required by the plasmon module
+    PL_ek = STF_ht*1000. ! electron kinetic energy [eV]
+    PL_wthr = 0.01 ! run always with 1% probability threshold for remaining higher excitations
+    PL_tmax = 0.0
+    do i=1, MS_stacksize
+      j = MS_slicestack(i)
+      PL_tmax = PL_tmax + MS_slicethick(j+1)
+    end do
+    call PostMessage("Initializing plasmon excitation calculation:")
+    call PL_init(nerr)
+    if (nerr/=0) then
+      call PostWarning("Plasmon module returned error: "//trim(PL_msg_err))
+      call PL_deinit()
+      MSP_do_plasm = 0
+      call PostWarning("Failed to setup plasmon module, option -ple is ignored.")
+    else
+      if (PL_npemax>0) then
+        write(unit=MSP_stmp,fmt='(I3)') PL_npemax
+        call PostMessage("- calculating plasmon excitation up to "// &
+           & trim(adjustl(MSP_stmp))//" levels.")
+        write(unit=MSP_stmp,fmt='(F8.1)') PL_ep
+        call PostMessage("- plasmon energy: "// &
+           & trim(adjustl(MSP_stmp))//" eV.")
+        write(unit=MSP_stmp,fmt='(F8.2)') PL_lp
+        call PostMessage("- single plasmon excitation mean-free path: "// &
+           & trim(adjustl(MSP_stmp))//" nm.")
+        write(unit=MSP_stmp,fmt='(F8.1)') PL_tol
+        call PostMessage("- t / lambda: " // trim(adjustl(MSP_stmp)))
+        write(unit=MSP_stmp,fmt='(F8.4)') PL_qe*1000.
+        call PostMessage("- characteristic angle: " // &
+           & trim(adjustl(MSP_stmp)) // " mrad.")
+        write(unit=MSP_stmp,fmt='(F8.2)') PL_qc*1000.
+        call PostMessage("- crictical angle: " // &
+           & trim(adjustl(MSP_stmp)) // " mrad.")
+      else
+        call PL_deinit()
+        MSP_do_plasm = 0
+        if (PL_npemax<=0) then
+          call PostWarning("No plasmon excitations expected.")
+        end if
+        call PostWarning("Plasmon calculation rejected, option -ple is ignored.")
+      end if
+    end if
+    if (MSP_FL_varcalc<100) then
+      write(unit=MSP_stmp,fmt=*) MSP_FL_varcalc
+      call PostWarning("Small amount of averaging for plasmon-excitation "// &
+        & "calculations, the result may not be converged ("// &
+        & trim(adjustl(MSP_stmp))//"<100).")
+    end if
+    !
+    ! IMPORTANT: transfer the plasmon code activation flag to module MultiSlice
+    MS_do_plasm = MSP_do_plasm
+    !
+  end if
+! ------------
+  
 ! ------------
 ! DETECTOR ARRAY SETUP
   if (0==MSP_ctemmode) then
@@ -442,6 +502,17 @@ LH: do
   if ((DEBUG_EXPORT>0 .or. VERBO_EXPORT>0) .and. MSP_runtimes==1 ) then ! per loop run time info
     call PostRuntime("multislice calculation done", 0)
   end if
+  
+! ------------
+! PLASMON STATISTICS
+  if (MSP_do_plasm/=0) then
+    call PostMessage("Plasmon excitation statistics:")
+    j = sum(PL_mc_exc_pop)
+    do i=0, PL_npemax
+      write(unit=MSP_stmp,fmt='(A,I3,A,F5.3)') "- ",i," x Ep: ", real(PL_mc_exc_pop(i))/real(j)
+      call PostMessage(trim(MSP_stmp))
+    end do
+  end if
 
 
 ! ------------
@@ -541,6 +612,7 @@ LH: do
   end if
 ! ------------
 ! UNINIT OTHER MODULES
+  call PL_deinit()
   call EMS_UNINIT()
   call MSP_UNINIT()
 ! ------------

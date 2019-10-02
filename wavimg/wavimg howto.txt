@@ -1,10 +1,10 @@
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program WAVIMG, Version 1.0.0                               #
+#   HOWTO use the program WAVIMG, Version 1.0.1                               #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2018-06-12                                                          #
+#   Date: 2018-08-28                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -149,7 +149,7 @@ Valid version 1.0+
 ! line 18: <numabr>                     ! Number of aberration definitions following this line
 ! line 19: <aidx>, <ax>, <ay>           ! aberration definition (index, ax, ay) [nm]  (index list: 0=image shift, 1=defocus, 2=2-fold astigmatism, 3=coma, 4=3-fold astigm., 5=CS, 6=star aberration, 7=4-fold astigm, 8=coma(5th), 9=3-lobe aberr., 10=5-fold astigm., 11=C5, 12=w62, 13=w64, 14=w66 ...)
 ! line 20: <aidx>, <ax>, <ay>           ! aberration definition (index, ax, ay) [nm] .. more similar lines possible depending on value of line 18
-! line 21: <oap>                        ! Objective aperture radius [mrad]. Set to very large values to deactivate.
+! line 21: <oap>, <oas>                 ! Objective aperture radius [mrad] (set to very large values to deactivate) and relative edge smoothness (can be left out, default =.03).
 ! line 22: <ocx>, <oxy>                 ! Center of the objective aperture with respect to the zero beam [mrad].
 ! line 23: <numloop>                    ! Number variable of loop definitions following below.
 ! line 24: <loop-class>                 ! Loop variable class: 1 = aberration, 2 = coherence params, 3 = wave file
@@ -320,7 +320,24 @@ Here is an example, which defines a combined defocus and CS variation:
 
 7) History of changes
 
-190612: JB: Bersion 1.0.0
+190828: JB: Version 1.0.1
+- Consistent definition of the probe forming aperture in all parts of the
+  program and as in msa.
+  Here, the aperture can be defined by 2 parameters in the parameter file
+  (r, s):
+  r = radius of the aperture in mrad
+  a = asymmetry parameter (relative to r, r_max = (1 + a)*r) = 0 (no input)
+  d = direction of main asymmetry axis (1+a)*r w.r.t. the grid x axis. = 0
+  s = relative edge smoothness, default 0.03
+  aperture function:
+    A(x,y) = (1 - arctan(Pi*(x'-r)/(r*s)))
+        x' = sqrt( du^2 + dv^2 )
+        du = ((1-ax)*(x-x0) -     ay*(y-y0))/(1-a^2)
+	    dy = (   -ay*(x-x0) + (1+ax)*(y-y0))/(1-a^2)
+	    ax = a * cos(2*d)
+	    ay = a * sin(2*d)
+   (x0,y0) = aperture center coordinate
+190612: JB: Version 1.0.0
 - Raised the version number to 1.0.
 180702: JB: Version 0.70b
 - Pixelation (sinc) will be triggered with the usage of an MTF for

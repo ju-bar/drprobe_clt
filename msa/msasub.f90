@@ -1487,6 +1487,7 @@ SUBROUTINE ParseCommandLine()
 ! -------------------------------------------------------------------- !
 
   use MSAparams
+  use Plasmon
 
   implicit none
 
@@ -1548,11 +1549,12 @@ SUBROUTINE ParseCommandLine()
   MSP_nbuni = 0
   MSP_Buni = 0.01
   MSP_use_fre = 1
-  MSP_FFTW_FLAG = 0
+  !MSP_FFTW_FLAG = 0
   MSP_Kmomout = 0
   MSP_KmomMmax = -1
   MSP_KmomRange = 0.0
   MSP_useldet = 0
+  MSP_do_plasm = 0
   do
     i = i + 1
     if (i>cnt) exit
@@ -1925,6 +1927,31 @@ SUBROUTINE ParseCommandLine()
         end if
       end if
       MSP_useldet = 1
+      
+    ! THE PLASMON EXCITATION MODE
+    case ("-ple")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      read(unit=buffer,fmt=*,iostat=status) PL_ep
+      if (status/=0) then
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read plasmon energy (eV).")
+        return
+      end if
+      i = i + 1
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      read(unit=buffer,fmt=*,iostat=status) PL_lp
+      if (status/=0) then
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read mean-free path (nm).")
+        return
+      end if
+      MSP_do_plasm = 1
 
     ! ACTIVATE OUTPUT TO A TEXT LIST FILE
     case ("/txtout")
@@ -2014,9 +2041,9 @@ SUBROUTINE ParseCommandLine()
       nfound = 1
       MSP_use_fre = 0
       
-    case ("/dftest")
-      nfound = 1
-      MSP_FFTW_FLAG = 64
+    !case ("/dftest")
+    !  nfound = 1
+    !  MSP_FFTW_FLAG = 64
       
     case ("/rti")
       nfound = 1
@@ -3263,7 +3290,7 @@ SUBROUTINE DetectorReadout(rdata, ndat, nret)
     end do
   end do
 ! reset output array
-  rdata = 0.0
+  rdata(1:ndat) = 0.0
 ! default STEM detectors
   if (ndet>0) then
     ! readout all integrating detectors
@@ -3740,6 +3767,7 @@ SUBROUTINE STEMMultiSlice()
   real*4 :: zstep, zoffset, zpow, zrescale, fafac, fascal, vrescale
   real*4 :: ffac
   real*4, allocatable :: rtmpresult(:)
+  integer*4, allocatable :: lvar(:)
   character(len=1000) :: swavfile, stmp
   real*4, external :: UniRand
 ! ------------
@@ -3751,7 +3779,7 @@ SUBROUTINE STEMMultiSlice()
   nkmom = 0
   if (MSP_Kmomout>0) nkmom = MSP_KmomNum
   ndat = ndet + nkmom
-  allocate(rtmpresult(ndat),stat=nalloc)
+  allocate(rtmpresult(ndat), lvar(MS_stacksize),stat=nalloc)
   scansampx = 0.0
   if (MSP_SF_sizex>0.0.and.MSP_SF_ndimx>1) then
     scansampx = MSP_SF_sizex/real(MSP_SF_ndimx)
@@ -3823,6 +3851,8 @@ SUBROUTINE STEMMultiSlice()
   nvar = 0
   nvartot = nvarnum*nznum
   swavfile = trim(MS_wave_filenm) ! wave file name backup
+  
+  ! The following code does nznum * nvarnum multislice passes
   
   ! loop through focal variants
   do nz=1, nznum
@@ -3898,6 +3928,9 @@ SUBROUTINE STEMMultiSlice()
         MS_wave_filenm = trim(MSP_stmp)
       end if
       
+      ! calculate variance Monte-Carlo for the next run (draw without returning)
+      call MSP_GetVarList(MS_slicenum, MS_stacksize, MS_slicestack, lvar, nerr)
+      
       if (MSP_use_extinwave==1) then
         call MS_Start(MSP_extinwslc)
       else
@@ -3939,7 +3972,8 @@ SUBROUTINE STEMMultiSlice()
       do while (MS_slicecur >= 0.and. MS_slicecur<MS_stacksize)
         nerr = MS_err_num ! backup error
         nslc = MS_slicestack(MS_slicecur+1)+1 ! get current slice index
-        nvc = 1 + int( UniRand()*real(MSP_SLC_setup(0,nslc))*0.9999 ) ! get current variant index
+        !nvc = 1 + int( UniRand()*real(MSP_SLC_setup(0,nslc))*0.9999 ) ! get current variant index
+        nvc = 1 + lvar(1+MS_slicecur)
         
         ! slice
         nslcidx = MSP_GetPGRIndex(nvc,nslc,nerr)
@@ -3970,7 +4004,7 @@ SUBROUTINE STEMMultiSlice()
           !
         end if ! detector readout
         
-      end do ! while (MS_slicecur >= 0)
+      end do ! while (MS_slicecur >= 0.and. MS_slicecur<MS_stacksize)
 
       ! Stop the multislice
       nerr = MS_err_num
@@ -4015,27 +4049,32 @@ SUBROUTINE STEMMultiSlice()
 ! ------------
 ! normal/successful exit
   if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
+  if (allocated(lvar)) deallocate(lvar,stat=nalloc)
   return
   
 ! ------------
 ! failure exits
 11 continue
   if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
+  if (allocated(lvar)) deallocate(lvar,stat=nalloc)
   call CriticalError("Failed to shift incoming wavefunction.")
   return
 
 12 continue
   if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
+  if (allocated(lvar)) deallocate(lvar,stat=nalloc)
   call CriticalError("Failed to readout detectors.")
   return
   
 13 continue
   if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
+  if (allocated(lvar)) deallocate(lvar,stat=nalloc)
   call CriticalError("Failed to readout detectors for elastic channel.")
   return
 
 16 continue
   if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
+  if (allocated(lvar)) deallocate(lvar,stat=nalloc)
   call CriticalError("Failed to perform multislice algorithm.")
   return
 
@@ -4513,6 +4552,7 @@ SUBROUTINE InitProbeIntegration()
 
   use MultiSlice
   use MSAparams
+  use Plasmon
 
   implicit none
 
@@ -4560,7 +4600,7 @@ SUBROUTINE InitProbeIntegration()
   if (MSP_pimgmode/=0 .or. MSP_pdifmode/=0 .or. MSP_padifmode/=0) then ! arrays are allocated
     if (allocated(MSP_pint_nac)) deallocate(MSP_pint_nac,stat=nerr) ! deallocate
     MSP_pint_num = 0
-    allocate(MSP_pint_nac(0:nepw-1),stat=nerr)
+    allocate(MSP_pint_nac(0:nepw-1, 0:PL_npemax),stat=nerr)
     if (nerr/=0) goto 101
     MSP_pint_nac = 0
     MSP_pint_num = nepw ! store the number of exit-planes
@@ -5089,8 +5129,8 @@ SUBROUTINE ExportProbeIntensity(sfile)
       k = MSP_ldetpln(islc) ! get storage slot
       if (k < 0) cycle ! nothing stored for islc
       ! normalize (we assume that wave and images have the same number of contributions)
-      if (MSP_pint_nac(k)>0) then
-        rnorm = 1.0/real(MSP_pint_nac(k))
+      if (MSP_pint_nac(k,0)>0) then
+        rnorm = 1.0/real(MSP_pint_nac(k,0))
       else
         rnorm = 1.0
       end if
@@ -5104,7 +5144,7 @@ SUBROUTINE ExportProbeIntensity(sfile)
       if (MSP_3dout > 0 .and. iout > 0) then ! /3dout append
         call AppendDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! append tot
       else ! writing to new new file 
-        call PostMessage("  Writing total probe image intensity to file ["//trim(sexpfile(1))//"].")
+        call PostMessage("  Writing probe image total intensity to file ["//trim(sexpfile(1))//"].")
         call SaveDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! save tot
       end if
       ! 
@@ -5130,9 +5170,9 @@ SUBROUTINE ExportProbeIntensity(sfile)
           call AppendDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! append ela
           call AppendDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! append tds
         else ! individual files per plane
-          call PostMessage("  Writing elastic probe image intensity to file ["//trim(sexpfile(2))//"].")
+          call PostMessage("  Writing probe image elastic intensity to file ["//trim(sexpfile(2))//"].")
           call SaveDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! save ela
-          call PostMessage("  Writing TDS probe image intensity to file ["//trim(sexpfile(3))//"].")
+          call PostMessage("  Writing probe image TDS intensity to file ["//trim(sexpfile(3))//"].")
           call SaveDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! save tds
         end if
       end if
@@ -5166,8 +5206,8 @@ SUBROUTINE ExportProbeIntensity(sfile)
       k = MSP_ldetpln(islc) ! get storage slot
       if (k < 0) cycle ! nothing stored for islc
       ! normalize (we assume that wave and images have the same number of contributions)
-      if (MSP_pint_nac(k)>0) then
-        rnorm = 1.0/real(MSP_pint_nac(k))
+      if (MSP_pint_nac(k,0)>0) then
+        rnorm = 1.0/real(MSP_pint_nac(k,0))
       else
         rnorm = 1.0
       end if
@@ -5186,7 +5226,7 @@ SUBROUTINE ExportProbeIntensity(sfile)
         if (MSP_3dout > 0 .and. iout >0) then ! /3dout append
           call AppendDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! append to old file
         else ! single file per plane
-          call PostMessage("  Writing total probe diffraction intensity to file ["//trim(sexpfile(1))//"].")
+          call PostMessage("  Writing probe diffraction total intensity to file ["//trim(sexpfile(1))//"].")
           call SaveDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! save to new file
         end if
       end if
@@ -5217,9 +5257,9 @@ SUBROUTINE ExportProbeIntensity(sfile)
             call AppendDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! append ela
             call AppendDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! append tds
           else ! individual files per plane
-            call PostMessage("  Writing elastic probe diffraction intensity to file ["//trim(sexpfile(2))//"].")
+            call PostMessage("  Writing probe diffraction elastic intensity to file ["//trim(sexpfile(2))//"].")
             call SaveDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! save ela
-            call PostMessage("  Writing TDS probe diffraction intensity to file ["//trim(sexpfile(3))//"].")
+            call PostMessage("  Writing probe diffraction TDS intensity to file ["//trim(sexpfile(3))//"].")
             call SaveDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! save tds
           end if
         end if
@@ -5570,7 +5610,7 @@ SUBROUTINE ExportWave(sfile, islice)
     else
       ! real space export (inverse FT)
       ! - transfer data
-      !   for an unknown reason, the following line causes an stack overflow and access violation
+      !   for an unknown reason, the following line causes a stack overflow and access violation
       !   MS_work(1:nx,1:ny) = MS_wave(1:nx,1:ny)
       !   Though, the explicit assignement below element by element works.
       do j=1, ny
@@ -5643,7 +5683,7 @@ SUBROUTINE ExportWave(sfile, islice)
         end do
       end do
     end if
-    MSP_pint_nac(iimg) = MSP_pint_nac(iimg) + 1
+    MSP_pint_nac(iimg,0) = MSP_pint_nac(iimg,0) + 1
   end if
 ! ------------
 

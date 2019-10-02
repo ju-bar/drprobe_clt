@@ -3,10 +3,11 @@
 !                                                                      !
 !    File     :  emsdata.f90                                           !
 !                                                                      !
-!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2018   !
+!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2019   !
 !    Version  :  1.0.0, July 10, 2009                                  !
 !    Version  :  2.0.0, July 11, 2012                                  !
 !    Version  :  2.1.0, December 16, 2014                              !
+!    Version  :  2.1.1, September 12, 2019                             !
 !                                                                      !
 !                                                                      !
 !**********************************************************************!
@@ -1154,7 +1155,7 @@ SUBROUTINE EMS_SLI_LOAD_ITAB(llfu, nerr)
   
   integer*4 :: nfail        ! local error number
   logical :: isopen
-  integer*4 :: ncurpos      ! current read offset
+  integer*4 :: ncurpos ! current read offset
   integer*4 :: itab_size    ! total table size in bytes
   integer*4 :: i, j, k      ! iterators
   integer*4 :: naty, natr, natrmax, natp, natpmax, nadat ! number of data
@@ -1681,7 +1682,12 @@ SUBROUTINE EMS_SLI_loaddata(sfile,nx,ny,nv,cdata,szz,nerr)
 ! ------------
 ! open binary file
   call EMS_GetFreeLFU(nlfu)
-  open(unit=nlfu, file=trim(sfile), form='BINARY', access='STREAM', &
+  !open(unit=nlfu, file=trim(sfile), form='BINARY', access='STREAM', &
+  !   & iostat=nerr, status='OLD', action='READ', share='DENYNONE' )
+  !
+  ! open for read sequential
+  ! - replaced access='stream' I/O due to bugs // 2019-09-12 // JB
+  open(unit=nlfu, file=trim(sfile), form='BINARY', access='SEQUENTIAL', &
      & iostat=nerr, status='OLD', action='READ', share='DENYNONE' )
   if (nerr/=0) then
     call EMS_ERROR("Failed to connect to file", subnum+1)
@@ -1783,8 +1789,12 @@ SUBROUTINE EMS_SLI_loadparams(sfile,nx,ny,nv,ht,szx,szy,szz,nerr)
 ! ------------
 ! open binary file
   call EMS_GetFreeLFU(nlfu)
-  open(unit=nlfu, file=trim(sfile), form='BINARY', access='STREAM', &
+  ! open for read sequential
+  ! - replaced access='stream' I/O due to bugs // 2019-09-12 // JB
+  open(unit=nlfu, file=trim(sfile), form='BINARY', access='SEQUENTIAL', &
      & iostat=nerr, status='OLD', action='READ', share='DENYNONE' )
+  !open(unit=nlfu, file=trim(sfile), form='BINARY', access='STREAM', &
+  !   & iostat=nerr, status='OLD', action='READ', share='DENYNONE' )
   if (nerr/=0) then
     nfail = 1
     call EMS_ERROR("Failed to connect to file ["//trim(sfile)//"]", subnum+nfail)

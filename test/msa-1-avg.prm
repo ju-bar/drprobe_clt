@@ -1,5 +1,5 @@
 '[Microscope Parameters]'
-25                                      Semi angle of convergence [mrad]
+25. 0.0 0.0 0.05                        Semi angle of convergence [mrad]
 0                                       Inner radius of the annular detector [mrad]
 30                                      Outer radius of the annular detector [mrad]
 1, 'test/msa-1_det.prm'                 Detector definition file, switch and file name
@@ -54,6 +54,70 @@
 30                                      Minimum number of frozen lattice variations averaged per scan pixel in STEM mode.
 2                                       Detector readout period in slices.
 32                                      Number of slices in the object.
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
+0                                       Slice ID
+1                                       Slice ID
 0                                       Slice ID
 1                                       Slice ID
 0                                       Slice ID

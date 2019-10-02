@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementations for image simulations
 !
-! VERSION: 1.0.0, J.B., 12.06.2019
+! VERSION: 1.0.1, J.B., 28.08.2019
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -34,7 +34,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program: [wavimg]                                 |")
-  call PostMessage(" | Version: 1.0.0 64-bit  -  2019 June 12  -         |")
+  call PostMessage(" | Version: 1.0.1 64-bit  -  2019 Aug  28  -         |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -842,7 +842,8 @@ subroutine loadprm
     end do
   end if
   sdbgmsg ="oapr"
-  read(unit=lun, fmt=*, err=16) oapr
+  oapr = (/ 200000., 0.01 /)
+  read(unit=lun, fmt=*, iostat=i) oapr
   sdbgmsg ="oapx, oapy"
   read(unit=lun, fmt=*, err=16) oapx, oapy
   sdbgmsg ="nloop"
@@ -943,7 +944,9 @@ subroutine loadprm
       call PostDBGMessage(trim(sdbgmsg))
     end do
   end if
-  write(unit=sdbgmsg,fmt=*) "prm load: objective aperture semi opening angle: ", oapr
+  write(unit=sdbgmsg,fmt=*) "prm load: objective aperture semi opening angle: ", oapr(1)
+  call PostDBGMessage(trim(sdbgmsg))
+  write(unit=sdbgmsg,fmt=*) "prm load: objective aperture relative edge smoothness: ", oapr(2)
   call PostDBGMessage(trim(sdbgmsg))
   write(unit=sdbgmsg,fmt=*) "prm load: objective aperture decenter (x,y): ", oapx, oapy
   call PostDBGMessage(trim(sdbgmsg))
@@ -1255,17 +1258,17 @@ subroutine checkprm
   
   if (oapr_ex>0.0) then
     write(unit=stmp,fmt='(A,F8.3,A,F8.3,A)') &
-     &    "Overriding objective aperture radius (",oapr,&
+     &    "Overriding objective aperture radius (",oapr(1),&
      &    " mrad) with command-line parameter (",oapr_ex," mrad)."
     call PostDBGMessage(trim(stmp))
-    oapr = oapr_ex
+    oapr(1) = oapr_ex
   end if
-  if (oapr<=0.0) then
+  if (oapr(1)<=0.0) then
     ! non-physical aperture value.
     call PostWarning("The objective aperture radius is not larger than 0. The aperture is removed.")
     ! - remove the aperture by setting the radius to min. 2*Nyquist(wave) for both directions
     ! - set the aperture de-center to zero
-    oapr = max(1.0/swx,1.0/swy)
+    oapr(1) = max(1.0/swx,1.0/swy)
     oapx = 0.0
     oapy = 0.0
   end if
@@ -1661,7 +1664,7 @@ subroutine AberrateWaveFourier(wave,ndimx,ndimy,samplingx,samplingy)
   real*4 :: samplingx,samplingy
   
   integer*4 :: i, j, i1, j1, ndim2x, ndim2y, nd2x1, nd2y1
-  real*4 :: wx, wy, wa, chi, sx, sy, tx, ty, apr, apx, apy
+  real*4 :: wx, wy, wa, chi, sx, sy, tx, ty, apr, aps, apx, apy
   real*4 :: ewx, ewy
   real*4 :: itogx, itogy, itowx, itowy
   real*4 :: aperture
@@ -1685,7 +1688,8 @@ subroutine AberrateWaveFourier(wave,ndimx,ndimy,samplingx,samplingy)
   itowy = itogy*AF_lamb
   tx = btx*0.001
   ty = bty*0.001
-  apr = oapr*0.001
+  apr = oapr(1)*0.001
+  aps = apr*oapr(2)
   apx = oapx*0.001
   apy = oapy*0.001
   
@@ -1722,7 +1726,7 @@ subroutine AberrateWaveFourier(wave,ndimx,ndimy,samplingx,samplingy)
 !      write(*,*) "phaseplate=",cval
       
       wa = sqrt((ewx-apx)**2 + (ewy-apy)**2)
-      aperture = 0.5-0.5*tanh((wa-apr)/apr*100.0)
+      aperture = 0.5-0.5*tanh(pi*(wa-apr)/aps)
       
       wave(i,j) = cval*wave(i,j)*aperture
       

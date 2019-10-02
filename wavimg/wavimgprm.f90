@@ -88,7 +88,8 @@ MODULE wavimgprm
   integer*4 :: dornsb                       ! flags the renormalization of output waves created with side-band shifted MTF 
   real*4 :: foc_ex                          ! focus value [nm] specified via command-line argument
   real*4 :: btx, bty                        ! beam tilt for the transfer terms [mrad]
-  real*4 :: oapr, oapx, oapy                ! objective aperture parameters radius, decnter x and decenter y [mrad]
+  real*4 :: oapr(2), oapx, oapy             ! objective aperture parameters radius, decenter x and decenter y [mrad]
+  DATA oapr /20000., 0.03/
   real*4 :: sbshx, sbshy                    ! side-band shift with respect to the zero beam [pix]
   real*4 :: oapr_ex                         ! objective aperture radius external (command-line)
   real*4 :: fs                              ! focus spread parameter [nm]

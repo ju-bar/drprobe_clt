@@ -1,0 +1,2 @@
+libfftwf-3.3.lib
+..\common\fftw\lib\x64\Static-Release

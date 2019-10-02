@@ -31,7 +31,7 @@ subroutine PrepareIC(pmode)
   real*4 :: itowx, itowy
   real*4 :: tx, ty
   real*4 :: awxs, awys, wa
-  real*4 :: apr, apx, apy
+  real*4 :: apr, aps, apx, apy
   
   nalloc = 0
   call PostDBGMessage("Prapring global image calculation arrays")
@@ -53,7 +53,8 @@ subroutine PrepareIC(pmode)
     itowy = wl/(swy*real(nwy)) 
     tx = 0.001*btx
     ty = 0.001*bty
-    apr = 0.001*oapr
+    apr = 0.001*oapr(1)
+    aps = apr*oapr(2)
     apx = 0.001*oapx
     apy = 0.001*oapy
     ! setup scrambled frequencies x
@@ -72,7 +73,7 @@ subroutine PrepareIC(pmode)
       do j=1, nwy
         awys = (itowy*real(ic_iwy(j))-apy)**2
         wa = sqrt(awxs + awys)
-        ic_objaper(j,i) = 0.5-0.5*tanh((wa-apr)/apr*100.0)
+        ic_objaper(j,i) = 0.5-0.5*tanh(pi*(wa-apr)/aps)
       end do
     end do
   end if

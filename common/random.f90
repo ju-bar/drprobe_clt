@@ -1,11 +1,10 @@
 !**********************************************************************!
 !**********************************************************************!
 !                                                                      !
-!                    file   "random".f95                               !
+!                    file   "random".f90                               !
 !                                                                      !
 !    Copyright:  J.Barthel, Forschungszentrum Juelich                  !
 !    Version  :  1.0.0, November 21, 2003                              !
-!    partial code source: Numerical Recipies for F77 and F90           !
 !                                                                      !
 !                                                                      !
 !**********************************************************************!
@@ -13,7 +12,6 @@
 !   Author: Juri Barthel                                                
 !           Ernst Ruska-Centre                                          
 !           Forschungszentrum Jülich GmbH, 52425 Jülich, Germany        
-!           RWTH Aachen University, 52074 Aachen, Germany               
 !                                                                       
 !-----------------------------------------------------------------------
 !                                                                       
@@ -375,24 +373,20 @@ integer*4 FUNCTION PoissonRand(mean)
   real*4, intent(in) :: mean
   real*4, external :: UniRand
   
-  integer*4 :: k, k_max
-  real*8 :: m, l, p, sum
+  integer*4 :: k
+  real*8 :: m, l, p
   
-  k = 0                             ! counter of events
-  m = abs(mean)                     ! expected mean
-  k_max = nint(10*m)        ! upper limit for counts
-  l = exp(-m)                       ! probability
-  sum = l                           ! cumulant
-  p = UniRand()                     ! a uniform random number
+  m = dabs(dble(mean))
   
-  do while (sum<p .and. k<k_max)    ! loop over all events up to a random cumulant value
-    k = k + 1                       ! next k
-    l = l * m / real(k)             ! next probability
-    sum = sum + l                   ! add to cumulant
+  ! Donold Knuth's algorithm is fast for small mean values < 30
+  l = dexp(-m)
+  k = 0
+  p = 1.D+0
+  do while (p > l)
+    k = k + 1
+    p = p * dble( UniRand() )
   end do
-  
-  PoissonRand = k
-  
+  PoissonRand = k-1
   return
 
 end FUNCTION PoissonRand

@@ -11,7 +11,7 @@
 !    -----------------                                                 !
 !                                                                      !
 !    Purpose  : Implementation of a multi-slice algorithm              !
-!    Version  : 1.4.2, Jul 17, 2019                                    !
+!    Version  : 1.4.3, Sep 30, 2019                                    !
 !                                                                      !
 !   Linked Libs: libfftwf-3.3.lib                                      !
 !   Includes   : fftw3.f03.in                                          !
@@ -57,20 +57,22 @@
 !    MODULE DECALRATIONS                                              !
 !*********************************************************************!
 !*********************************************************************!
+include "mkl_dfti.f90"
 
 MODULE MultiSlice
 
 ! Use MS as acronym for public parameters funcs and subs!
     
   ! Global module dependencies
-  use, intrinsic :: iso_c_binding   
+  !use, intrinsic :: iso_c_binding   
+  use mkl_dfti
    
   implicit none
 
   ! Declare internal data types
-  integer, parameter :: C_FFTW_R2R_KIND = C_INT ! missing declare in fftw3 include
+  !integer, parameter :: C_FFTW_R2R_KIND = C_INT ! missing declare in fftw3 include
   
-  INCLUDE 'fftw3.f03.in'
+  !INCLUDE 'fftw3.f03.in'
   
   
 
@@ -177,6 +179,10 @@ MODULE MultiSlice
   DATA MS_samplingx /0.05/
   DATA MS_samplingy /0.05/
   
+! current fourier space sampling rate [rad/pix]
+! ... for internal use only
+  real*4, private :: MS_itowx, MS_itowy
+  
 ! object tilt angle to be considered by propagators [deg]
   real*4, public :: MS_objtiltx, MS_objtilty
   DATA MS_objtiltx /0.0/
@@ -187,13 +193,9 @@ MODULE MultiSlice
   DATA MS_detminang /0.0/
   DATA MS_detmaxang /100.0/
 
-! current Fourier space sampling [(pix*nm)^-1]
-!  real*4, public :: MS_itog, MS_itow
-
 ! condenser aperture
   real*4, public :: MS_caperture ! [mrad]
   DATA MS_caperture /30.0/
-  
   
 ! angular function tables
   integer*4, parameter, private :: MS_ANGTAB_SIZE = 1023
@@ -208,9 +210,12 @@ MODULE MultiSlice
 ! incoming wavefunction, and its backup
   complex*8, dimension(:,:), allocatable, public :: MS_wave_in
   complex*8, dimension(:,:), allocatable, public :: MS_wave_in_bk
+  
 ! current wavefunctions
-!  complex*8, dimension(:,:), allocatable, public :: MS_wave !, MS_wavei
-  complex(C_FLOAT_COMPLEX), public, pointer :: MS_wave(:,:)
+  !complex(C_FLOAT_COMPLEX), public, pointer :: MS_wave(:,:) ! out 30.9.
+  complex*8, allocatable, public :: MS_wave(:,:) ! in 30.9.
+  !complex(C_FLOAT_COMPLEX), public, pointer :: MS_work(:,:) ! pointer to working array ! out 30.9.
+  complex*8, allocatable, public :: MS_work(:,:) ! in 30.9.
 ! average wavefunctions at different exit planes
   complex*8, dimension(:,:,:), allocatable, public :: MS_wave_avg
   integer*4, public :: MS_wave_avg_num ! numer of exit-plane waves
@@ -220,18 +225,21 @@ MODULE MultiSlice
   integer*4, dimension(:), allocatable, public :: MS_wave_avg_nac ! accumulations in the average
   
 ! fftw data handlers
-  integer*4, public, dimension(2) :: MS_fft_dims
-  DATA MS_fft_dims /0, 0/
-  integer(C_INT), public :: MS_fft_flags ! fft flags (0: FFTW_MEASURE, 64: FFTW_ESTIMATE)
-  DATA MS_fft_flags /FFTW_MEASURE/
-  type(C_PTR), public :: MS_fft_planf ! module internal forward plan
-  type(C_PTR), public :: MS_fft_planb ! module internal backward plan
-  type(C_PTR), public :: MS_fft_pdata ! module internal pointers to aligned data
-  type(C_PTR), public :: MS_fft_work_planf ! module internal forward plan (working array)
-  type(C_PTR), public :: MS_fft_work_planb ! module internal backward plan (working array)
-  type(C_PTR), public :: MS_fft_work_pdata ! module internal pointers to aligned data (working array)
-  complex(C_FLOAT_COMPLEX), public, pointer :: MS_work(:,:) ! pointer to working array
-
+  !integer*4, public, dimension(2) :: MS_fft_dims
+  !DATA MS_fft_dims /0, 0/
+  !integer(C_INT), public :: MS_fft_flags ! fft flags (0: FFTW_MEASURE, 64: FFTW_ESTIMATE)
+  !DATA MS_fft_flags /FFTW_MEASURE/
+  !type(C_PTR), public :: MS_fft_planf ! module internal forward plan
+  !type(C_PTR), public :: MS_fft_planb ! module internal backward plan
+  !!type(C_PTR), public :: MS_fft_pdata ! module internal pointers to aligned data ! out 30.9.
+  !type(C_PTR), public :: MS_fft_work_planf ! module internal forward plan (working array)
+  !type(C_PTR), public :: MS_fft_work_planb ! module internal backward plan (working array)
+  !type(C_PTR), public :: MS_fft_work_pdata ! module internal pointers to aligned data (working array) ! out 30.9.
+! mkl_dfti handlers
+  integer*4, public :: MS_mkl_dfti_status
+  integer*4, public, dimension(2) :: MS_mkl_dfti_dims
+  DATA MS_mkl_dfti_dims /0, 0/
+  type(DFTI_DESCRIPTOR), POINTER :: MS_mkl_dfti_descr
   
 ! Multi-slice stack arrays
 ! number of different slices
@@ -308,6 +316,10 @@ MODULE MultiSlice
   integer*4, public, allocatable :: MS_ldetpln(:)
 ! hash list of detection planes (detection plane slot -> slice index)
   integer*4, public, allocatable :: MS_hdetpln(:)
+  
+! flag activating plasmon code calls (from plasmon.f90)
+  integer*4, public :: MS_do_plasm
+  DATA MS_do_plasm /0/ ! off by default, set /=0 to activate
   
 
 !*********************************************************************!
@@ -425,26 +437,50 @@ SUBROUTINE MS_INIT()
     call MS_SETTAB_SCR(MS_dimx, MS_dimy)
     call MS_SETTAB_USC(MS_dimx, MS_dimy)
     
+    ! wave function and extra worker
+    if (allocated(MS_wave)) deallocate(MS_wave)
+    if (allocated(MS_work)) deallocate(MS_work)
+    allocate(MS_wave(MS_dimx, MS_dimy), MS_work(MS_dimx, MS_dimy),STAT=err)
+    if (err/=0) then
+      call MS_ERROR("MultiSlice init, failed to allocate wave function arrays.",subnum+13)
+      return
+    end if
+    
     ! prepare plans for DFT
-    if (MS_fft_dims(1)/=MS_dimy .or. MS_fft_dims(2)/=MS_dimx) then
-      if ( MS_fft_dims(1)>0 .or. MS_fft_dims(2)>0 ) then
-        call fftwf_free(MS_fft_pdata)
-        call fftwf_destroy_plan(MS_fft_planf)
-        call fftwf_destroy_plan(MS_fft_planb)
-        call fftwf_free(MS_fft_work_pdata)
-        call fftwf_destroy_plan(MS_fft_work_planf)
-        call fftwf_destroy_plan(MS_fft_work_planb)
-        MS_fft_dims = (/0, 0/)
+    !if (MS_fft_dims(1)/=MS_dimy .or. MS_fft_dims(2)/=MS_dimx) then
+    !  if ( MS_fft_dims(1)>0 .or. MS_fft_dims(2)>0 ) then
+    !    !call fftwf_free(MS_fft_pdata)
+    !    call fftwf_destroy_plan(MS_fft_planf)
+    !    call fftwf_destroy_plan(MS_fft_planb)
+    !    !call fftwf_free(MS_fft_work_pdata)
+    !    call fftwf_destroy_plan(MS_fft_work_planf)
+    !    call fftwf_destroy_plan(MS_fft_work_planb)
+    !    MS_fft_dims = (/0, 0/)
+    !    ...
+    if (MS_mkl_dfti_dims(1)/=MS_dimx .or. MS_mkl_dfti_dims(2)/=MS_dimy) then
+      if (MS_mkl_dfti_dims(1)>0 .or. MS_mkl_dfti_dims(2)>0) then
+        ! mkl descriptors
+        MS_mkl_dfti_status = DftiFreeDescriptor(MS_mkl_dfti_descr)
+        MS_mkl_dfti_dims = (/0, 0/)
+        
       end if
-      MS_fft_pdata = fftwf_alloc_complex( int(MS_dimy*MS_dimx, C_SIZE_T) )
-      MS_fft_work_pdata = fftwf_alloc_complex( int(MS_dimy*MS_dimx, C_SIZE_T) )
-      call c_f_pointer(MS_fft_pdata, MS_wave, [MS_dimx,MS_dimy])
-      call c_f_pointer(MS_fft_work_pdata, MS_work, [MS_dimx,MS_dimy])
-      MS_fft_planf = fftwf_plan_dft_2d(MS_dimy, MS_dimx, MS_wave, MS_wave, FFTW_FORWARD, MS_fft_flags)
-      MS_fft_planb = fftwf_plan_dft_2d(MS_dimy, MS_dimx, MS_wave, MS_wave, FFTW_BACKWARD, MS_fft_flags)
-      MS_fft_work_planf = fftwf_plan_dft_2d(MS_dimy, MS_dimx, MS_work, MS_work, FFTW_FORWARD, MS_fft_flags)
-      MS_fft_work_planb = fftwf_plan_dft_2d(MS_dimy, MS_dimx, MS_work, MS_work, FFTW_BACKWARD, MS_fft_flags)
-      MS_fft_dims = (/ MS_dimy, MS_dimx /)
+      !MS_fft_pdata = fftwf_alloc_complex( int(MS_dimy*MS_dimx, C_SIZE_T) )
+      !MS_fft_work_pdata = fftwf_alloc_complex( int(MS_dimy*MS_dimx, C_SIZE_T) )
+      !call c_f_pointer(MS_fft_pdata, MS_wave, [MS_dimx,MS_dimy])
+      !call c_f_pointer(MS_fft_work_pdata, MS_work, [MS_dimx,MS_dimy])
+      !MS_fft_planf = fftwf_plan_dft_2d(MS_dimy,MS_dimx, MS_wave,MS_wave, &
+      !   & FFTW_FORWARD, MS_fft_flags)
+      !MS_fft_planb = fftwf_plan_dft_2d(MS_dimy,MS_dimx, MS_wave,MS_wave, &
+      !   & FFTW_BACKWARD, MS_fft_flags)
+      !MS_fft_work_planf = fftwf_plan_dft_2d(MS_dimy,MS_dimx, MS_work,MS_work, &
+      !   & FFTW_FORWARD, MS_fft_flags)
+      !MS_fft_work_planb = fftwf_plan_dft_2d(MS_dimy,MS_dimx, MS_work,MS_work, &
+      !   & FFTW_BACKWARD, MS_fft_flags)
+      !MS_fft_dims = (/ MS_dimy, MS_dimx /)
+      MS_mkl_dfti_dims = (/ MS_dimx, MS_dimy /)
+      MS_mkl_dfti_status = DftiCreateDescriptor(MS_mkl_dfti_descr, DFTI_SINGLE,&
+         & DFTI_COMPLEX, 2, MS_mkl_dfti_dims)
+      MS_mkl_dfti_status = DftiCommitDescriptor(MS_mkl_dfti_descr)
     end if
     ! set ready state
     MS_status = 1
@@ -510,15 +546,21 @@ SUBROUTINE MS_UNINIT()
   if (allocated(MS_propagator)) deallocate(MS_propagator, stat=nalloc)
   if (allocated(MS_ldetpln)) deallocate(MS_ldetpln, stat=nalloc)
   if (allocated(MS_hdetpln)) deallocate(MS_hdetpln, stat=nalloc)
-  if ( MS_fft_dims(1)>0 .or. MS_fft_dims(2)>0 ) then
-    call fftwf_free(MS_fft_pdata)
-    call fftwf_destroy_plan(MS_fft_planf)
-    call fftwf_destroy_plan(MS_fft_planb)
-    call fftwf_free(MS_fft_work_pdata)
-    call fftwf_destroy_plan(MS_fft_work_planf)
-    call fftwf_destroy_plan(MS_fft_work_planb)
-    MS_fft_dims = (/0, 0/)
+  !if ( MS_fft_dims(1)>0 .or. MS_fft_dims(2)>0 ) then
+  !  !call fftwf_free(MS_fft_pdata)
+  !  call fftwf_destroy_plan(MS_fft_planf)
+  !  call fftwf_destroy_plan(MS_fft_planb)
+  !  !call fftwf_free(MS_fft_work_pdata)
+  !  call fftwf_destroy_plan(MS_fft_work_planf)
+  !  call fftwf_destroy_plan(MS_fft_work_planb)
+  !  MS_fft_dims = (/0, 0/)
+  if ( MS_mkl_dfti_dims(1)>0 .or. MS_mkl_dfti_dims(2)>0 ) then
+    ! mkl descriptors
+    MS_mkl_dfti_status = DftiFreeDescriptor(MS_mkl_dfti_descr)
+    MS_mkl_dfti_dims = (/0, 0/)
   end if
+  if (allocated(MS_wave)) deallocate(MS_wave)
+  if (allocated(MS_work)) deallocate(MS_work)
 ! ------------
 !  write(unit=*,fmt=*) " > MS_UNINIT: EXIT."
   return
@@ -1078,7 +1120,8 @@ SUBROUTINE MS_ShiftWave(wave,dx,dy)
 ! copy data
   MS_work = wave
 ! transform to fourier space
-  call fftwf_execute_dft(MS_fft_work_planf,MS_work,MS_work)
+  !call fftwf_execute_dft(MS_fft_work_planf, MS_work, MS_work)
+  MS_mkl_dfti_status = DftiComputeForward(MS_mkl_dfti_descr, MS_work(:,1))
 
 ! ------------
 ! apply the shifting phase plate
@@ -1095,7 +1138,8 @@ SUBROUTINE MS_ShiftWave(wave,dx,dy)
 ! ------------
 
 ! transform to real space
-  call fftwf_execute_dft(MS_fft_work_planf,MS_work,MS_work)
+  !call fftwf_execute_dft(MS_fft_work_planb, MS_work, MS_work)
+  MS_mkl_dfti_status = DftiComputeBackward(MS_mkl_dfti_descr, MS_work(:,1))
   
 ! copy data
   wave(i,j) = MS_work(i,j)
@@ -1746,33 +1790,44 @@ SUBROUTINE MS_FFT(cdata,nx,ny,dir)
   integer*4, intent(in) :: nx, ny, dir
   complex*8, intent(inout) :: cdata(nx,ny)   
 ! fft variables
-  type(C_PTR) :: fft_plan ! local plan
-  type(C_PTR) :: fft_pdata ! local pointers to aligned data
-  complex(C_FLOAT_COMPLEX), pointer :: work(:,:) ! pointer to working array
+  integer*4 :: ftstatus, ftdims(2)
+  type(DFTI_DESCRIPTOR), POINTER :: descr
+  !type(C_PTR) :: fft_plan ! local plan
+  !type(C_PTR) :: fft_pdata ! local pointers to aligned data
+  !complex(C_FLOAT_COMPLEX), pointer :: work(:,:) ! pointer to working array
 ! ------------
 
 ! ------------
   if (nx <= 0 .or. ny <= 0) return ! skip invalid dimensions
-  fft_pdata = fftwf_alloc_complex( int(ny*nx, C_SIZE_T) )
-  call c_f_pointer(fft_pdata, work, [nx,ny])
-  if (dir >= 0) then ! forward plan
-    fft_plan = fftwf_plan_dft_2d(ny, nx, work, work, FFTW_FORWARD, FFTW_ESTIMATE)
-  else
-    fft_plan = fftwf_plan_dft_2d(ny, nx, work, work, FFTW_BACKWARD, FFTW_ESTIMATE)
+  ftdims = (/ nx, ny /)
+  ftstatus = DftiCreateDescriptor(descr, DFTI_SINGLE,&
+         & DFTI_COMPLEX, 2, ftdims)
+  ftstatus = DftiCommitDescriptor(descr)
+  !fft_pdata = fftwf_alloc_complex( int(ny*nx, C_SIZE_T) )
+  !call c_f_pointer(fft_pdata, work, [nx,ny])
+  !if (dir >= 0) then ! forward plan
+  !  fft_plan = fftwf_plan_dft_2d(ny, nx, work, work, FFTW_FORWARD, FFTW_ESTIMATE)
+  !else
+  !  fft_plan = fftwf_plan_dft_2d(ny, nx, work, work, FFTW_BACKWARD, FFTW_ESTIMATE)
+  !end if
+  !work(1:nx,1:ny) = cdata(1:nx,1:ny)
+! ------------
+
+! ------------
+  !call fftwf_execute_dft(fft_plan, work, work)
+  if (dir >= 0) then ! forward transform
+    ftstatus = DftiComputeForward(MS_mkl_dfti_descr, cdata(:,1))
+  else ! backward transform
+    ftstatus = DftiComputeBackward(MS_mkl_dfti_descr, cdata(:,1))
   end if
-  work(1:nx,1:ny) = cdata(1:nx,1:ny)
 ! ------------
 
 ! ------------
-  call fftwf_execute_dft(fft_plan, work, work)
-! ------------
-
-! ------------
-  cdata(1:nx,1:ny) = work(1:nx,1:ny)
+  !cdata(1:nx,1:ny) = work(1:nx,1:ny)
 ! clean up fft
-  call fftwf_free(fft_pdata)
-  call fftwf_destroy_plan(fft_plan)
-  
+  !call fftwf_free(fft_pdata)
+  !call fftwf_destroy_plan(fft_plan)
+  ftstatus = DftiFreeDescriptor(descr)
 ! ------------
   return
 
@@ -1798,11 +1853,13 @@ SUBROUTINE MS_FFT_WORK(dir)
   integer*4, parameter :: subnum = 3450
   integer*4, intent(in) :: dir
 
-  if (MS_fft_dims(1) > 0 .and. MS_fft_dims(2) > 0) then
+  if (MS_mkl_dfti_dims(1) > 0 .and. MS_mkl_dfti_dims(2) > 0) then
     if (dir>=0) then ! forwards fft
-      call fftwf_execute_dft(MS_fft_work_planf, MS_work, MS_work)
+      !call fftwf_execute_dft(MS_fft_work_planf, MS_work, MS_work)
+      MS_mkl_dfti_status = DftiComputeForward(MS_mkl_dfti_descr, MS_work(:,1))
     else ! backwards fft
-      call fftwf_execute_dft(MS_fft_work_planb, MS_work, MS_work)
+      !call fftwf_execute_dft(MS_fft_work_planb, MS_work, MS_work)
+      MS_mkl_dfti_status = DftiComputeBackward(MS_mkl_dfti_descr, MS_work(:,1))
     end if
   end if
   
@@ -1841,6 +1898,8 @@ SUBROUTINE MS_Start(istart)
 ! parameter: integer*4 :: calculation start index
 ! -------------------------------------------------------------------- !
 
+  use Plasmon
+  
   implicit none
 
 ! ------------
@@ -1874,6 +1933,8 @@ SUBROUTINE MS_Start(istart)
 ! ------------
 ! setup starting wave
   MS_wave(:,:) = MS_wave_in(:,:)
+  MS_itowx = MS_lamb / (MS_samplingx*real(MS_dimx))
+  MS_itowy = MS_lamb / (MS_samplingy*real(MS_dimy))
 !
 ! setup the multi-slice index and counters
 ! (default)
@@ -1899,6 +1960,13 @@ SUBROUTINE MS_Start(istart)
     MS_pint_idx = MS_ldetpln(0)
     call ExportWave(trim(MS_wave_filenm), 0) ! export incident plane wave function
   end if
+! ------------
+  
+! ------------
+! reset plasmon excitation data for a new run
+  if (MS_do_plasm/=0) call PL_reset()
+! ------------
+  
 
 ! ------------
 !  write(unit=*,fmt=*) " > MS_Start: EXIT."
@@ -1916,6 +1984,8 @@ SUBROUTINE MS_Stop()
 ! parameter: 
 ! -------------------------------------------------------------------- !
 
+  use Plasmon
+  
   implicit none
 
 ! ------------
@@ -1932,6 +2002,10 @@ SUBROUTINE MS_Stop()
     return
   end if
   nslmax = MS_lastmaxslice
+! ------------
+  
+! ------------
+  if (MS_do_plasm/=0) call PL_populate(PL_exc_num) ! populate plasmon statistics
 ! ------------
 
 ! ------------
@@ -1956,6 +2030,8 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
 !            integer*4 :: nx, ny ! # phase grating samples
 ! -------------------------------------------------------------------- !
 
+  use Plasmon
+  
   implicit none
 
 ! ------------
@@ -1964,6 +2040,7 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
   integer*4, intent(in) :: nx, ny
   complex*8, intent(in) :: slc(nx,ny)
   integer*4 :: i,j, nslice, ncurslice, nprop, i1, j1
+  real*4 :: slc_thick
   external :: ExportWave
 ! ------------
 
@@ -1991,6 +2068,7 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
   MS_lastmaxslice = ncurslice
   nslice = MS_slicestack(ncurslice)+1
   nprop = MS_propstack(nslice)
+  slc_thick = MS_slicethick(nslice)
 ! ------------
 
 ! ------------
@@ -2000,7 +2078,8 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
 
 ! ------------
 ! transform to real space
-  call fftwf_execute_dft(MS_fft_planb,MS_wave,MS_wave)
+  !call fftwf_execute_dft(MS_fft_planb,MS_wave,MS_wave)
+  MS_mkl_dfti_status = DftiComputeBackward(MS_mkl_dfti_descr, MS_wave(:,1))
 ! ------------
 
 ! ------------
@@ -2032,7 +2111,15 @@ SUBROUTINE MS_CalculateNextSlice(slc, nx,ny)
 
 ! ------------
 ! transform to fourier space
-  call fftwf_execute_dft(MS_fft_planf,MS_wave,MS_wave)
+  !call fftwf_execute_dft(MS_fft_planf, MS_wave, MS_wave)
+  MS_mkl_dfti_status = DftiComputeForward(MS_mkl_dfti_descr, MS_wave(:,1))
+! ------------
+  
+! ------------
+  if (MS_do_plasm/=0) then ! check for plasmon scattering
+    ! call plasmon Monte-Carlo for this slice
+    call PL_scatt_slc(slc_thick, MS_itowx, MS_itowy, MS_wave, MS_dimx, MS_dimy)
+  end if
 ! ------------
 
 ! ------------

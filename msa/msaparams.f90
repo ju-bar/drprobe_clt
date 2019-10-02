@@ -107,6 +107,7 @@ MODULE MSAparams
 !  public :: MSP_SetCalibratedDetectors
   public :: MSP_SetKmomentDetector
   public :: MSP_GetPGRIndex
+  public :: MSP_GetVarList
   public :: MSP_GetNumberOfDigits
   public :: MSP_InitTextOutput
   public :: MSP_WriteTextOutput
@@ -156,9 +157,9 @@ MODULE MSAparams
 !   min data division value
   real*4, public, parameter :: MSP_div0 = 1.0E-15
   
-!   fftw flag switch
-  integer*4, public :: MSP_FFTW_FLAG
-  DATA MSP_FFTW_FLAG /0/ ! FFTW_MEASURE by default (set 64 for FFTW_ESTIMATE)
+!!   fftw flag switch
+!  integer*4, public :: MSP_FFTW_FLAG
+!  DATA MSP_FFTW_FLAG /0/ ! FFTW_MEASURE by default (set 64 for FFTW_ESTIMATE)
   
 !   run timing flag and variables
   integer*4, public :: MSP_runtimes
@@ -333,7 +334,7 @@ MODULE MSAparams
 ! slice file title length
   integer*4, public, parameter :: MSP_SF_TITLE_LENGTH = 40
 
-! scane frame parameters
+! scan frame parameters
   real*4, public :: MSP_SF_offsetx, MSP_SF_offsety, MSP_SF_sizex, MSP_SF_sizey
   real*4, public :: MSP_SF_rot, MSP_SF_rotcos, MSP_SF_rotsin
   integer*4, public :: MSP_SF_ndimx, MSP_SF_ndimy
@@ -369,9 +370,6 @@ MODULE MSAparams
   integer*4, public :: MSP_FL_varcalc ! min. number of frozen lattice variants used for calculating one scan pixel or exit plane waves
   DATA MSP_FL_varcalc /1/
   
-! 
-  
-  
 ! slice data
   character(len=MSP_SF_TITLE_LENGTH), dimension(:), allocatable, public :: MSP_SLC_title
   character(len=MSP_ll), public :: MSP_SLC_filenames
@@ -380,6 +378,10 @@ MODULE MSAparams
   complex*8, dimension(:,:,:), allocatable, public :: MSP_phasegrt
   integer*4, public :: MSP_SLC_num ! number of allocated phasegratings in MSP_phasegrt
   DATA MSP_SLC_num /0/
+  
+! plasmon excitation
+  integer*4, public :: MSP_do_plasm                         ! flag activating plasmon scattering
+  DATA MSP_do_plasm /0/
   
 ! detection parameters
   integer*4, public :: MSP_detslc                           ! detector periodic read-out period [# slices]
@@ -433,12 +435,12 @@ MODULE MSAparams
   integer*4, public :: MSP_detimg_output                    ! flag detector image output
   DATA MSP_detimg_output /0/
   
-! probe image and diffraction data
-  real*4, dimension(:,:,:), allocatable, public :: MSP_pimg ! probe image data for each plane
-  real*4, dimension(:,:,:), allocatable, public :: MSP_pdif ! probe diffraction data for each plane
-  real*4, dimension(:,:,:), allocatable, public :: MSP_padif ! averaged probe diffraction data for each plane
-  real*4, dimension(:,:,:), allocatable, public :: MSP_padif_ela ! averaged elastic probe diffraction data for each plane
-  integer*4, dimension(:), allocatable, public :: MSP_pint_nac ! # accumulations of probe intensities
+! probe image and diffraction data for each plane and energy loss
+  real*4, dimension(:,:,:), allocatable, public :: MSP_pimg ! probe images
+  real*4, dimension(:,:,:), allocatable, public :: MSP_pdif ! probe diffraction patterns
+  real*4, dimension(:,:,:), allocatable, public :: MSP_padif ! averaged probe diffraction paterns
+  real*4, dimension(:,:,:), allocatable, public :: MSP_padif_ela ! averaged elastic probe diffraction patterns (no energy loss)
+  integer*4, dimension(:,:), allocatable, public :: MSP_pint_nac ! # accumulated images
   integer*4, public :: MSP_pint_num ! number of probe image intensities per scan position
   DATA MSP_pint_num /0/
   
@@ -809,7 +811,7 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
   real*4 :: ax, ay, rlamb
   logical :: isopen
   character*STF_aberration_longname_length :: aname
-  character(len=1024) :: sline
+!  character(len=1024) :: sline
 ! ------------
 
 
@@ -826,11 +828,7 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
 
 ! ------------
 ! 
-  read(unit=nunit,fmt='(a1024)',err=14) sline
-  read(unit=sline,fmt=*,iostat=j) STF_caperture, STF_capasym, STF_capasymdir  ! (semi angle of incident wave (mrad)
-  if (j/=0) then ! incomplete input (not the full form)
-    read(unit=sline,fmt=*,err=17) STF_caperture ! try reading this number again to be sure we have something
-  end if
+  read(unit=nunit,fmt=*, iostat=j) STF_caperture ! (list of probe forming aperture parameters)
   read(unit=nunit,fmt=*,err=17) MS_detminang ! (lower semi angle of fourier-space detector (mrad))
   read(unit=nunit,fmt=*,err=17) MS_detmaxang ! (upper semi angle of fourier-space detector (mrad))
   read(unit=nunit,fmt=*,err=16) MSP_usedetdef, MSP_detfile ! (switch for using a detector definition file, and the name of the detector definition file, ignored in CTEM mode)
@@ -862,7 +860,10 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
   MS_lamb = STF_lamb
   MS_ht = STF_ht
   if (STF_lamb < 0.0001 .or. STF_lamb > 0.1 ) goto 18
-  if (abs(STF_capasym) >= 1.0) STF_capasym = 0.0 ! deactivate elliptic source, invalid ellipticity
+  if (abs(STF_caperture(2)) >= 1.0) then ! check for invalid aperture asymmetry
+    STF_caperture(2) = 0.0 ! deactivate elliptic source, invalid ellipticity
+    STF_caperture(3) = 0.0
+  end if
 !   CHECKS
 ! ***********************
     
@@ -870,33 +871,33 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
 !   PSEUDO DEBUG
   if (DEBUG_EXPORT==1) then
     call PostMessage("[Microscope Parameters] input report:")
-    write(unit=MSP_stmp,fmt='(A,G12.4)') "semi angle of incident wave (mrad):",STF_caperture
-    call PostMessage(trim(MSP_stmp))
-    if (abs(STF_capasym)>0.0) then
-      write(unit=MSP_stmp,fmt='(A,G12.4)') "- convergence asymmetry:",STF_capasym
-      call PostMessage(trim(MSP_stmp))
-      write(unit=MSP_stmp,fmt='(A,G12.4)') "- asymmetry main direction (rad):",STF_capasymdir
-      call PostMessage(trim(MSP_stmp))
-    end if
-    write(unit=MSP_stmp,fmt='(A,G12.4)') "lower semi angle of fourier-space detector (mrad):",MS_detminang
-    call PostMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4)') "upper semi angle of fourier-space detector (mrad):",MS_detmaxang
-    call PostMessage(trim(MSP_stmp))
-    if (MSP_usedetdef/=0) then
-      call PostMessage( "! The previous two parameters will be ignored." )
-      call PostMessage( "Using detector definition from file ["//trim(MSP_detfile)//"]." )
-    end if
-    write(unit=MSP_stmp,fmt='(A,G12.4)') "defocus spread (nm):",STF_defocusspread
-    call PostMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4)') "defocus spread kernel width:",STF_DEFOCUS_KERNEL_SPREAD
+    write(unit=MSP_stmp,fmt='(A,G12.4)') "electron energy (keV):",STF_ht
     call PostMessage(trim(MSP_stmp))
     write(unit=MSP_stmp,fmt='(A,G12.4)') "electron wavelength (nm):",STF_lamb
     call PostMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4)') "electron energy (keV):",STF_ht
+    write(unit=MSP_stmp,fmt='(A,G12.4)') "radius of probe forming aperture (mrad):", STF_caperture(1)
     call PostMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,G12.4)') "source radius (nm):",STF_srcradius
+    if (abs(STF_caperture(2)) > 0.0) then
+      write(unit=MSP_stmp,fmt='(A,G12.4)') "- rel. convergence asymmetry:", STF_caperture(2)
+      call PostMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,G12.4)') "- asymmetry main direction (rad):", STF_caperture(3)
+      call PostMessage(trim(MSP_stmp))
+    end if
+    write(unit=MSP_stmp,fmt='(A,G12.4)') "rel. edge smoothness of probe forming aperture:", STF_caperture(4)
+    if (MSP_usedetdef/=0) then
+      call PostMessage( "Using detector definition from file ["//trim(MSP_detfile)//"]." )
+    else
+      write(unit=MSP_stmp,fmt='(A,G12.4)') "inner detection angle (mrad):",MS_detminang
+      call PostMessage(trim(MSP_stmp))
+      write(unit=MSP_stmp,fmt='(A,G12.4)') "outer detection angle (mrad):",MS_detmaxang
+      call PostMessage(trim(MSP_stmp))
+    end if
+    write(unit=MSP_stmp,fmt='(A,G12.4)') "effective source radius (nm):",STF_srcradius
     call PostMessage(trim(MSP_stmp))
-    write(unit=MSP_stmp,fmt='(A,I4)') "defocus spread kernel steps/size",STF_DEFOCUS_KERNEL_STEPS
+    write(unit=MSP_stmp,fmt='(A,G12.4)') "effective defocus spread (nm):",STF_defocusspread
+    call PostMessage(trim(MSP_stmp))
+    write(unit=MSP_stmp,fmt='(A,F8.3,", ",I4)') "defocus-spread kernel rel. width & steps:", &
+      & STF_DEFOCUS_KERNEL_SPREAD, STF_DEFOCUS_KERNEL_STEPS
     call PostMessage(trim(MSP_stmp))
     write(unit=MSP_stmp,fmt='(A,I4)') "number of input aberrations:",anum
     call PostMessage(trim(MSP_stmp))
@@ -1042,7 +1043,7 @@ SUBROUTINE MSP_READBLOCK_multislice(nunit)
 
   
   if (sqrt(MS_objtiltx**2+MS_objtilty**2)>10.0) then
-    call MSP_WARN("Very large object tilt applied (>10 degree).")
+    call MSP_WARN("Very large object tilt applied (>10 degree). Inaccurate results expected.")
   end if
   if (MSP_SC_repeatx<1) then
     MSP_SC_repeatx = 1
@@ -1840,7 +1841,7 @@ FUNCTION MSP_GetPGRIndex(nv, nz, nerr)
   integer*4, intent(in) :: nv ! variant index
   integer*4, intent(in) :: nz ! slice index
   integer*4, intent(inout) :: nerr ! error code, 0 = success 
-  integer*4 :: i, j, inv, nnv, vcur
+  integer*4 :: i, inv, nvarslc, nnv, vcur
 ! ------------
 
 ! ------------
@@ -1863,8 +1864,8 @@ FUNCTION MSP_GetPGRIndex(nv, nz, nerr)
 ! ------------
   inv = nv
   ! 1. get number of present variants for the selected slice
-  j = MSP_SLC_setup(0, nz)
-  if (j<=0) then
+  nvarslc = MSP_SLC_setup(0, nz)
+  if (nvarslc<=0) then
     nerr = subnum+2
     call MSP_ERROR("The requested slice contains no variant.",nerr)
     return
@@ -1893,6 +1894,129 @@ FUNCTION MSP_GetPGRIndex(nv, nz, nerr)
   return
 
 END FUNCTION MSP_GetPGRIndex
+!**********************************************************************!
+
+
+
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE MSP_GetVarList(nslc, nobjslc, lobjstack, lvar, nerr)
+! function: Pre-calculates phase-grating variant Monte-Carlo choices
+!           for one multislice pass through the whole object.
+! -------------------------------------------------------------------- !
+! parameter:
+!   integer*4 :: INPUT :: nslc = number of structure slices
+!                         You should input MS_slicenum
+!   integer*4 :: INPUT :: nobjslc = number of object slices
+!                         You should input MS_stacksize
+!   integer*4 :: INPUT :: lobjstack(1:nobjslc) = stacking of slices in
+!                         the sample up to maximum calculated thickness
+!                         You should input MSP_SLC_object(:).
+!   integer*4 :: OUTPUT :: lvar(1:nobjslc) = chosen variant index for
+!                         each object slice
+!   integer*4 :: OUTPUT :: nerr = error code (0=success)
+!
+! remark:
+!   The routine uses information from the array MSP_SLC_setup, which
+!   stores number of variants per slice in MSP_SLC_setup(0,:).
+!   It additionally limits the number of variants to MSP_FL_varnum.
+! -------------------------------------------------------------------- !
+
+  implicit none
+
+! ------------
+! DECLARATION
+  integer*4, parameter :: subnum = 2300
+  integer*4, intent(in) :: nslc, nobjslc
+  integer*4, intent(in) :: lobjstack(1:nobjslc)
+  integer*4, intent(inout) :: lvar(1:nobjslc), nerr  
+  
+  integer*4 :: i, j, k, k0, islc, itmp, nalloc
+  integer*4 :: nvarslc
+  integer*4 :: qlenmax ! maximum variant queue length
+  integer*4, allocatable :: qlen(:) ! variant queue lengths
+  integer*4, allocatable :: qlast(:) ! last variant
+  integer*4, allocatable :: q(:,:) ! queues
+  
+  real*4, external :: UniRand ! link 'random.f90'
+! ------------
+
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > MSP_GetVarList: INIT."
+  nerr = 0
+  nalloc = 0
+  if (nslc <= 0 .or. nobjslc <= 0) goto 101
+  qlenmax = MSP_FL_varnum
+! ------------
+
+
+! ------------
+! allocations + init
+  allocate(qlen(1:nslc), qlast(1:nslc), q(1:qlenmax,1:nslc), stat=nalloc)
+  if (nalloc/=0) goto 102
+  qlen(1:nslc) = 0
+  qlast(1:nslc) = -1
+  q(1:qlenmax,1:nslc) = 0
+! ------------
+  
+! ------------
+! loop over all object slices and dice for the variant
+  do i=1, nobjslc
+    islc = 1 + lobjstack(i) ! get current slice index
+    nvarslc = min(qlenmax, MSP_SLC_setup(0, islc)) ! get number of variants to be used for this slice
+    itmp = 0 ! preset variant output index to 0
+    if (nvarslc > 1) then ! handle case of multiple variants in islc
+      if (qlen(islc) < 1) then ! empty queue for slice islc
+        ! setup new queue
+        do j=1, nvarslc
+          q(j, islc) = j - 1
+        end do
+        qlen(islc) = nvarslc
+      end if
+      ! select one variant randomly
+      k = modulo( int( UniRand()*real(nvarslc)*0.9999 ), nvarslc )
+      k0 = k
+      do while (q(1+k,islc)<0 .or. q(1+k,islc)==qlast(islc))
+        k = modulo( 1+k, nvarslc ) ! try to assign next index
+        if (k==k0) then ! unexpected problem
+          exit
+        end if
+      end do
+      itmp = q(1+k, islc) ! assign this variant to object slice i
+      if (itmp < 0) then ! handle false assignment
+        ! draw with returning and initialize queue
+        itmp = modulo( int( UniRand()*real(nvarslc)*0.9999 ), nvarslc )
+        qlen(islc) = 0
+      else
+        ! draw itmp without returning
+        q(1+k, islc) = -1 ! mark as drawn
+        qlen(islc) = qlen(islc) - 1 ! decrement queue length
+      end if
+      qlast(islc) = itmp ! remember last draw
+    end if 
+    lvar(i) = itmp
+  end do
+! ------------
+
+
+! ------------
+!  write(unit=*,fmt=*) " > MSP_GetVarList: EXIT."
+99 continue
+  if (allocated(qlen)) deallocate(qlen, stat=nalloc)
+  if (allocated(qlast)) deallocate(qlast, stat=nalloc)
+  if (allocated(q)) deallocate(q, stat=nalloc)
+  return
+  
+101 nerr = subnum + 1
+  call MSP_ERROR("Variance list creation failed due to invalid input numbers.",nerr)
+  goto 99
+102 nerr = subnum + 2
+  call MSP_ERROR("Failed to allocate helper arrays for variance list creation.",nerr)
+  goto 99
+
+END SUBROUTINE MSP_GetVarList
 !**********************************************************************!
 
 
@@ -3131,7 +3255,7 @@ SUBROUTINE MSP_SetKmomentDetector(nerr)
       g2 = gy2+gx*gx
       gm = sqrt(g2)
       ! get aperture value
-      call STF_ApertureFunctionS(gx, gy, 0., 0., gt1, gsx, gsy, STF_APSMOOTHPIX, scur)
+      call STF_ApertureFunctionS(gx, gy, 0., 0., gt1, STF_APSMOOTHPIX, scur)
       ! check aperture power threshold
       if (scur > STF_APERTURETHRESH) then ! check if current fourier pixel is inside the integration range
         ! this is a valid pixel and we have a sensitivity
@@ -3454,7 +3578,7 @@ END MODULE MSAparams
 
 ! ------------
 ! DECLARATION
-!  integer*4, parameter :: subnum = 2300
+!  integer*4, parameter :: subnum = 2400
 !
 ! ------------
 

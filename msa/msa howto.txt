@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 1.0.1                                  #
+#   HOWTO use the program MSA, Version 1.0.4                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-07-17                                                          #
+#   Date: 2019-10-02                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -308,12 +308,6 @@ Command-line calling options for the program msa.exe:
 	propagators.
 
 
-/dftest [optional]
-
-	Use FFTW_ESTIMATE instead of FFTW_MEASURE as FFT planner flag.
-	This may be advantageous for small scale calculations.
-
-
 /verbose [optional]
 
 	Activates additional program output to the console.
@@ -356,6 +350,14 @@ or are still under development:
 	A suffix "_kmom<m>-<l>" is added to the output file names, where
 	<m>	specifes the moment order and <l> is the index of the
 	component beginning with 0 up to m. (STEM only)
+
+-ple (float value) (float value) [optional]
+
+	Run with plasmon scattering Monte-Carlo. Specify the energy for
+	single plasmon excitation with the first value and the mean-free
+	path for single plasmon scattering by the second value. A significant
+	amount of runs (number of frozen-lattice variations) should be
+	used to achieve a good averaging of the excitation statistics.
 
 
 -vtx (integer number) [optional]
@@ -464,7 +466,7 @@ parameters will not be read in properly.
 
 What follows this line is a commented example of an MSA parameter file:
 '[Microscope Parameters]'
-25.000000					(semi angle of incident wave (mrad) in STEM mode, you may add parameters for relative asymmetry and asymmetry direction of the aperture)
+25.000000					(STEM probe forming aperture: radius (mrad), rel. asymmetry, asym. dir. (rad), rel. edge smoothness)
 80.000000					(lower semi angle of fourier-space detector (mrad))
 220.00000					(upper semi angle of fourier-space detector (mrad))
 1, 'detectors.prm'			(switch for using a detector definition file, and the name of the detector definition file, attention: the output file name will change when using more than one detector, the detector definitions in the preceeding two lines are ignored when using a detector definition file, alle detector definitions are ignored in CTEM mode)
@@ -714,6 +716,47 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 6) History of changes
 
+191002: JB: Version 1.0.4
+- Replaced FFTW calls by FFT from the Intel Math Kernel Library.
+  Much larger but faster binaries are created.
+- Option /dftest removed (obsolete).
+
+190912: JB: Version 1.0.3
+- Changed slice file input access from stream to sequential. This
+  should fix an unexplainable bug in the ifort stream input occuring
+  with large number of atoms in slice.
+- Implementation of plasmon scattering by a Monte-Carlo approach:
+  B. Mendis, Ultramic. 206 (2019) 112816.
+  Activate by command-line flag -ple (Ep) (Lp), where Ep defines
+  the energy of single plasmon excitations in eV and Lp is the
+  respective mean-free path in nm.
+
+190828: JB: Version 1.0.2
+- Consistent definition of the probe forming aperture in all parts of the
+  program and in wavimg. The aperture can be defined by 4 parameters in
+  line 2 of the msa parameter file (r, a, d, s). Previous parameter files
+  format will still be processed as round aperture. The default edge
+  smoothness is about 3%.
+  Examples for line 2:
+  a) 25 mrad radius round aperture with default 3% edge smoothness:
+     25.0
+  b) 25 mrad radius, round, 10% edge smoothness:
+     25.0 0. 0. 0.1
+  c) 25 mrad mean radius, 3% asymmetry along 0.34 rad, 5% edge smoothness
+	 25.0 0.03 0.34 0.05
+  Meaning of the 4 parameters and aperture model:
+  r = radius of the aperture in mrad
+  a = asymmetry parameter (relative to r, r_max = (1 + a)*r), default 0.
+  d = direction of main asymmetry axis (1+a)*r w.r.t. the grid x axis., default 0.
+  s = relative edge smoothness, default 0.03
+  aperture function:
+    A(x,y) = (1 - arctan(Pi*(x'-r)/(r*s)))
+        x' = sqrt( du^2 + dv^2 )
+        du = ((1-ax)*(x-x0) -     ay*(y-y0))/(1-a^2)
+	    dy = (   -ay*(x-x0) + (1+ax)*(y-y0))/(1-a^2)
+	    ax = a * cos(2*d)
+	    ay = a * sin(2*d)
+   (x0,y0) = aperture center coordinate = (0,0) (currently no input for that)
 
 190717: JB: Version 1.0.1
 - Modified STEM source convolution size parameter to act as HWHM.

@@ -92,22 +92,19 @@ wavimg -prm test/wavimg-2.prm -out test/img_ctem.dat
 
 ## Development
 
-The programs are written in Fortran 90 code for Intel Fortran compilers.
+The programs are written in Fortran 90 code for Intel Fortran compilers. MSA is
+linked agains the Intel Math Kernel Libraries (MKL).
 
 Current versions:
 * CELSLC: 1.0
 * MSA: 1.0
 * WAVIMG: 1.0
 
-The code of the program MSA links to "libfftwf-3.3.lib"
-MSA uses data output by FFTW and is in no form based on work represented by
-the FFTW project. Source code and library binary code of FFTW are available
-from http://www.fftw.org/ (accessed April 2018).
-
 ### TODOs
 
 * keep up with new code from [JMultiSlice](https://github.com/ju-bar/JMultiSliceLib)
   - investigate if the CUDA code can be used in this project
+* add slice loading on demand to MSA
 * add a wrapper tool for applying external transition potentials for EELS and EDX
 * add partial import of wavefunctions and images from 3d data sets with
   MSA and WAVIMG.
