@@ -93,7 +93,8 @@ wavimg -prm test/wavimg-2.prm -out test/img_ctem.dat
 ## Development
 
 The programs are written in Fortran 90 code for Intel Fortran compilers. MSA is
-linked agains the Intel Math Kernel Libraries (MKL).
+linked against the Intel Math Kernel Libraries (MKL). Residual code linking to
+FFTW3 is still present and can be used with minimum effort if preferred.
 
 Current versions:
 * CELSLC: 1.0

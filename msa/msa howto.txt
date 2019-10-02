@@ -353,11 +353,11 @@ or are still under development:
 
 -ple (float value) (float value) [optional]
 
-	Run with plasmon scattering Monte-Carlo. Specify the energy for
-	single plasmon excitation with the first value and the mean-free
-	path for single plasmon scattering by the second value. A significant
+	Run with plasmon scattering Monte-Carlo. Specify the energy (eV)
+	with the first value and the mean-free path (nm) for single
+	plasmon excitation with the second value. A significant
 	amount of runs (number of frozen-lattice variations) should be
-	used to achieve a good averaging of the excitation statistics.
+	used to let excitation statistics converge.
 
 
 -vtx (integer number) [optional]
