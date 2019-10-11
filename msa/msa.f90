@@ -1,13 +1,13 @@
 !**********************************************************************
 !
-!  PROGRAM: msa, version 1.0.4
+!  PROGRAM: msa, version 1.0.5
 !  FILE: msa.f90
 !  PURPOSE:  Entry point for the console application MSA.
 !            Multislice calculation for electron diffraction
 !
 !**********************************************************************
 !                                                                      
-!   Date: 2019-09-16
+!   Date: 2019-10-11
 !                                                                      
 !   Author: Juri Barthel                                               
 !           Ernst Ruska-Centre                                         
@@ -81,7 +81,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "1.0.4 64-bit  -  2019 Oct   2  -"
+  MSP_verApp  =                   "1.0.5 64-bit  -  2019 Oct  11  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -292,43 +292,59 @@ program msa
 
 ! ------------
 ! PREPARE PLASMON SCATTERING CALCULATIONS
-  call PL_deinit()
-  if (MSP_do_plasm/=0) then ! plasmon excitation calculations used
+  if (MSP_do_plasm > 0 .and. MSP_do_plasm <= 2) then ! plasmon excitation calculations used
     ! set remaining input parameters required by the plasmon module
+    call PostMessage("Initializing plasmon excitation calculation:")
     PL_ek = STF_ht*1000. ! electron kinetic energy [eV]
     PL_wthr = 0.01 ! run always with 1% probability threshold for remaining higher excitations
-    PL_tmax = 0.0
-    do i=1, MS_stacksize
+    PL_tmax = 0.0 ! init max sample thickness
+    do i=1, MS_stacksize ! calculate max. sample tickness
       j = MS_slicestack(i)
       PL_tmax = PL_tmax + MS_slicethick(j+1)
     end do
-    call PostMessage("Initializing plasmon excitation calculation:")
-    call PL_init(nerr)
-    if (nerr/=0) then
+    if (MSP_do_plasm == 1) then ! bulk plasmon init
+      call PL_init(nerr)
+    elseif (MSP_do_plasm == 2) then ! low loss transition init
+      ! determine critical angle from diffraction limit of the simulation
+      PL_qc = 1./max(MS_samplingx,MS_samplingy)*MS_lamb/3. ! 2/3 Lambda * Qmax = 2/3 Lambda * 1/2 / sampling-rate
+      call PL_init2(nerr)
+    else ! no supported type of plasmon calculation (safety catch)
+      MSP_do_plasm = 0
+    end if
+    if (nerr/=0 .and. MSP_do_plasm > 0) then ! initialization error
       call PostWarning("Plasmon module returned error: "//trim(PL_msg_err))
       call PL_deinit()
       MSP_do_plasm = 0
-      call PostWarning("Failed to setup plasmon module, option -ple is ignored.")
-    else
-      if (PL_npemax>0) then
+      call PostWarning("Failed to setup plasmon module, option -ple or -plp ignored.")
+    elseif (nerr==0 .and. MSP_do_plasm > 0) then ! initialization worked
+      if (PL_npemax>0) then ! there will be plasmon excitations in the multislice
+        ! post some information on used parameters
         write(unit=MSP_stmp,fmt='(I3)') PL_npemax
         call PostMessage("- calculating plasmon excitation up to "// &
-           & trim(adjustl(MSP_stmp))//" levels.")
-        write(unit=MSP_stmp,fmt='(F8.1)') PL_ep
-        call PostMessage("- plasmon energy: "// &
-           & trim(adjustl(MSP_stmp))//" eV.")
+            & trim(adjustl(MSP_stmp))//" levels.")
+        if (MSP_do_plasm == 1) then
+          write(unit=MSP_stmp,fmt='(F8.1)') PL_ep
+          call PostMessage("- plasmon energy: "// &
+              & trim(adjustl(MSP_stmp))//" eV.")
+        end if
         write(unit=MSP_stmp,fmt='(F8.2)') PL_lp
         call PostMessage("- single plasmon excitation mean-free path: "// &
-           & trim(adjustl(MSP_stmp))//" nm.")
+            & trim(adjustl(MSP_stmp))//" nm.")
         write(unit=MSP_stmp,fmt='(F8.1)') PL_tol
         call PostMessage("- t / lambda: " // trim(adjustl(MSP_stmp)))
         write(unit=MSP_stmp,fmt='(F8.4)') PL_qe*1000.
         call PostMessage("- characteristic angle: " // &
-           & trim(adjustl(MSP_stmp)) // " mrad.")
+            & trim(adjustl(MSP_stmp)) // " mrad.")
         write(unit=MSP_stmp,fmt='(F8.2)') PL_qc*1000.
         call PostMessage("- crictical angle: " // &
-           & trim(adjustl(MSP_stmp)) // " mrad.")
-      else
+            & trim(adjustl(MSP_stmp)) // " mrad.")
+        if (MSP_FL_varcalc<100) then
+          write(unit=MSP_stmp,fmt=*) MSP_FL_varcalc
+          call PostWarning("Small amount of Monte-Carlo scattering runs. "// &
+            & "The final result may not be converged ("// &
+            & trim(adjustl(MSP_stmp))//"<100).")
+        end if
+      else ! (PL_npemax<=0) no plasmon excitations
         call PL_deinit()
         MSP_do_plasm = 0
         if (PL_npemax<=0) then
@@ -337,15 +353,10 @@ program msa
         call PostWarning("Plasmon calculation rejected, option -ple is ignored.")
       end if
     end if
-    if (MSP_FL_varcalc<100) then
-      write(unit=MSP_stmp,fmt=*) MSP_FL_varcalc
-      call PostWarning("Small amount of averaging for plasmon-excitation "// &
-        & "calculations, the result may not be converged ("// &
-        & trim(adjustl(MSP_stmp))//"<100).")
-    end if
+    
     !
     ! IMPORTANT: transfer the plasmon code activation flag to module MultiSlice
-    MS_do_plasm = MSP_do_plasm
+    MS_do_plasm = min(1, MSP_do_plasm)
     !
   end if
 ! ------------

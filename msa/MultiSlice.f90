@@ -95,7 +95,7 @@ MODULE MultiSlice
   public :: MS_SetIncomingWave
   public :: MS_ShiftWave
   public :: MS_OffsetIncomingWave
-  public :: MS_PrepareSlice
+!  public :: MS_PrepareSlice
   public :: MS_SliceApplyBuni
   public :: MS_SlicePot2Pgr
   public :: MS_PreparePropagators
@@ -1153,48 +1153,48 @@ END SUBROUTINE MS_ShiftWave
 
 
 
-!**********************************************************************!
-!**********************************************************************!
-!SUBROUTINE MS_PrepareSlice(nidx, sdata, sthick)
-SUBROUTINE MS_PrepareSlice(nidx, sthick)
-! function: Prepares array data for a slice
-! -------------------------------------------------------------------- !
-! parameter: ndix : integer*4 : slice index in memory
-!!            sdata(MS_dimy,MS_dimx) : complex*8 : slice data EXP[i*V]
-!            sthick : real*4 : slice thickness in [nm]
-! -------------------------------------------------------------------- !
-
-  implicit none
-
-! ------------
-! DECLARATION
-  integer*4, parameter :: subnum = 900
-  integer*4 :: nidx
-  real*4 :: sthick
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > MS_PrepareSlice: INIT."
-  if (MS_status<1) then
-    call MS_ERROR("Module not initialised.",subnum+1)
-    return
-  end if
-  if (nidx<1.or.nidx>MS_slicenum) then
-    call MS_ERROR("Wrong parameter (nidx) calling MS_PrepareSlice.",subnum+2)
-    return
-  end if
-! set slice thickness
-  MS_slicethick(nidx) = sthick
-! ------------
-
-
-! ------------
-!  write(unit=*,fmt=*) " > MS_PrepareSlice: EXIT."
-  return
-
-END SUBROUTINE MS_PrepareSlice
-!**********************************************************************!
+!!**********************************************************************!
+!!**********************************************************************!
+!!SUBROUTINE MS_PrepareSlice(nidx, sdata, sthick)
+!SUBROUTINE MS_PrepareSlice(nidx, sthick)
+!! function: Prepares array data for a slice
+!! -------------------------------------------------------------------- !
+!! parameter: ndix : integer*4 : slice index in memory
+!!!            sdata(MS_dimy,MS_dimx) : complex*8 : slice data EXP[i*V]
+!!            sthick : real*4 : slice thickness in [nm]
+!! -------------------------------------------------------------------- !
+!
+!  implicit none
+!
+!! ------------
+!! DECLARATION
+!  integer*4, parameter :: subnum = 900
+!  integer*4 :: nidx
+!  real*4 :: sthick
+!! ------------
+!
+!! ------------
+!! INIT
+!!  write(unit=*,fmt=*) " > MS_PrepareSlice: INIT."
+!  if (MS_status<1) then
+!    call MS_ERROR("Module not initialised.",subnum+1)
+!    return
+!  end if
+!  if (nidx<1.or.nidx>MS_slicenum) then
+!    call MS_ERROR("Wrong parameter (nidx) calling MS_PrepareSlice.",subnum+2)
+!    return
+!  end if
+!! set slice thickness
+!  MS_slicethick(nidx) = sthick
+!! ------------
+!
+!
+!! ------------
+!!  write(unit=*,fmt=*) " > MS_PrepareSlice: EXIT."
+!  return
+!
+!END SUBROUTINE MS_PrepareSlice
+!!**********************************************************************!
 
 
 
@@ -1410,7 +1410,7 @@ SUBROUTINE MS_PreparePropagators()
 !           do not forget to call this function pefore starting the
 !           multisclice algorithm
 ! -------------------------------------------------------------------- !
-! parameter: 
+! parameter: MS_slicethick (setup before calling this routine)
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1566,7 +1566,7 @@ SUBROUTINE MS_PreparePropagators2()
 !           do not forget to call this function pefore starting the
 !           multisclice algorithm
 ! -------------------------------------------------------------------- !
-! parameter: 
+! parameter: MS_slicethick (setup before calling this routine)
 ! -------------------------------------------------------------------- !
 
   implicit none

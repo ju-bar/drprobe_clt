@@ -4,10 +4,7 @@
 !    File     :  emsdata.f90                                           !
 !                                                                      !
 !    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2019   !
-!    Version  :  1.0.0, July 10, 2009                                  !
-!    Version  :  2.0.0, July 11, 2012                                  !
-!    Version  :  2.1.0, December 16, 2014                              !
-!    Version  :  2.1.1, September 12, 2019                             !
+!    Version  :  2.1.2, October 7, 2019                                !
 !                                                                      !
 !                                                                      !
 !**********************************************************************!
@@ -165,6 +162,7 @@ MODULE EMSdata
   
 !  public :: 
   public :: EMS_INIT, EMS_UNINIT, EMS_GetFreeLFU
+  public :: EMS_SLI_loadvari
   public :: EMS_SLI_loaddata
   public :: EMS_SLI_loadparams
   public :: EMS_SLI_save
@@ -221,7 +219,7 @@ MODULE EMSdata
 !   conversion factor radian to degree
   real*4, public :: EMS_r2d
   
-  integer*4, private :: EMS_SLI_data_swap ! swap flag
+  integer*4, public :: EMS_SLI_data_swap ! swap flag
   DATA EMS_SLI_data_swap /0/
   
   integer*4, public :: EMS_SLI_data_ver ! file extended header version
@@ -279,6 +277,8 @@ MODULE EMSdata
                                                           ! allocation size: (EMS_SLI_data_niaty) 
   real*4, public, allocatable :: EMS_SLI_data_iaatpo(:,:,:) ! fract. slice atom coordinates (equilibrium positions)
                                                           ! allocation size: (3,EMS_SLI_data_niatp_max, EMS_SLI_data_niaty)
+  
+  character(len=EMS_ll), public :: EMS_sinfo
 
 
   CONTAINS
@@ -1602,6 +1602,113 @@ END SUBROUTINE EMS_SLI_SAVE_ITAB
 
 
 
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE EMS_SLI_loadvari(lun,noffbyte,ivar,swap,nx,ny,cdata,nerr)
+! function: loads one phase grating variant from a file opened for
+!           reading by logigal unit lun with data beginning from
+!           offset noffbyte (Bytes) and variant index ivar
+! -------------------------------------------------------------------- !
+! parameter: 
+!   integer*4 :: lun = logical unit of the open file
+!   integer*4 :: noffbyte = Byte offset for phase grating data
+!   integer*4 :: ivar = index of the variant (0 based)
+!   integer*4 :: swap = flag byte swap
+!   integer*4 :: nx, ny = size of the phase grating grid
+!   complex*8 :: cdata(nx,ny) = buffer recieving data from file
+!   integer*4 :: nerr = error code
+! -------------------------------------------------------------------- !
+
+  implicit none
+
+! ------------
+! DECLARATION
+  integer*4, parameter :: subnum = 1900
+  
+  integer*4, intent(in) :: lun ! logical unit of the open file
+  integer*4, intent(in) :: noffbyte ! Byte offset for phase grating data
+  integer*4, intent(in) :: ivar ! index of the variant (0 based)
+  integer*4, intent(in) :: swap ! flag byte swap (0: no, 1: yes)
+  integer*4, intent(in) :: nx, ny ! size of the phase grating grid
+  complex*8, intent(inout) :: cdata(nx,ny) ! buffer recieving data from file
+  integer*4, intent(inout) :: nerr ! error code
+  
+  logical :: fisopen
+  character(len=64) :: sread
+  integer*8 :: ivarpos, i, j
+  real*4 :: rtmp1, rtmp2
+  real*4, external :: SwapReal4
+! ------------
+
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > EMS_SLI_loadvari: INIT."
+  fisopen = .FALSE.
+  sread = "NO"
+  INQUIRE(unit=lun, opened=fisopen, read=sread)
+  if (.not.(trim(sread)=="YES".and.fisopen)) goto 101
+! calculate data offst
+  ivarpos = int(noffbyte, kind=8) + int(8 * ivar, kind=8) * int(nx * ny, kind=8)
+! ------------
+
+
+! ------------
+! position file pointer to data offset
+  nerr = fseek(lun, ivarpos, 0) ! jump to the data offset
+  if (nerr/=0) goto 102
+! ------------
+
+  
+! ------------
+! read the data
+  read(unit=lun, iostat=nerr) cdata(1:nx,1:ny) ! read the slices
+  if (nerr/=0) goto 103
+! ------------
+
+  
+! ------------
+  if (1==swap) then
+    ! swap the data bytes
+    do j=1, ny
+      do i=1, nx
+        rtmp1 = real(cdata(i,j))
+        rtmp2 = imag(cdata(i,j))
+        rtmp1 = SwapReal4(rtmp1)
+        rtmp2 = SwapReal4(rtmp2)
+        cdata(i,j) = cmplx(rtmp1,rtmp2)
+      end do
+    end do
+  end if
+! ------------
+  
+
+! ------------
+!  write(unit=*,fmt=*) " > EMS_SLI_loadvari: EXIT."
+99 return
+  
+101 nerr = 1
+  write(unit=EMS_sinfo, fmt='(A,I4,A)') &
+    & "Slice file unit (",lun,") is invalid."
+  call EMS_ERROR(trim(EMS_sinfo), subnum+nerr)
+  goto 99
+102 nerr = 2
+  write(unit=EMS_sinfo, fmt='(A,I12,A)') &
+    & "Failed to jump to variant position (",ivarpos,")."
+  call EMS_ERROR(trim(EMS_sinfo), subnum+nerr)
+  goto 99
+103 nerr = 3
+  write(unit=EMS_sinfo, fmt='(A,I4,A)') &
+    & "Failed to read data of variant (",ivar,")."
+  call EMS_ERROR(trim(EMS_sinfo), subnum+nerr)
+  goto 99
+
+  
+  return
+
+END SUBROUTINE EMS_SLI_loadvari
+!**********************************************************************!
+
 
 !**********************************************************************!
 !**********************************************************************!
@@ -2569,7 +2676,7 @@ END MODULE EMSdata
 
 ! ------------
 ! DECLARATION
-!  integer*4, parameter :: subnum = 1900
+!  integer*4, parameter :: subnum = 2000
 !
 ! ------------
 

@@ -4,7 +4,7 @@
 !                    file   "plasmon".f90                              !
 !                                                                      !
 !    Copyright:  J.Barthel, Forschungszentrum Juelich                  !
-!    Version  :  1.0.1, Sept.  20, 2019                                !
+!    Version  :  1.1.0, Oct.   11, 2019                                !
 !                                                                      !
 !**********************************************************************!
 !                                                                       
@@ -40,7 +40,7 @@
 !                                                                      !
 !   Contains corrections and alternative code based on discussions     !
 !   between J. Barthel, B. Mendis, S. Findlay, and  L.J. Allen         !
-!   (Aug.-Sep. 2019)                                                   !
+!   (Aug.-Oct. 2019)                                                   !
 !                                                                      !
 !   External sources to link:                                          !
 !            random.f90 : provides random number generators            !
@@ -61,11 +61,26 @@
 !    PL_wthr = probability threshold for neglecting higher-excitation
 !              plasmon excitations, keep between 0.001 and 0.1
 !              smaller values open higher excitation levels
+!    (then call PL_init)
+!  
+!    Alternatively, set
+!    PL_lp = mean-free path for single plasmon excitations [nm]
+!    PL_qe = characteristic angle for single scattering [rad]
+!    PL_qc = critical angle for single scattering [rad]
+!    PL_npemax = number of excitations allowed per electron
+!    (then call PL_init2)
 !
 ! 2) Call PL_init(errorcode)
 !      before starting the Monte-Carlo
 !      the returned errorcode indicates problems with the parameters
 !      set in step (1), errorcode == 0 means success
+!
+!    Alternative, for the alternative parameter setup, see (1)
+!    Call PL_init2(errorcode)
+!      before starting the Monte-Carlo
+!      the returned errorcode indicates problems with the parameters
+!      set in step (1), errorcode == 0 means success
+
 !
 ! 3) Call PL_reset()
 !      before each individual Monte-Carlo pass
@@ -110,7 +125,11 @@ MODULE Plasmon
                     ! see variable decl. below for required input
                     ! do this at least once before running the whole
                     ! Monte-Carlo calculation
-                    !
+  public :: PL_init2 ! call to initialize the module from alternative input
+                     ! see variable decl. below for required input
+                     ! do this at least once before running the whole
+                     ! Monte-Carlo calculation
+                     !
   public :: PL_deinit ! call to deallocate module arrays, once the whole
                       ! calculation is finished
                       !
@@ -133,13 +152,14 @@ MODULE Plasmon
   !
   real*4, public, parameter :: PL_e0 = 510999. ! electron rest energy [eV]
   !
-  ! /!\ REQUIRED INPUT PARAMETERS
+  ! /!\ REQUIRED INPUT PARAMETERS for PL_INIT
+  ! /!\ ALTERNATIVE INPUT PARAMETERS FOR PL_INIT2 ARE MARKED BY -> (*AI*)
   !
   real*4, public :: PL_ek ! kinetic energy of the probing electron [eV]
   DATA PL_ek /200000./
   real*4, public :: PL_ep ! plasmon energy [eV]
   DATA PL_ep /20./
-  real*4, public :: PL_lp ! inelastic mean-free path [nm]
+  real*4, public :: PL_lp ! inelastic mean-free path [nm] (*AI*)
   DATA PL_lp /100./
   real*4, public :: PL_tmax ! max. sample thickness [nm]
   DATA PL_tmax /0./
@@ -154,9 +174,9 @@ MODULE Plasmon
   ! /!\ Modify these variables with care, as they determine how the
   !     plasmon excitation Monte-Carlo performs.
   real*4, public :: PL_tol ! t / Lambda
-  real*4, public :: PL_qe, PL_qe2 ! characteristic angle [rad]
-  real*4, public :: PL_qc, PL_qc2 ! critical angle [rad]
-  integer*4, public :: PL_npemax ! max number of plasmon excitations
+  real*4, public :: PL_qe, PL_qe2 ! characteristic angle [rad] (*AI*)
+  real*4, public :: PL_qc, PL_qc2 ! critical angle [rad] (*AI*)
+  integer*4, public :: PL_npemax ! max number of plasmon excitations (*AI*)
   DATA PL_npemax /0/ ! turn this off by default
   
   ! results of the Monte-Carlo for one run
@@ -199,6 +219,10 @@ MODULE Plasmon
   !
   ! purpose: (re-)initialize module variables based on current input
   !          parameters PL_ek, PL_ep, PL_lp, PL_tmax, PL_nslc, PL_wthr
+  !
+  !          This is the initialization assuming real bulk plasmon
+  !          scattering as determined by plasmon energy and mean free
+  !          path.
   !
   subroutine PL_init(nerr)
     
@@ -255,30 +279,113 @@ MODULE Plasmon
     
 102 nerr = 2
     PL_num_err = PL_num_err + 1
-    PL_msg_err = trim(PL_msg_err)//" (init):(PL_ep<1) too small plasmon energy"
+    PL_msg_err = trim(PL_msg_err)//" (init): (PL_ep<1) too small plasmon energy"
     goto 100
 103 nerr = 3
     PL_num_err = PL_num_err + 1
-    PL_msg_err = trim(PL_msg_err)//" (init):(PL_ek<PL_ep)too small electron energy"
+    PL_msg_err = trim(PL_msg_err)//" (init): (PL_ek<PL_ep) too small electron energy"
     goto 100
 104 nerr = 4
     PL_num_err = PL_num_err + 1
-    PL_msg_err = trim(PL_msg_err)//" (init):PL_wthr out of bounds (>0 & <1)"
+    PL_msg_err = trim(PL_msg_err)//" (init): PL_wthr out of bounds (>0 & <1)"
+    goto 100
+105 nerr = 5
+    PL_num_err = PL_num_err + 1
+    PL_msg_err = trim(PL_msg_err)//" (init): (PL_lp<=0) mean-free path not positive"
+    goto 100
+106 nerr = 6
+    PL_num_err = PL_num_err + 1
+    PL_msg_err = trim(PL_msg_err)//" (init): (PL_tmax<0) negative sample thickness"
+    goto 100
+107 nerr = 7
+    PL_num_err = PL_num_err + 1
+    PL_msg_err = trim(PL_msg_err)//" (init): memory allocation failed"
+    goto 100
+  
+  end subroutine PL_init
+  
+  
+  !*******************************************************************!
+  !
+  ! PL_init2
+  !
+  ! input: none
+  !
+  ! output: 
+  !          integer*4 :: nerr = error code
+  !
+  ! purpose: (re-)initialize module variables based on current input
+  !          parameters PL_lp, PL_qe, PL_qc, PL_npemax
+  !
+  !          This is the initialization for faking inelastic scattering
+  !          for low-loss intraband transitions for a given mean-free
+  !          path, characteristic angle and maximum number of
+  !          excitations per incident electron.
+  !
+  subroutine PL_init2(nerr)
+    
+    implicit none
+    
+    integer*4, intent(inout) :: nerr
+    integer*4 :: nalloc
+    
+    nerr = 0
+    nalloc = 0
+    ! reset (alternative)
+    PL_num_err = 0
+    PL_msg_err = ""
+    PL_exc_num = 0
+    PL_mc_num = 0
+    if (allocated(PL_exc_dq)) deallocate(PL_exc_dq, stat=nalloc)
+    if (allocated(PL_exc_dqtot)) deallocate(PL_exc_dqtot, stat=nalloc)
+    if (allocated(PL_mc_exc_pop)) deallocate(PL_mc_exc_pop, stat=nalloc)
+    !
+    PL_ep = 10. ! set some fake value (this will not be used)
+    if (PL_qe<=0.) goto 102
+    if (PL_qc<=PL_qe) goto 103
+    if (PL_npemax<=0) goto 104
+    if (PL_lp<=0.) goto 105
+    !
+    ! calculate derived parameters
+    PL_qe2 = PL_qe * PL_qe
+    PL_qc2 = PL_qc * PL_qc
+    PL_tol = PL_tmax / PL_lp ! just in case someone defined tmax, not required
+	  !
+	  ! allocations
+    allocate(PL_exc_dq(1:2,0:PL_npemax), stat=nalloc)
+    if (nalloc/=0) goto 107
+    allocate(PL_exc_dqtot(1:2,0:PL_npemax), stat=nalloc)
+    if (nalloc/=0) goto 107
+    allocate(PL_mc_exc_pop(0:PL_npemax), stat=nalloc)
+    if (nalloc/=0) goto 107
+    PL_exc_dq = 0.0
+    PL_exc_dqtot = 0.0
+    PL_mc_exc_pop = 0
+    
+100 return
+    
+102 nerr = 2
+    PL_num_err = PL_num_err + 1
+    PL_msg_err = trim(PL_msg_err)//" (init): (PL_qe<=0) too small characteristic angle"
+    goto 100
+103 nerr = 3
+    PL_num_err = PL_num_err + 1
+    PL_msg_err = trim(PL_msg_err)//" (init): (PL_qc<PL_qe) too small critical angle"
+    goto 100
+104 nerr = 4
+    PL_num_err = PL_num_err + 1
+    PL_msg_err = trim(PL_msg_err)//" (init): (PL_npemax<=0) too low number of allowed excitations"
     goto 100
 105 nerr = 5
     PL_num_err = PL_num_err + 1
     PL_msg_err = trim(PL_msg_err)//" (init):(PL_lp<=0) mean-free path not positive"
-    goto 100
-106 nerr = 6
-    PL_num_err = PL_num_err + 1
-    PL_msg_err = trim(PL_msg_err)//" (init):(PL_tmax<0) negative sample thickness"
     goto 100
 107 nerr = 7
     PL_num_err = PL_num_err + 1
     PL_msg_err = trim(PL_msg_err)//" (init):memory allocation failed"
     goto 100
   
-  end subroutine PL_init
+  end subroutine PL_init2
   
   
   
@@ -416,7 +523,7 @@ MODULE Plasmon
     
     n = max(0, min( PL_npemax, num_exc) ) ! plasmon-loss channel 0 .. PL_npemax
     PL_mc_exc_pop(n) = PL_mc_exc_pop(n) + 1 ! increment excitation level count
-	PL_mc_num = PL_mc_num + 1 ! increment number of MC passes
+	  PL_mc_num = PL_mc_num + 1 ! increment number of MC passes
 	
     
   end subroutine PL_populate

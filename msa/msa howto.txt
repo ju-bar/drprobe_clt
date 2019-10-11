@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 1.0.4                                  #
+#   HOWTO use the program MSA, Version 1.0.5                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-10-02                                                          #
+#   Date: 2019-10-11                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -355,10 +355,24 @@ or are still under development:
 
 	Run with plasmon scattering Monte-Carlo. Specify the energy (eV)
 	with the first value and the mean-free path (nm) for single
-	plasmon excitation with the second value. A significant
-	amount of runs (number of frozen-lattice variations) should be
-	used to let excitation statistics converge.
+	plasmon excitation with the second value.
+	Characteristic and critical plasmon scattering angles will be
+	calculated from Ep and the high tension parameter. The maximum
+	number of plasmon excitations per electron will be calculated
+	from Lp and the input maximum sample thickness.
+	A significant amount of runs (number of frozen-lattice variations)
+	should be used to let excitation statistics converge.
 
+-plp (float value) (float value) (integer) [optional]
+
+	Run with plasmon scattering Monte-Carlo. Specify the the mean-free
+	path (nm) for single plasmon excitation with the first value.
+	Set the characteristic scattering angle in mrad with the second
+	value. Define the maximum number of excitations allowed per
+	electron, i.e. per multislice pass, with the third value.
+
+	A significant amount of runs (number of frozen-lattice variations)
+	should be used to let excitation statistics converge.
 
 -vtx (integer number) [optional]
 
@@ -715,6 +729,20 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 
 6) History of changes
+
+191007: JB: Version 1.0.5
+- Modified slice variation Monte-Carlo to drawing without returning. This
+  should deliver an improved variation statistics avoiding frequent repeats
+  of the same variant in close proximity along z for periodic samples.
+- Added optional switch /slod which triggers load-on-demand from slice files.
+  In combination with storing slice files on memory disk, this may be a way
+  to launch a lot of processes on a single node without touching memory
+  limitations.
+- Additional option activating the Monte-Carlo plasmon scattering code
+  with alternative parameters: -plp (Lp) (Qe) (Ne), where Lp is the
+  mean-free path for single excitation, Qe is the characteristic scattering
+  angle of the Lorentzian distribution, and Ne is the number of maximum
+  excitations allowed per electron, i.e. per mutlislice pass.
 
 191002: JB: Version 1.0.4
 - Replaced FFTW calls by FFT from the Intel Math Kernel Library.

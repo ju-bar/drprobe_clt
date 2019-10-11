@@ -108,10 +108,12 @@ MODULE MSAparams
   public :: MSP_SetKmomentDetector
   public :: MSP_GetPGRIndex
   public :: MSP_GetVarList
+  public :: MSP_LoadStack
   public :: MSP_GetNumberOfDigits
   public :: MSP_InitTextOutput
   public :: MSP_WriteTextOutput
   public :: MSP_FinishTextOutput
+  
   
   
   external :: PostMessage
@@ -371,16 +373,23 @@ MODULE MSAparams
   DATA MSP_FL_varcalc /1/
   
 ! slice data
-  character(len=MSP_SF_TITLE_LENGTH), dimension(:), allocatable, public :: MSP_SLC_title
-  character(len=MSP_ll), public :: MSP_SLC_filenames
-  integer*4, dimension(:), allocatable, public :: MSP_SLC_object
-  integer*4, dimension(:,:), allocatable, public :: MSP_SLC_setup
-  complex*8, dimension(:,:,:), allocatable, public :: MSP_phasegrt
+  character(len=MSP_SF_TITLE_LENGTH), dimension(:), allocatable, public :: MSP_SLC_title ! slice titles
+  character(len=MSP_ll), public :: MSP_SLC_filenames ! slice file name prefix
+  integer*4, dimension(:), allocatable, public :: MSP_SLC_object ! stack of slices in sample
+  integer*4, dimension(:,:), allocatable, public :: MSP_SLC_iprm ! slice loading parameters (offset, swap, nx, ny, nv)
+  real*4, dimension(:,:), allocatable, public :: MSP_SLC_fprm ! slice loading parameters (thickness)
+  integer*4, dimension(:,:), allocatable, public :: MSP_SLC_setup ! slice data setup / hash
+  complex*8, dimension(:,:,:), allocatable, public :: MSP_phasegrt ! slice phase gratings (ix,iy,islc+ivar)
   integer*4, public :: MSP_SLC_num ! number of allocated phasegratings in MSP_phasegrt
   DATA MSP_SLC_num /0/
+  integer*4, public :: MSP_SLC_lod ! flag 0:normal pre-load all, else:load slice data on demand
+  DATA MSP_SLC_lod /0/
   
 ! plasmon excitation
-  integer*4, public :: MSP_do_plasm                         ! flag activating plasmon scattering
+  integer*4, public :: MSP_do_plasm                         ! flag activating plasmon scattering and selects initialization type
+                                                            ! 0 = off
+                                                            ! 1 = real bulk plasmon type
+                                                            ! 2 = fake low loss transitions
   DATA MSP_do_plasm /0/
   
 ! detection parameters
@@ -565,6 +574,8 @@ SUBROUTINE MSP_INIT()
   if (allocated(MSP_SLC_object)) deallocate(MSP_SLC_object, stat=nalloc)
   if (allocated(MSP_phasegrt)) deallocate(MSP_phasegrt, stat=nalloc)
   if (allocated(MSP_SLC_setup)) deallocate(MSP_SLC_setup, stat=nalloc)
+  if (allocated(MSP_SLC_iprm)) deallocate(MSP_SLC_iprm, stat=nalloc)
+  if (allocated(MSP_SLC_fprm)) deallocate(MSP_SLC_fprm, stat=nalloc)
   if (allocated(MSP_SLC_title)) deallocate(MSP_SLC_title, stat=nalloc)
   if (allocated(MSP_ldetpln)) deallocate(MSP_ldetpln, stat=nalloc)
   if (allocated(MSP_hdetpln)) deallocate(MSP_hdetpln, stat=nalloc)
@@ -612,6 +623,8 @@ SUBROUTINE MSP_UNINIT()
   MSP_detpln = 0
   if (allocated(MSP_SLC_title)) deallocate(MSP_SLC_title,STAT=nalloc)
   if (allocated(MSP_SLC_setup)) deallocate(MSP_SLC_setup,STAT=nalloc)
+  if (allocated(MSP_SLC_iprm)) deallocate(MSP_SLC_iprm, stat=nalloc)
+  if (allocated(MSP_SLC_fprm)) deallocate(MSP_SLC_fprm, stat=nalloc)
   if (allocated(MSP_detdef)) deallocate(MSP_detdef,stat=nalloc)
   if (allocated(MSP_pdiftmp)) deallocate(MSP_pdiftmp,stat=nalloc)
   if (allocated(MSP_pdettmp)) deallocate(MSP_pdettmp,stat=nalloc)
@@ -1701,19 +1714,25 @@ SUBROUTINE MSP_ALLOCPGR(nx,ny,nerr)
 ! ------------
 ! determine the number of phasegratings to be allocated from MSP_SLC_setup
   npgrnum = 0
-  do j=1, MS_slicenum
-    i = MSP_SLC_setup(0,j)
-    if (i<=0) then
-      nerr = subnum+3
-      write(unit=smsg,fmt='(A,I4)') "No phase grating set up for slice #",j
-      call MSP_ERROR(trim(smsg),nerr)
-      return
-    end if
-    npgrnum = npgrnum + i
-  end do
+  if (MSP_SLC_lod==0) then ! normal pre-loading of slices
+    do j=1, MS_slicenum
+      i = MSP_SLC_setup(0,j)
+      if (i<=0) then
+        nerr = subnum+3
+        write(unit=smsg,fmt='(A,I4)') "No phase grating set up for slice #",j
+        call MSP_ERROR(trim(smsg),nerr)
+        return
+      end if
+      npgrnum = npgrnum + i
+    end do
+  elseif (MSP_SLC_lod==1) then ! loading slice data on demand
+    npgrnum = MS_stacksize ! number of loaded phase gratings equals number of object slices
+  end if
   if (npgrnum<=0) then
     nerr = subnum+4
-    call MSP_ERROR("Phase grating allocation failed, invalid number of phase gratings",nerr)
+    write(unit=MSP_stmp,fmt='(A,I4,A)') &
+      "Phase grating allocation failed, invalid number of slices (", npgrnum, ")"
+    call MSP_ERROR(trim(MSP_stmp),nerr)
     return
   end if
 ! ------------
@@ -1784,12 +1803,10 @@ SUBROUTINE MSP_PREALLOCPGR(nz,nv,nerr)
 ! ------------
 
 ! ------------
-  if (allocated(MSP_SLC_setup)) then
-    deallocate(MSP_SLC_setup,STAT=err)
-  end if
-  if (allocated(MSP_SLC_title)) then
-    deallocate(MSP_SLC_title,STAT=err)
-  end if
+  if (allocated(MSP_SLC_setup)) deallocate(MSP_SLC_setup,STAT=err)
+  if (allocated(MSP_SLC_iprm)) deallocate(MSP_SLC_iprm, stat=nerr)
+  if (allocated(MSP_SLC_fprm)) deallocate(MSP_SLC_fprm, stat=nerr)
+  if (allocated(MSP_SLC_title)) deallocate(MSP_SLC_title,STAT=err)
 ! ------------
 
 ! ------------
@@ -1807,6 +1824,13 @@ SUBROUTINE MSP_PREALLOCPGR(nz,nv,nerr)
     call MSP_ERROR("Name string allocation failed.",subnum+3)
     return
   end if
+  allocate(MSP_SLC_iprm(10,1:nz),MSP_SLC_fprm(10,1:nz), STAT=err)
+  if (err/=0) then
+    call MSP_ERROR("Slice loading parameter pre-allocation failed.",subnum+4)
+    return
+  end if
+  MSP_SLC_iprm = 0
+  MSP_SLC_fprm = 0.0
 ! ------------
 
 
@@ -2018,6 +2042,135 @@ SUBROUTINE MSP_GetVarList(nslc, nobjslc, lobjstack, lvar, nerr)
 
 END SUBROUTINE MSP_GetVarList
 !**********************************************************************!
+
+
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE MSP_LoadStack(lvar, nerr)
+! function: Loads slice data from files to MSP_phasegrt assuming an
+!           appropriate setup of slice data handling. Uses data from
+!           from module MSAparams:
+!             MSP_SLC_filenames, MSP_SLC_iprm, MSP_SLC_fprm
+!           from module MultiSlice:
+!             MS_slicenum, MS_slicestack, MS_stacksize, ...
+! -------------------------------------------------------------------- !
+! parameter: 
+!   integer*4, intent(in) :: lvar = list of variants for each slice
+!                                   as occurring in MS_slicestack
+!   integer*4, intent(inout) :: nerr = error code (0=success)
+! -------------------------------------------------------------------- !
+
+  use EMSdata
+  
+  implicit none
+
+! ------------
+! DECLARATION
+  integer*4, parameter :: subnum = 2400
+  integer*4, intent(in) :: lvar(:)
+  integer*4, intent(inout) :: nerr
+  integer*4 :: nalloc, ioerr, lfu, npot
+  integer*4 :: islc, nvar, ivar, jvar, n0, ns, nx, ny
+  character(len=2048) :: sfile
+! ------------
+
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > MSP_LoadStack: INIT."
+  nerr = 0
+  nalloc = 0
+  npot = 0
+  nvar = size(lvar)
+  if (MS_slicenum<1) return ! no slices, do nothing
+  if (nvar/=MS_stacksize) goto 101 ! inernal size inconsistency
+! ------------
+
+
+! ------------
+! load each variant
+  do ivar=1, nvar
+    jvar = lvar(ivar)
+    islc = MS_slicestack(ivar) + 1
+    call GetSliceFileName(islc, 1+jvar, sfile, nerr)
+    if (nerr/=0) goto 102
+    call GetFreeLFU(lfu, 20, 20000)
+    ! open for shared reading
+    open(unit=lfu, file=trim(sfile), form='BINARY', access='SEQUENTIAL', &
+     & iostat=ioerr, status='OLD', action='READ', share='DENYNONE' )
+    if (ioerr/=0) goto 103
+    call PostDebugMessage("opened file ("//trim(sfile)//")")
+    ! load the data to MSP_phasegrt
+    n0 = MSP_SLC_iprm(1,islc)
+    ns = MSP_SLC_iprm(2,islc)
+    nx = MSP_SLC_iprm(3,islc)
+    ny = MSP_SLC_iprm(4,islc)
+    npot = MSP_SLC_iprm(6,islc)
+    if (MSP_SLI_filenamestruct==0) then
+      call EMS_SLI_loadvari(lfu, n0, jvar, ns, nx, ny, MSP_phasegrt(1:nx,1:ny,ivar), ioerr)
+      if (ioerr/=0) goto 104
+    else
+      call EMS_SLI_loadvari(lfu, n0, 1, ns, nx, ny, MSP_phasegrt(1:nx,1:ny,ivar), ioerr)
+      if (ioerr/=0) goto 104
+    end if
+    write(unit=MSP_stmp,fmt='(A,I4,A,I3.3,A,I4,A)') &
+      & "loaded variant #(",jvar,") of slice #(",islc,") to stack slot #(",ivar,")"
+    call PostDebugMessage(trim(MSP_stmp))
+    ! close file
+    close(unit=lfu, iostat=ioerr)
+    call PostDebugMessage("closed file ("//trim(sfile)//")")
+    !
+    if (npot/=0) then ! transform from potential to phase grating
+      call PostDebugMessage("Transforming loaded potential data to phase grating.")
+      call MS_SlicePot2Pgr( MS_ht, MSP_SLC_fprm(1,islc), MSP_nabf, MSP_Absorption, &
+                          & MSP_nbuni, MSP_Buni, nx, ny, 1, &
+                          & MSP_phasegrt(1:nx, 1:ny, ivar:ivar), nerr)
+      if (nerr/=0) goto 105
+    end if
+  end do
+! ------------
+
+  
+! ------------
+!  write(unit=*,fmt=*) " > MSP_LoadStack: EXIT."
+99 continue
+  return
+  
+101 nerr = 1
+  write(unit=MSP_stmp,fmt='(A,I4,A,I4,A)') &
+    & "Input stack length (",nvar, &
+    & ") is not consistent with multislice setup (",MS_stacksize,")"
+  call MSP_ERROR(trim(MSP_stmp), subnum+nerr)
+  goto 99
+102 nerr = 2
+  write(unit=MSP_stmp,fmt='(A,I4,A,I4,A)') &
+    & "Failed to obtain file name for slice #(",islc, &
+    & ") and variant #(",jvar,")"
+  call MSP_ERROR(trim(MSP_stmp), subnum+nerr)
+  goto 99
+103 nerr = 3
+  call MSP_ERROR("Failed to connect to file ("//trim(sfile)// &
+    & ") for shared reading.", subnum+nerr)
+  goto 99
+104 nerr = 4
+  write(unit=MSP_stmp,fmt='(A,I4,A,I4,A)') &
+    & "Failed to load data for slice #(",islc, &
+    & ") and variant #(",jvar,")"
+  call MSP_ERROR(trim(MSP_stmp), subnum+nerr)
+  goto 99
+105 nerr = 5
+  write(unit=MSP_stmp,fmt='(A,I4,A,I4,A)') &
+    & "Failed to calculate phase grating from potential, slc #(",islc,&
+    & ") and var #(",jvar,")"
+  call MSP_ERROR(trim(MSP_stmp), subnum+nerr)
+  goto 99
+110 nerr = 10
+  call MSP_ERROR("Memory allocation failed", subnum+nerr)
+  goto 99
+
+END SUBROUTINE MSP_LoadStack
+!**********************************************************************!
+
 
 
 !**********************************************************************!
@@ -3578,7 +3731,7 @@ END MODULE MSAparams
 
 ! ------------
 ! DECLARATION
-!  integer*4, parameter :: subnum = 2400
+!  integer*4, parameter :: subnum = 2500
 !
 ! ------------
 

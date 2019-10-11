@@ -1497,7 +1497,7 @@ SUBROUTINE ParseCommandLine()
   logical :: fex
   integer*4 :: i, cnt, status, clen, plen, nfound, nsil, nwef, nawef
   integer*4 :: nprm, nout, nposx, nposy, nbtx, nbty
-  real*4 :: mrad2deg
+  real*4 :: mrad2deg, rtmp
 ! ------------
 
 ! ------------
@@ -1549,6 +1549,7 @@ SUBROUTINE ParseCommandLine()
   MSP_nbuni = 0
   MSP_Buni = 0.01
   MSP_use_fre = 1
+  MSP_SLC_lod = 0
   !MSP_FFTW_FLAG = 0
   MSP_Kmomout = 0
   MSP_KmomMmax = -1
@@ -1928,7 +1929,7 @@ SUBROUTINE ParseCommandLine()
       end if
       MSP_useldet = 1
       
-    ! THE PLASMON EXCITATION MODE
+    ! THE PLASMON EXCITATION MODE (real plasmons)
     case ("-ple")
       nfound = 1
       i = i + 1
@@ -1952,6 +1953,42 @@ SUBROUTINE ParseCommandLine()
         return
       end if
       MSP_do_plasm = 1
+      
+    ! THE PLASMON EXCITATION MODE (fake low loss intraband transitions)
+    case ("-plp")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      read(unit=buffer,fmt=*,iostat=status) PL_lp
+      if (status/=0) then
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read mean-free path (nm).")
+        return
+      end if
+      i = i + 1
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      read(unit=buffer,fmt=*,iostat=status) rtmp
+      if (status/=0) then
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read characteristic angle (mrad).")
+        return
+      end if
+      PL_qe = rtmp * 0.001 ! characteristic angle from mrad to rad
+      i = i + 1
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      read(unit=buffer,fmt=*,iostat=status) PL_npemax
+      if (status/=0) then
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read allowed number of excitations per electron.")
+        return
+      end if
+      MSP_do_plasm = 2
 
     ! ACTIVATE OUTPUT TO A TEXT LIST FILE
     case ("/txtout")
@@ -2052,6 +2089,10 @@ SUBROUTINE ParseCommandLine()
     case ("/epc")
       nfound = 1
       MSP_ExplicitPSC = 1
+      
+    case ("/slod")
+      nfound = 1
+      MSP_SLC_lod = 1
     
     end select CHECK_COMMAND
     
@@ -2387,11 +2428,15 @@ SUBROUTINE GetSliceFileName(nslc,nvar,sfname,nerr) !,ndslc,ndvar)
   end if
   if (nslc<1 .or. nslc>MS_slicenum) then
     nerr = 3
-    call CriticalError("Invalid parameter: slice index.")
+    write(unit=MSP_stmp,fmt=*) nslc
+    call CriticalError("Invalid parameter: slice index ("// &
+      & trim(adjustl(MSP_stmp))//").")
   end if
   if (nvar<1 .or. nvar>MSP_FL_varnum) then
     nerr = 4
-    call CriticalError("Invalid parameter: variant index.")
+    write(unit=MSP_stmp,fmt=*) nvar
+    call CriticalError("Invalid parameter: variant index ("// &
+      & trim(adjustl(MSP_stmp))//").")
   end if
 ! ------------
 
@@ -2436,7 +2481,7 @@ SUBROUTINE SetGlobalCellParams()
 ! DECLARATION
   integer*4 :: i, j, i1, nslipres
   integer*4 :: nx, ny, nerr, ierr
-  integer*4 :: nx1, ny1, nv, nvu, nalloc
+  integer*4 :: nx1, ny1, nv, nvu, nalloc, nslpot
   integer*4, allocatable :: slipresent(:,:)
   real*4 :: szx, szy, szz, szx1, szy1, samptest, detmax, htf, ht
   character(len=MSP_ll) :: sfilename
@@ -2448,6 +2493,7 @@ SUBROUTINE SetGlobalCellParams()
 !  write(unit=*,fmt=*) " > SetGlobalCellParams: INIT."
   nerr = 0
   ierr = 0
+  nslpot = 0
 ! ------------
 
 ! ------------
@@ -2495,9 +2541,21 @@ SUBROUTINE SetGlobalCellParams()
       end if
       ! the number of variants used can be limited by the parameter MSP_FL_varnum
       nvu = min(nv, MSP_FL_varnum)
+      !
       slipresent(0,i) = nvu ! save used variants for slice i
       slipresent(1:nvu,i) = 1 ! flag the used variants
       nslipres = nslipres - 1 ! indicate that slice data is present
+      ! store parameters relevant for loading
+      MSP_SLC_iprm(1,i) = EMS_SLI_data_alt_offset ! data offset byte
+      MSP_SLC_iprm(2,i) = EMS_SLI_data_swap ! byte swap flag
+      MSP_SLC_iprm(3,i) = nx ! number of x samples
+      MSP_SLC_iprm(4,i) = ny ! number of y samples
+      MSP_SLC_iprm(5,i) = slipresent(0,i) ! number of used variants
+      MSP_SLC_iprm(6,i) = EMS_SLI_data_ctype ! complex data type
+      ! pre-store slice thickness
+      MSP_SLC_fprm(1,i) = szz
+      if (EMS_SLI_data_ctype>0) nslpot = nslpot + 1
+      !
     end do
   else if (MSP_SLI_filenamestruct==1) then ! single variant file structure
     ! this should usually not happen
@@ -2523,6 +2581,16 @@ SUBROUTINE SetGlobalCellParams()
         slipresent(j,i) = 1 ! flag the used variants
       end do
       if (slipresent(0,i)>0) nslipres = nslipres - 1 ! indicate that slice data is present
+      ! store parameters relevant for loading
+      MSP_SLC_iprm(1,i) = EMS_SLI_data_alt_offset ! data offset byte
+      MSP_SLC_iprm(2,i) = EMS_SLI_data_swap ! byte swap flag
+      MSP_SLC_iprm(3,i) = nx ! number of x samples
+      MSP_SLC_iprm(4,i) = ny ! number of y samples
+      MSP_SLC_iprm(5,i) = slipresent(0,i) ! number of used variants
+      MSP_SLC_iprm(6,i) = EMS_SLI_data_ctype ! complex data type
+      ! pre-store slice thickness
+      MSP_SLC_fprm(1,i) = szz
+      if (EMS_SLI_data_ctype>0) nslpot = nslpot + 1
     end do
   end if
   if (nslipres>0) then ! still not all slice files present,
@@ -2532,6 +2600,11 @@ SUBROUTINE SetGlobalCellParams()
     goto 99
     return
   end if
+  if (nslpot>0 .and. MSP_SLC_lod>0) then
+    call PostWarning("Performance loss due to load-on-demad with input potential data.")
+    call PostMessage("- good performance only with phase-grating data.")
+  end if
+  !
   
   
 
@@ -2547,6 +2620,7 @@ SUBROUTINE SetGlobalCellParams()
   MSP_SLC_num = 0
   do i=1, MS_slicenum
     MSP_SLC_setup(0,i) = slipresent(0,i) ! store the number of used variants
+    ! check variants
     do j=1, MSP_FL_varnum
       if (slipresent(j,i)==0) cycle ! variant not used, cycle
       MSP_SLC_setup(j,i) = nslipres ! set hash index of the used variant
@@ -2697,8 +2771,8 @@ SUBROUTINE PrepareSupercells()
 
 ! ------------
 ! DECLARATION
-  integer*4 :: i, j, nerr, nv, ni1, ni2
-  real*4 :: szz, szz1
+  integer*4 :: i, j, nerr, nv, ni1, ni2, nx, ny
+  real*4 :: szz
   character(len=MSP_ll) :: sfilename
 ! ------------
 
@@ -2734,9 +2808,20 @@ SUBROUTINE PrepareSupercells()
 
 ! ------------
 ! load data
+  if (MSP_SLC_lod==1) then
+    
+    call PostMessage("Load-on-demand: slice data loading postponed.")
+    ! set slice thickness in MS_Multislice
+    do i=1, MS_slicenum ! loop through slices
+      MS_slicethick(i) = MSP_SLC_fprm(1,i)
+    end do
+    goto 50 ! proceed to propagator loading
+    
+  end if
   call PostMessage("Start loading slice data.")
+  nx = MSP_dimcellx
+  ny = MSP_dimcelly
   do i=1, MS_slicenum ! loop through slices
-  
   
     if (0==MSP_SLI_filenamestruct) then
       
@@ -2749,9 +2834,8 @@ SUBROUTINE PrepareSupercells()
       ni1 = MSP_GetPGRIndex(1,i,nerr) ! get index of the first variant
       ni2 = MSP_GetPGRIndex(nv,i,nerr) ! get index of the last variant
       
-      call EMS_SLI_loaddata(trim(sfilename), &
-     &       MSP_dimcellx, MSP_dimcelly, nv, &
-     &       MSP_phasegrt(1:MSP_dimcellx,1:MSP_dimcelly,ni1:ni2), szz, nerr)
+      call EMS_SLI_loaddata(trim(sfilename), nx, ny, nv, &
+     &       MSP_phasegrt(1:nx, 1:ny, ni1:ni2), szz, nerr)
       if (nerr/=0) then
         call CriticalError("Failed to load from EMS SLI file ["//trim(sfilename)//"].")
       end if
@@ -2766,7 +2850,6 @@ SUBROUTINE PrepareSupercells()
       write(unit=MSP_stmp,fmt='(A,G11.4)') "   slice electron energy [keV]: ",EMS_SLI_data_ht
       call PostMessage(trim(MSP_stmp))
       !
-      szz1 = szz
       MSP_SLC_title(i) = EMS_SLI_data_title
       !
       write(unit=MSP_stmp,fmt='(A,I4,A,I4,A,I4,A)') &
@@ -2785,9 +2868,8 @@ SUBROUTINE PrepareSupercells()
         call GetSliceFileName(i,j,sfilename,nerr)
         if (nerr/=0) call CriticalError("Failed to generate slice file name from parameters.")
         
-        call EMS_SLI_loaddata(trim(sfilename), &
-     &       MSP_dimcellx, MSP_dimcelly, 1, &
-     &       MSP_phasegrt(1:MSP_dimcellx,1:MSP_dimcelly,ni1:ni1), szz, nerr)
+        call EMS_SLI_loaddata(trim(sfilename), nx, ny, 1, &
+     &       MSP_phasegrt(1:nx ,1:ny ,ni1:ni1), szz, nerr)
         if (nerr/=0) then
           call CriticalError("Failed to load from EMS SLI file ["//trim(sfilename)//"].")
         end if
@@ -2806,7 +2888,6 @@ SUBROUTINE PrepareSupercells()
         call PostDebugMessage(trim(MSP_stmp))
       
         if (j==1) then 
-          szz1 = szz
           MSP_SLC_title(i) = EMS_SLI_data_title
         end if
         
@@ -2816,17 +2897,18 @@ SUBROUTINE PrepareSupercells()
     
     call PostMessage("Preparing slice data for usage.")
     nerr = MS_err_num
-    call MS_PrepareSlice(i, szz1)
-    
+    ! set slice thickness in MS_Multislice
+    MS_slicethick(i) = MSP_SLC_fprm(1,i)
+    !
     if (EMS_SLI_data_ctype==1) then ! loaded potential data
       call PostMessage("Transforming loaded potential data to phase gratings")
       nv = MSP_SLC_setup(0,i) ! number of variants present for this slice
       ni1 = MSP_GetPGRIndex(1,i,nerr) ! get index of the first variant
       ni2 = MSP_GetPGRIndex(nv,i,nerr) ! get index of the last variant
-      call MS_SlicePot2Pgr( EMS_SLI_data_ht, szz1, MSP_nabf, MSP_Absorption, &
+      call MS_SlicePot2Pgr( EMS_SLI_data_ht, MSP_SLC_fprm(1,i), MSP_nabf, MSP_Absorption, &
                           & MSP_nbuni, MSP_Buni, &
-                          & MSP_dimcellx, MSP_dimcelly, ni2-ni1+1, &
-                          & MSP_phasegrt(1:MSP_dimcellx,1:MSP_dimcelly,ni1:ni2), nerr )
+                          & nx, ny, ni2-ni1+1, &
+                          & MSP_phasegrt(1:nx ,1:ny ,ni1:ni2), nerr )
       if (nerr/=0) then
         call CriticalError("Failed to load phase gratings from EMS SLI file ["//trim(sfilename)//"].")
       end if
@@ -2838,6 +2920,7 @@ SUBROUTINE PrepareSupercells()
 
 ! ------------
 ! Prepare propagators
+50 continue ! jump label for skipping slice loading
   call PostMessage("Preparing propagators.")
   if (MSP_use_fre==1) then
     call PostMessage("Preparing Fresnel propagators.")
@@ -3698,41 +3781,60 @@ SUBROUTINE MSACalculate()
 
   implicit none
   
-  integer*4 :: nerr, nslc, nvar, nslcidx
+  integer*4 :: nerr, nx, ny, nslc, nvc, nalloc, nslcidx
+  integer*4, allocatable :: lvar(:)
   
   real*4, external :: UniRand
   
   nerr = 0
+  nalloc = 0
+  allocate(lvar(MS_stacksize),stat=nalloc)
+  if (nalloc/=0) goto 99
+  nx = MSP_dimcellx
+  ny = MSP_dimcelly
 
 ! setup new multislice
+  ! calculate variance Monte-Carlo for the next run (draw without returning)
+  call MSP_GetVarList(MS_slicenum, MS_stacksize, MS_slicestack, lvar, nerr)
+  if (nerr/=0) goto 99
   nerr = MS_err_num
   if (MSP_use_extinwave==1) then
     call MS_Start(MSP_extinwslc)
   else
     call MS_Start()
   end if
-  if (nerr/=MS_err_num) return
+  if (nerr/=MS_err_num) goto 99
+  
+  if (MSP_SLC_lod == 1) then ! load slice data on demand
+    call MSP_LoadStack(lvar, nerr)
+    if (nerr/=0) goto 99
+  end if
 
 ! loop over all slices the multislice
   do while (MS_slicecur >= 0.and. MS_slicecur<MS_stacksize)
     nerr = MS_err_num
-    nslc = MS_slicestack(MS_slicecur+1)+1
-    nvar = 1 + int( UniRand()*real(MSP_SLC_setup(0,nslc))*0.9999 )
-!    if (DEBUG_EXPORT>=1) then
-!      write(unit=MSP_stmp,fmt='(A,I3.3,A,I3.3,A)') "- calculating slice ",nslc,", variant ",nvar,"."
-!      call PostMessage(trim(MSP_stmp))
-!    end if
-    nslcidx = MSP_GetPGRIndex(nvar,nslc,nerr)
-    if (nerr/=0) return
-    call MS_CalculateNextSlice(MSP_phasegrt(1:MSP_dimcellx,1:MSP_dimcelly,nslcidx),MSP_dimcellx,MSP_dimcelly)
-    if (nerr/=MS_err_num) return
+    nslc = MS_slicestack(MS_slicecur+1)+1 ! get current slice index
+    !nvc = 1 + int( UniRand()*real(MSP_SLC_setup(0,nslc))*0.9999 ) ! get current variant index
+    nvc = 1 + lvar(1+MS_slicecur)
+        
+    ! slice
+    if (MSP_SLC_lod==0) then ! get slice index in pre-loaded set
+      nslcidx = MSP_GetPGRIndex(nvc,nslc,nerr)
+      if (nerr/=0) goto 99
+    else ! get slice index in load-on-demand set
+      nslcidx = 1+MS_slicecur
+    end if
+    
+    call MS_CalculateNextSlice(MSP_phasegrt(1:nx, 1:ny, nslcidx), nx, ny)
+    if (nerr/=MS_err_num) goto 99
   end do ! while (MS_slicecur >= 0)
 
 ! Stop the multislice
   nerr = MS_err_num
   call MS_Stop()
-  if (nerr/=MS_err_num) return
+  if (nerr/=MS_err_num) goto 99
   
+99 if (allocated(lvar)) deallocate(lvar, stat=nalloc)
   return
 
 END SUBROUTINE MSACalculate
@@ -3759,7 +3861,7 @@ SUBROUTINE STEMMultiSlice()
 
 ! ------------
 ! DECLARATION
-  integer*4 :: nz, nerr, nznum, ndet, nkmom, ndat, nalloc, nslcidx
+  integer*4 :: nx, ny, nz, nerr, nznum, ndet, nkmom, ndat, nalloc, nslcidx
   integer*4 :: nv, nvc, nvar, nvarnum, nvartot, nvdigits
   integer*4 :: nslc, ncalcslc
   real*4 :: scansampx, scansampy, scanposx, scanposy
@@ -3775,6 +3877,8 @@ SUBROUTINE STEMMultiSlice()
 ! ------------
 ! INIT
 !  write(unit=*,fmt=*) " > STEMMultiSlice: INIT."
+  nx = MSP_dimcellx
+  ny = MSP_dimcelly
   ndet = MSP_detnum
   nkmom = 0
   if (MSP_Kmomout>0) nkmom = MSP_KmomNum
@@ -3930,6 +4034,7 @@ SUBROUTINE STEMMultiSlice()
       
       ! calculate variance Monte-Carlo for the next run (draw without returning)
       call MSP_GetVarList(MS_slicenum, MS_stacksize, MS_slicestack, lvar, nerr)
+      if (nerr/=0) goto 14
       
       if (MSP_use_extinwave==1) then
         call MS_Start(MSP_extinwslc)
@@ -3937,6 +4042,11 @@ SUBROUTINE STEMMultiSlice()
         call MS_Start()
       end if
       if (nerr/=MS_err_num) goto 16
+      
+      if (MSP_SLC_lod == 1) then ! load slice data on demand
+        call MSP_LoadStack(lvar, nerr)
+        if (nerr/=0) goto 17
+      end if
       
       ncalcslc = MS_slicecur ! reset number of calculated slices
       
@@ -3976,9 +4086,13 @@ SUBROUTINE STEMMultiSlice()
         nvc = 1 + lvar(1+MS_slicecur)
         
         ! slice
-        nslcidx = MSP_GetPGRIndex(nvc,nslc,nerr)
-        if (nerr/=0) return
-        call MS_CalculateNextSlice(MSP_phasegrt(1:MSP_dimcellx,1:MSP_dimcelly,nslcidx),MSP_dimcellx,MSP_dimcelly)
+        if (MSP_SLC_lod==0) then ! get slice index in pre-loaded set
+          nslcidx = MSP_GetPGRIndex(nvc,nslc,nerr)
+          if (nerr/=0) goto 15
+        else ! get slice index in load-on-demand set
+          nslcidx = 1+MS_slicecur
+        end if
+        call MS_CalculateNextSlice(MSP_phasegrt(1:nx, 1:nx, nslcidx), nx, ny)
         ncalcslc = ncalcslc + 1 ! increase number of calculated slices
         
         if (nerr/=MS_err_num) goto 16 ! error check
@@ -4071,11 +4185,29 @@ SUBROUTINE STEMMultiSlice()
   if (allocated(lvar)) deallocate(lvar,stat=nalloc)
   call CriticalError("Failed to readout detectors for elastic channel.")
   return
+  
+14 continue
+  if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
+  if (allocated(lvar)) deallocate(lvar,stat=nalloc)
+  call CriticalError("Failed to determine random variant sequence.")
+  return
+
+15 continue
+  if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
+  if (allocated(lvar)) deallocate(lvar,stat=nalloc)
+  call CriticalError("Failed to connect to phase-grating buffer.")
+  return
 
 16 continue
   if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
   if (allocated(lvar)) deallocate(lvar,stat=nalloc)
   call CriticalError("Failed to perform multislice algorithm.")
+  return
+  
+17 continue
+  if (allocated(rtmpresult)) deallocate(rtmpresult,stat=nalloc)
+  if (allocated(lvar)) deallocate(lvar,stat=nalloc)
+  call CriticalError("Failed to load slice data on demand.")
   return
 
 END SUBROUTINE STEMMultiSlice
