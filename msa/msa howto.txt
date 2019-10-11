@@ -452,6 +452,14 @@ or are still under development:
 	wrong images of the elastic and TDS channel.
 
 
+/slod [optional]
+
+	Load phase-gratings from slice files on demand during the multislice
+	and not before starting the multislice. This may save allocated heap
+	per process and should be combined with storing slice files on a
+	mounted memory disk to avoid increased calculation times.
+
+
 /rti [optional]
 
 	Activates run-time console output at certain stages of the calculation.
@@ -730,7 +738,7 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 6) History of changes
 
-191007: JB: Version 1.0.5
+191011: JB: Version 1.0.5
 - Modified slice variation Monte-Carlo to drawing without returning. This
   should deliver an improved variation statistics avoiding frequent repeats
   of the same variant in close proximity along z for periodic samples.
