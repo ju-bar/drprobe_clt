@@ -81,7 +81,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "1.0.5 64-bit  -  2019 Oct  11  -"
+  MSP_verApp  =                   "1.0.6 64-bit  -  2019 Nov  06  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -305,8 +305,8 @@ program msa
     if (MSP_do_plasm == 1) then ! bulk plasmon init
       call PL_init(nerr)
     elseif (MSP_do_plasm == 2) then ! low loss transition init
-      ! determine critical angle from diffraction limit of the simulation
-      PL_qc = 1./max(MS_samplingx,MS_samplingy)*MS_lamb/3. ! 2/3 Lambda * Qmax = 2/3 Lambda * 1/2 / sampling-rate
+      !! determine critical angle from diffraction limit of the simulation
+      !PL_qc = 1./max(MS_samplingx,MS_samplingy)*MS_lamb/3. ! 2/3 Lambda * Qmax = 2/3 Lambda * 1/2 / sampling-rate
       call PL_init2(nerr)
     else ! no supported type of plasmon calculation (safety catch)
       MSP_do_plasm = 0

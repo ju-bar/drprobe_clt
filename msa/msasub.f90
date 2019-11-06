@@ -1978,6 +1978,16 @@ SUBROUTINE ParseCommandLine()
         return
       end if
       PL_qe = rtmp * 0.001 ! characteristic angle from mrad to rad
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      read(unit=buffer,fmt=*,iostat=status) rtmp
+      if (status/=0) then
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read critical angle (mrad).")
+        return
+      end if
+      PL_qc = rtmp * 0.001 ! critical angle from mrad to rad
       i = i + 1
       if (i>cnt) goto 101
       call get_command_argument (i, buffer, plen, status)
@@ -3805,10 +3815,11 @@ SUBROUTINE MSACalculate()
   end if
   if (nerr/=MS_err_num) goto 99
   
-  if (MSP_SLC_lod == 1) then ! load slice data on demand
-    call MSP_LoadStack(lvar, nerr)
-    if (nerr/=0) goto 99
-  end if
+  ! stack load on demand is not clever, removed 2019-11-06 v.1.0.6 in favor of single slice load-on-demand
+  !if (MSP_SLC_lod == 1) then ! load slice data on demand
+  !  call MSP_LoadStack(lvar, nerr)
+  !  if (nerr/=0) goto 99
+  !end if
 
 ! loop over all slices the multislice
   do while (MS_slicecur >= 0.and. MS_slicecur<MS_stacksize)
@@ -3821,8 +3832,10 @@ SUBROUTINE MSACalculate()
     if (MSP_SLC_lod==0) then ! get slice index in pre-loaded set
       nslcidx = MSP_GetPGRIndex(nvc,nslc,nerr)
       if (nerr/=0) goto 99
-    else ! get slice index in load-on-demand set
-      nslcidx = 1+MS_slicecur
+    else ! load-on-demand
+      nslcidx = 1
+      call MSP_LoadPGR(nslc, lvar(1+MS_slicecur), nslcidx, nerr)
+      if (nerr/=0) goto 99
     end if
     
     call MS_CalculateNextSlice(MSP_phasegrt(1:nx, 1:ny, nslcidx), nx, ny)
@@ -4043,10 +4056,11 @@ SUBROUTINE STEMMultiSlice()
       end if
       if (nerr/=MS_err_num) goto 16
       
-      if (MSP_SLC_lod == 1) then ! load slice data on demand
-        call MSP_LoadStack(lvar, nerr)
-        if (nerr/=0) goto 17
-      end if
+      ! stack load on demand is not clever, removed 2019-11-06 v.1.0.6 in favor of single slice load-on-demand
+      !if (MSP_SLC_lod == 1) then ! load slice data on demand
+      !  call MSP_LoadStack(lvar, nerr)
+      !  if (nerr/=0) goto 17
+      !end if
       
       ncalcslc = MS_slicecur ! reset number of calculated slices
       
@@ -4089,8 +4103,10 @@ SUBROUTINE STEMMultiSlice()
         if (MSP_SLC_lod==0) then ! get slice index in pre-loaded set
           nslcidx = MSP_GetPGRIndex(nvc,nslc,nerr)
           if (nerr/=0) goto 15
-        else ! get slice index in load-on-demand set
-          nslcidx = 1+MS_slicecur
+        else ! load-on-demand
+          nslcidx = 1
+          call MSP_LoadPGR(nslc, lvar(1+MS_slicecur), nslcidx, nerr)
+          if (nerr/=0) goto 17
         end if
         call MS_CalculateNextSlice(MSP_phasegrt(1:nx, 1:nx, nslcidx), nx, ny)
         ncalcslc = ncalcslc + 1 ! increase number of calculated slices

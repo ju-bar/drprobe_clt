@@ -12,7 +12,7 @@
 !                                                                      !
 !    Purpose  : parameters, parameter I/O and memory management for    !
 !               the program MSA (see msa.f90)                          !
-!    Version  : 1.3.5, July 17, 2019                                   !
+!    Version  : 1.3.6, Nov 6, 2019                                     !
 !    To Link  : MultiSlice.f90                                         !
 !               STEMfunctions.f90                                      !
 !                                                                      !
@@ -109,6 +109,7 @@ MODULE MSAparams
   public :: MSP_GetPGRIndex
   public :: MSP_GetVarList
   public :: MSP_LoadStack
+  public :: MSP_LoadPGR
   public :: MSP_GetNumberOfDigits
   public :: MSP_InitTextOutput
   public :: MSP_WriteTextOutput
@@ -1726,7 +1727,7 @@ SUBROUTINE MSP_ALLOCPGR(nx,ny,nerr)
       npgrnum = npgrnum + i
     end do
   elseif (MSP_SLC_lod==1) then ! loading slice data on demand
-    npgrnum = MS_stacksize ! number of loaded phase gratings equals number of object slices
+    npgrnum = 1 ! number of loaded phase gratings equals 1
   end if
   if (npgrnum<=0) then
     nerr = subnum+4
@@ -2169,6 +2170,124 @@ SUBROUTINE MSP_LoadStack(lvar, nerr)
   goto 99
 
 END SUBROUTINE MSP_LoadStack
+!**********************************************************************!
+
+
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE MSP_LoadPGR(islc, ivar, islot, nerr)
+! function: Loads slice data from files to MSP_phasegrt assuming an
+!           appropriate setup of slice data handling. Uses data from
+!           from module MSAparams:
+!             MSP_SLC_filenames, MSP_SLC_iprm, MSP_SLC_fprm
+!           from module MultiSlice:
+!             MS_slicenum, MS_slicestack, MS_stacksize, ...
+! -------------------------------------------------------------------- !
+! parameter: 
+!   integer*4, intent(in) :: islc = slice index
+!   integer*4, intent(in) :: ivar = variant for slice islc
+!   integer*4, intent(in) :: islot = index of phase grating store
+!                                    ---> MSP_phasegrt(:,:,islot)
+!   integer*4, intent(inout) :: nerr = error code (0=success)
+! -------------------------------------------------------------------- !
+
+  use EMSdata
+  
+  implicit none
+
+! ------------
+! DECLARATION
+  integer*4, parameter :: subnum = 2400
+  integer*4, intent(in) :: islc, ivar, islot
+  integer*4, intent(inout) :: nerr
+  integer*4 :: nalloc, ioerr, lfu, npot
+  integer*4 :: n0, ns, nx, ny
+  character(len=2048) :: sfile
+! ------------
+
+
+! ------------
+! INIT
+!  write(unit=*,fmt=*) " > MSP_LoadStack: INIT."
+  nerr = 0
+  nalloc = 0
+  npot = 0
+  if (MS_slicenum<1) return ! no slices, do nothing
+! ------------
+
+
+! ------------
+! load each variant
+  call GetSliceFileName(islc, 1+ivar, sfile, nerr)
+  if (nerr/=0) goto 102
+  call GetFreeLFU(lfu, 20, 20000)
+  ! open for shared reading
+  open( unit=lfu, file=trim(sfile), form='BINARY', access='SEQUENTIAL', &
+      & iostat=ioerr, status='OLD', action='READ', share='DENYNONE' )
+  if (ioerr/=0) goto 103
+  call PostDebugMessage("opened file ("//trim(sfile)//")")
+  ! load the data to MSP_phasegrt
+  n0 = MSP_SLC_iprm(1,islc)
+  ns = MSP_SLC_iprm(2,islc)
+  nx = MSP_SLC_iprm(3,islc)
+  ny = MSP_SLC_iprm(4,islc)
+  npot = MSP_SLC_iprm(6,islc)
+  if (MSP_SLI_filenamestruct==0) then
+    call EMS_SLI_loadvari(lfu, n0, ivar, ns, nx, ny, MSP_phasegrt(1:nx,1:ny,islot), ioerr)
+    if (ioerr/=0) goto 104
+  else
+    call EMS_SLI_loadvari(lfu, n0, 1, ns, nx, ny, MSP_phasegrt(1:nx,1:ny,islot), ioerr)
+    if (ioerr/=0) goto 104
+  end if
+  write(unit=MSP_stmp,fmt='(A,I4,A,I3.3,A,I4,A)') &
+      & "loaded variant #(",ivar,") of slice #(",islc,") to stack slot #(",islot,")"
+  call PostDebugMessage(trim(MSP_stmp))
+  ! close file
+  close(unit=lfu, iostat=ioerr)
+  call PostDebugMessage("closed file ("//trim(sfile)//")")
+  !
+  if (npot/=0) then ! transform from potential to phase grating
+    call PostDebugMessage("Transforming loaded potential data to phase grating.")
+    call MS_SlicePot2Pgr( MS_ht, MSP_SLC_fprm(1,islc), MSP_nabf, MSP_Absorption, &
+                      & MSP_nbuni, MSP_Buni, nx, ny, 1, &
+                      & MSP_phasegrt(1:nx, 1:ny, islot:islot), nerr)
+    if (nerr/=0) goto 105
+  end if
+! ------------
+
+  
+! ------------
+!  write(unit=*,fmt=*) " > MSP_LoadPGR: EXIT."
+99 continue
+  return
+  
+102 nerr = 2
+  write(unit=MSP_stmp,fmt='(A,I4,A,I4,A)') &
+    & "Failed to obtain file name for slice #(",islc, &
+    & ") and variant #(",ivar,")"
+  call MSP_ERROR(trim(MSP_stmp), subnum+nerr)
+  goto 99
+103 nerr = 3
+  call MSP_ERROR("Failed to connect to file ("//trim(sfile)// &
+    & ") for shared reading.", subnum+nerr)
+  goto 99
+104 nerr = 4
+  write(unit=MSP_stmp,fmt='(A,I4,A,I4,A)') &
+    & "Failed to load data for slice #(",islc, &
+    & ") and variant #(",ivar,")"
+  call MSP_ERROR(trim(MSP_stmp), subnum+nerr)
+  goto 99
+105 nerr = 5
+  write(unit=MSP_stmp,fmt='(A,I4,A,I4,A)') &
+    & "Failed to calculate phase grating from potential, slc #(",islc,&
+    & ") and var #(",ivar,")"
+  call MSP_ERROR(trim(MSP_stmp), subnum+nerr)
+  goto 99
+110 nerr = 10
+  call MSP_ERROR("Memory allocation failed", subnum+nerr)
+  goto 99
+
+END SUBROUTINE MSP_LoadPGR
 !**********************************************************************!
 
 

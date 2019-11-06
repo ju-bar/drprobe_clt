@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 1.0.5                                  #
+#   HOWTO use the program MSA, Version 1.0.6                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-10-11                                                          #
+#   Date: 2019-11-05                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -363,13 +363,13 @@ or are still under development:
 	A significant amount of runs (number of frozen-lattice variations)
 	should be used to let excitation statistics converge.
 
--plp (float value) (float value) (integer) [optional]
+-plp (float value) (float value) (float value) (integer) [optional]
 
-	Run with plasmon scattering Monte-Carlo. Specify the the mean-free
-	path (nm) for single plasmon excitation with the first value.
-	Set the characteristic scattering angle in mrad with the second
-	value. Define the maximum number of excitations allowed per
-	electron, i.e. per multislice pass, with the third value.
+	Run with plasmon scattering Monte-Carlo. Four numerical parameters
+	are expected in the following order: (1) mean-free path (nm),
+	(2) characteristic scattering angle (mrad), (3) critical scattering
+	angle in mrad, and (4) maximum number of excitations allowed per
+	electron, i.e. per multislice pass.
 
 	A significant amount of runs (number of frozen-lattice variations)
 	should be used to let excitation statistics converge.
@@ -737,6 +737,13 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 
 6) History of changes
+
+191105: JB: Version 1.0.6
+- Changed the input required for the alternative plasmon scattering
+  option to: -plp (Lp) (Qe) (Qc) (Ne) with
+  Lp = mean free path [nm], Qe = characteristic scattering angle [mrad],
+  Qc = critical scattering angle [mrad], and Ne = number of maximum
+  excitations allowed per electron, i.e. per mutlislice pass.
 
 191011: JB: Version 1.0.5
 - Modified slice variation Monte-Carlo to drawing without returning. This
