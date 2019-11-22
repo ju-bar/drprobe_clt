@@ -542,8 +542,8 @@ MODULE Plasmon
   ! output:
   !     complex*8 :: wave(:,:) ! wave function after plasmon excitat.
   !
-  ! purpose: resets the housholder arrays keeping track of tilts and
-  !          number of excitations per run through the specimen
+  ! purpose: Monte-Carlo plasmon scattering call and scattering angle
+  !          processing for a wave function sampled on a grid
   !
   subroutine PL_scatt_slc(dt, sqx, sqy, wave, nx, ny)
   
