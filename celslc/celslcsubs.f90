@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementation of subroutines for CELSLC
 !
-! VERSION: 1.0.0, J.B., 12.06.2019
+! VERSION: 1.0.1, J.B., 27.11.2019
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -47,7 +47,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program [celslc]                                  |")
-  call PostMessage(" | Version: 1.0.0 64-bit  -  2019 June 11            |")
+  call PostMessage(" | Version: 1.0.1 64-bit  -  2019 Nov  27            |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -1310,8 +1310,8 @@ subroutine writeslcprm(sfile)
   
   character(len=*) :: sfile
   
-  integer*4 :: i, lun, slclun
-  character(len=400) :: smsg, sslc, sslcn
+  integer*4 :: i, lun
+  character(len=2048) :: smsg, sslc
   integer*4, external :: getfreelun
   external :: createfilefolder
   
@@ -1322,7 +1322,7 @@ subroutine writeslcprm(sfile)
   call createfilefolder(trim(sfile),nerr)
   open( file=trim(sfile),unit=lun,iostat=nerr, &
      &  action='WRITE',status='REPLACE')
-  if (nerr/=0) call CriticalError("Failed to open file.")
+  if (nerr/=0) call CriticalError("Failed to open file ["//trim(sfile)//"].")
   
   ! write number of slices
   write(unit=lun,fmt='(I6)') nz
@@ -1337,16 +1337,8 @@ subroutine writeslcprm(sfile)
     write(unit=lun,fmt='("slice",I<ndigsl>.<ndigsl>)') i
     
     ! get full name of slice file, and write it
-    slclun = getfreelun()
-    if (slclun<=0) call CriticalError("Failed to acquire free logical file unit.")
     write(unit=sslc,fmt='(A,"_",I<ndigsl>.<ndigsl>,".sli")') trim(sslcfile),i
-    open( file=trim(sslc),unit=slclun,iostat=nerr,action='READ',status='OLD')
-    if (nerr/=0) call CriticalError("Failed to open slice file.")
-    inquire(unit=slclun, name=sslcn)
-    close( unit=slclun, iostat=nerr )
-    if (nerr/=0) call CriticalError("Failed to close slice file.")
-    
-    write(unit=lun,fmt='(A,A,A)') "'",trim(sslcn),"'"
+    write(unit=lun,fmt='(A,A,A)') "'",trim(sslc),"'"
     
     ! write slice dimensions x and y
     write(unit=lun,fmt='(I6)') nx
@@ -1366,7 +1358,7 @@ subroutine writeslcprm(sfile)
   end do
   
   close( unit=lun, iostat=nerr )
-  if (nerr/=0) call CriticalError("Failed to close file.")
+  if (nerr/=0) call CriticalError("Failed to close file ["//trim(sfile)//"].")
   
   return
 

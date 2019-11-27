@@ -4,7 +4,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-06-12                                                          #
+#   Date: 2019-11-27                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -636,6 +636,10 @@ Example cel files:
 
 
 7) History of changes:
+
+- 191127. JB: Version 1.0.1
+              Fixed a minor bug causing a file access error message in single
+			  slice creation mode.
 
 - 190611. JB: Version 1.0.0
               Raised version number to 1.0.0.

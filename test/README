@@ -1,6 +1,6 @@
 Image simulation tests with the drprobe_clt tools
 by J. Barthel (ju.barthel@fz-juelich.de)
-2019 - May - 28
+2019 - Nov - 27
 Forschungszentrum Juelich GmbH, 52425 Juelich, Germany
 
 The following example calls are for test simulations and have
@@ -15,9 +15,9 @@ in the subfolder 'test' which is contained in the repository
 [https://github.com/ju-bar/drprobe_clt].
 
 Program versions:
-CELSLC: 0.70
-MSA: 0.95
-WAVIMG: 0.70
+CELSLC: 1.0.1
+MSA: 1.0.6
+WAVIMG: 1.0.1
 
 
 1) STEM HAADF, ABF and BF thickness series simulation with
