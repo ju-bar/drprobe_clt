@@ -34,8 +34,8 @@
 !**********************************************************************!
 !                                                                      !
 !   Purpose: implementing subroutines for electron plasmon scattering  !
-!            using a Monte-Carlo Approach                              !
-!            B. Mendis, Ulramic. 206 (2019) 112816.                    !
+!            using a Monte-Carlo approach                              !
+!            B. Mendis, Ultramic. 206 (2019) 112816.                    !
 !            doi:10.1016/j.ultramic.2019.112816                        !
 !                                                                      !
 !   Contains corrections and alternative code based on discussions     !
@@ -218,7 +218,7 @@ MODULE Plasmon
   !          integer*4 :: nerr = error code
   !
   ! purpose: (re-)initialize module variables based on current input
-  !          parameters PL_ek, PL_ep, PL_lp, PL_tmax, PL_nslc, PL_wthr
+  !          parameters PL_ek, PL_ep, PL_lp, PL_tmax, PL_wthr
   !
   !          This is the initialization assuming real bulk plasmon
   !          scattering as determined by plasmon energy and mean free
