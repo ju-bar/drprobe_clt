@@ -6,12 +6,10 @@
 ! AUTHOR: Dr. J. Barthel
 !         Ernst Ruska-Centre
 !         Forschungszentrum Jülich GmbH, 52425 Jülich, Germany
-!           and
-!         RWTH Aachen University, 52074 Aachen, Germany
 !
 ! PURPOSE: Implementations of program CELSLC
 !
-! VERSION: 1.0.1 (20191127)
+! VERSION: 1.0.3 (20200812)
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -117,12 +115,6 @@ program celslc
 !  CS_FFT_BOUND = max(CS_FFT_BOUND_MIN,2**CEILING(LOG(real(k))/LOG(2.0)))
 !  if (CS_FFT_BOUND>CS_FFT_BOUND_MAX) call CriticalError("FFT plan exceeds maximum size (8192).")
   call CS_INIT()
-  !
-  ! determine output file name number digits
-  write(unit=stmp1,fmt=*) nz
-  ndigsl = max(3, len_trim(adjustl(stmp1)))
-  write(unit=stmp1,fmt=*) nv
-  ndigvr = max(3, len_trim(adjustl(stmp1)))
   !
   ! handle use of external scattering factors
   CS_useextsca = 0

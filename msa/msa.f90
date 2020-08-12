@@ -1,13 +1,13 @@
 !**********************************************************************
 !
-!  PROGRAM: msa, version 1.0.5
+!  PROGRAM: msa, version 1.0.7
 !  FILE: msa.f90
 !  PURPOSE:  Entry point for the console application MSA.
 !            Multislice calculation for electron diffraction
 !
 !**********************************************************************
 !                                                                      
-!   Date: 2019-10-11
+!   Date: 2020-03-03
 !                                                                      
 !   Author: Juri Barthel                                               
 !           Ernst Ruska-Centre                                         
@@ -81,7 +81,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "1.0.6 64-bit  -  2019 Nov  06  -"
+  MSP_verApp  =                   "1.0.8 64-bit  -  2020 Aug  12  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -255,7 +255,7 @@ program msa
 ! INITIALIZE WAVE GENERATION MODULE
   if (MSP_ctemmode/=0) then ! by default switch the wave export ON in CTEM mode
     MS_wave_export = 1 ! activate wave function export by default in CTEM mode
-    MS_wave_export_form = 0 ! set to real-space export by default
+    !MS_wave_export_form = 0 ! set to real-space export by default ! commented out 2020-05-18 (JB) this should allow to use /wavft as switch for saving Fourier-space wave functions
     MS_incwave_export = 1 ! also export the trivial incident wave function
     MS_wave_filenm = MSP_outfile
     MS_wave_filenm_bk = MS_wave_filenm

@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 1.0.6                                  #
+#   HOWTO use the program MSA, Version 1.0.7                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-11-05                                                          #
+#   Date: 2020-03-02                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -737,6 +737,19 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 
 6) History of changes
+
+200812: JB: Version 1.0.8
+- Fixed a bug causing crashes with non-square grids. This has slipped in
+  with one of the recent versions, can't exacly remember when.
+- The option /waveft is now effective in CTEM mode. Output wave functions
+  are in native FFT representation with the DC coefficient as the first
+  value of the complex 64-bit data stream.
+
+200302: JB: Version 1.0.7
+- Changed the total number of repeats per scan position calculated
+  with explicit focal averaging. The total number of repeats will now
+  be at least the number defined in the parameter file. It may be larger
+  if the number given is no multiple of the focal variation kernel size.
 
 191105: JB: Version 1.0.6
 - Changed the input required for the alternative plasmon scattering

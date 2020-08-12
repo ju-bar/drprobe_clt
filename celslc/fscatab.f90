@@ -22,6 +22,8 @@
 !          - added f^2(theta) integrals
 !          1.2, J.B., 12.06.2019
 !          - added absorptive form factors for apertures
+!          1.2.1, J.B., 01.03.2020
+!          - fixed a bug in absorptive form factors for apertures
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -443,7 +445,7 @@ subroutine FST_LoadFX(sfile, nerr)
   end if
   
   ! table reading has ended here
-  if (FST_domsg>1) then
+  if (FST_domsg>0) then
   ! - report fx table
     call FST_Message("- Loaded table of x-ray scattering factors:")
     call FST_Message("  s [1/A]         fx [A]")
@@ -966,11 +968,12 @@ subroutine FST_FX2FE(fx, fe, z, dz, n, nerr)
   integer*4, intent(inout) :: nerr
   
   integer*4 :: i, j
-  real*4 :: fs
+  real*4 :: fs, fx2(n)
   
   ! initialization
   nerr = 0
   fe = 0.0
+  fx2 = 0.0 ! shifted fx table, because we do not include s = 0
   !
   ! initial translation, take only data-points with s>0
   j = 0
@@ -980,15 +983,16 @@ subroutine FST_FX2FE(fx, fe, z, dz, n, nerr)
       j = j + 1
       fe(1,j) = fs
       fe(2,j) = FFE_PREFAC * (z-dz-fx(2,i)) / (fs*fs)
+      fx2(j) = fx(2,i)
     end if
   end do
   !
-  if (FST_domsg>1) then
+  if (FST_domsg>0) then
     ! - report fe table
-    call FST_Message("- Translated table of electron scattering factors:")
-    call FST_Message("  s [1/A]         fe [A]")
+    call FST_Message("- Translated table of electron scattering factors (ionic part removed):")
+    call FST_Message("  s [1/A]         fx [A]         fe [A]")
     do i=1, j
-      write(unit=FST_smsg,fmt='("  ",F7.2,"   ",F12.6)') fe(1,i), fe(2,i)
+      write(unit=FST_smsg,fmt='("  ",F7.2,"   ",F12.6,"   ",F12.6)') fe(1,i), fx2(i), fe(2,i)
       call FST_Message(trim(FST_smsg))
     end do
     !
@@ -1424,9 +1428,9 @@ function FST_GETMUGAP(theta,phi)
   apg = 1.D+0
   apq = 1.D+0
   apqg = 1.D+0
-  if (sg<ap) apg = 0.D+0
-  if (sq<ap) apq = 0.D+0
-  if (sqg<ap) apqg = 0.D+0
+  if (sg>=ap) apg = 0.D+0
+  if (sq>=ap) apq = 0.D+0
+  if (sqg>=ap) apqg = 0.D+0
   FST_GETMUGAP = fq*fqg * (apg - apq*apqg) * st
   
   return
@@ -1790,35 +1794,37 @@ function FST_GETSCAC(sym, g, B, ht, dwfflg, absflg)
     ! -------[nm] to [ang]
     dwas  = 1.0 ! preset of the Debye-Waller factor (DWF)
     dwasp = 100.0 * B ! parameter of the DWF [A^2]
-	sa	= 0.050 * g ! scattering angle (s = g/2) [1/A]
-	if (dwfflg) dwas = exp( -dwasp * sa * sa ) ! DWF
-	rc	= (FST_elmc2 + ht) / FST_elmc2 ! relativistic correction
-	call FFE_FEPRMY(sa, FST_fep(1:np,j), fe, np)
+	  sa	= 0.050 * g ! scattering angle (s = g/2) [1/A]
+	  if (dwfflg) dwas = exp( -dwasp * sa * sa ) ! DWF
+	  rc	= (FST_elmc2 + ht) / FST_elmc2 ! relativistic correction
+	  call FFE_FEPRMY(sa, FST_fep(1:np,j), fe, np)
     ! The ionic charge potential is not done here. This will be added later
     ! in the form factor summation.
     ! dz = FST_crg(3,j)
     ! if (abs(sa)>0.0) feio = dz * FFE_PREFAC / (sa*sa) ! FFE_PREFAC = 0.0239337 = m0 * e^2 / ( 2 h^2 ) / ( 4 Pi eps0 ) [A]
     ! fe = fe + feio
-	fr 	= rc * fe * FST_fourpi * dwas  ! real form factor  dampened by DWF
-	                                   ! multiplied by relativistic correction and
-	                                   !   4*Pi to be consistent with fscatt.f
-  !
-  ! absorptive form factor calculation for tds
-  if (absflg .and. dwfflg .and. (abs(dwasp)>=thrima) .and. (abs(fr)>=thrima) ) then
-    ! calculate the absorptive form factor
-    fa = FST_GETSCAABS(sym, g, B, ht)
-    fi = rc*rc*fa*k0       ! imaginary form factor
-  end if
-  !
-  ! absorptive form factor calculation for aperture blocking
-  if (absflg .and. (.not.dwfflg) .and. (abs(g)<abs(B))) then
-    fa = FST_GETSCAABSAP(sym, g, B, ht)
-    fi = rc*rc*fa*k0       ! imaginary form factor
-  end if
-  !
-  ! -------[ang] to [nm]
-	FST_GETSCAC	= 0.1 * cmplx( fr, fi )
-	!
+	  fr 	= rc * fe * FST_fourpi * dwas  ! real form factor  dampened by DWF
+	                                     ! multiplied by relativistic correction and
+	                                     !   4*Pi to be consistent with fscatt.f
+    !
+    ! absorptive form factor calculation for tds
+    if (absflg .and. dwfflg .and. (abs(dwasp)>=thrima) .and. (abs(fr)>=thrima) ) then
+      ! calculate the absorptive form factor
+      fa = FST_GETSCAABS(sym, g, B, ht)
+      fi = rc*rc*fa*k0       ! imaginary form factor
+    end if
+    !
+    ! absorptive form factor calculation for aperture blocking
+    if (absflg .and. (.not.dwfflg) .and. (abs(g)<abs(B))) then
+      fa = FST_GETSCAABSAP(sym, g, B, ht)
+      fi = rc*rc*fa*k0       ! imaginary form factor
+    end if
+    !
+    !write(*,*) 's=',sa,'  fe0=',fe,'  fr=',fr,'  fi=',fi
+    !
+    ! -------[ang] to [nm]
+	  FST_GETSCAC	= 0.1 * cmplx( fr, fi )
+	  !
   end if
   
 end function FST_GETSCAC

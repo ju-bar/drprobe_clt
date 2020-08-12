@@ -4,7 +4,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2019-11-27                                                          #
+#   Date: 2020-08-12                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -636,6 +636,13 @@ Example cel files:
 
 
 7) History of changes:
+
+- 200812. JB: Version 1.0.3
+              Fixed output file naming with number of slices larger than 999.
+
+- 200301. JB: Version 1.0.2
+              Fixed a mistake in the calculation of absorptive form factors
+			  for external scattering factor input by options -fx or -fe.
 
 - 191127. JB: Version 1.0.1
               Fixed a minor bug causing a file access error message in single

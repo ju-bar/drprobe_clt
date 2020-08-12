@@ -898,6 +898,7 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
       call PostMessage(trim(MSP_stmp))
     end if
     write(unit=MSP_stmp,fmt='(A,G12.4)') "rel. edge smoothness of probe forming aperture:", STF_caperture(4)
+    call PostMessage(trim(MSP_stmp))
     if (MSP_usedetdef/=0) then
       call PostMessage( "Using detector definition from file ["//trim(MSP_detfile)//"]." )
     else

@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementation of subroutines for CELSLC
 !
-! VERSION: 1.0.1, J.B., 27.11.2019
+! VERSION: 1.0.3, J.B., 12.08.2020
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -47,7 +47,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program [celslc]                                  |")
-  call PostMessage(" | Version: 1.0.1 64-bit  -  2019 Nov  27            |")
+  call PostMessage(" | Version: 1.0.3 64-bit  -  2020 August 12          |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -754,8 +754,8 @@ subroutine ParseCommandLine()
         call CriticalError("Command line parsing error (-nz <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) nz
-      if (status/=0 .or. nz>2048) then
-        call PostWarning("Failed to read number of slices, using automatic slicing.")
+      if (status/=0 .or. nz<0) then
+        call PostWarning("Failed to read number of slices, using automatic equidistant slicing.")
         nz = 0 ! set back to default equidistant slicing
       end if
       if (nz<0) nz = -1 ! set back to default auto slicing
@@ -1582,6 +1582,12 @@ subroutine CEL2SLC()
   else ! no slices, this is not allowed ... critical error
     call CriticalError("Invalid number of slices (0).")
   end if
+  
+  ! determine output file name number digits
+  write(unit=stmp1,fmt='(i)') nz
+  ndigsl = max(3, len_trim(adjustl(stmp1)))
+  write(unit=stmp1,fmt='(i)') nv
+  ndigvr = max(3, len_trim(adjustl(stmp1)))
     
   ! check single slice calculation index
   ssc = min(ssc,nz) ! limit slice index to number of slices
@@ -1872,6 +1878,12 @@ subroutine POT3D2SLC()
   ! set potential backup option
   M3D_backup_slcpot = npot
   fcorr = 1.0 / ( 1.0 + ht / 510.998928 ) ! relativistic correction, removal factor
+  
+  ! determine output file name number digits
+  write(unit=stmp1,fmt='(i)') nz
+  ndigsl = max(3, len_trim(adjustl(stmp1)))
+  write(unit=stmp1,fmt='(i)') nv
+  ndigvr = max(3, len_trim(adjustl(stmp1)))
     
   ! creating phase gratings for all slices
   CS_maxphase = 0.0

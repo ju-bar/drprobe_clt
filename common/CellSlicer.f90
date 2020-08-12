@@ -1649,6 +1649,7 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
   cval = cval0
   ht = CS_WL2HT(wl)                                 ! high tension in kV
   rc = (CS_elm0+ht)/CS_elm0                         ! relativistic correction
+  !write(*,*) 'relativistic correction=',rc
   nyqx = (nx - modulo(nx,2))/2                      ! potentials nyquist number x
   nyqy = (ny - modulo(ny,2))/2                      ! potentials nyquist number y
   nyqz = (nz - modulo(nz,2))/2                      ! potentials nyquist number z
@@ -1832,7 +1833,7 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
   
 12 CS_scattamp_prepared = .TRUE.
 
-
+  
   if (CS_useppot) then
     if (CS_doconsolemsg>0) call CS_MESSAGE("Preparing 2d form factor arrays.")
     pfacio = rc * CS_scaprea * CS_fpi * 10. ! prefactor for the ionic rest charge potential: rel-corr * C * 4 Pi * 10. [-> nm^-1]
@@ -1854,6 +1855,7 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
         CS_scagn(i,j,3) = apxy*cmplx(pfacio/(0.25*g2+CS_iyr*CS_iyr), 0.) ! store rc*C1/(s^2+al^2)(i,j) ! for ionic potentials
         do k=1, CS_scampnum ! loop k over atom-type lists
           call CS_GETSCATTAMP(csf,g,k)
+          !write(*,*) 's=',0.05*g,'  fe0=',csf/rc/CS_fpi
           CS_scaff2d(i,j,k) = csf*apxy ! store f_gz=0(i,j,atom type)
           if (dwfflg) then
             dwf = CS_scampdwf(k)
@@ -4922,6 +4924,7 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   real*4 :: pscal ! potential scaling factor
   real*4 :: apdmp ! aperture function (damping factor at outer Fourier-space perimeter >2/3 gmax)
   real*4 :: crgio ! ionic charge
+  !real*4 :: fe1, fe2, qx, qy, rc, fscale
   real*4, dimension(:,:), allocatable :: lxy ! list of calculated coordinates
   complex*8 :: cval0, cval ! some complex vars
   complex*8, dimension(:,:), allocatable :: lcw, lcwrs ! local working array for FFTs
@@ -5011,10 +5014,12 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   ! other parameters
   !
   ht = CS_WL2HT(wl)                                 ! high tension in kV
+  !rc = (CS_elm0+ht)/CS_elm0                         ! relativistic correction
   na = CS_slcatnum(nslc)                            ! number of atoms in slice
   dsz = CS_slczlim(2,nslc)-CS_slczlim(1,nslc)       ! thickness of the slice in nm
   vol = CS_scsx*CS_scsy*dsz                         ! supercell volume in nm^3
   pscal = CS_v0 / vol                               ! potential scaling factor Vamp0 / Volume
+  !fscale = 10. / ( rc * CS_fpi )
   
   
   !
@@ -5084,6 +5089,15 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
                        &                         + crgio*CS_scagn(1:ny,1:nx,3) ) & ! + form-factor (ionic charge) )
                        & * cexp( lxy(1,ia)*CS_scagn(1:ny,1:nx,1) &
                        &       + lxy(2,ia)*CS_scagn(1:ny,1:nx,2) ) ! * translation phase factor
+        !write(unit=*,fmt='(A,F5.2)') 'ionic form factor for '//trim(CS_attype(ja))//', dZ = ',crgio
+        !write(unit=*,fmt='(A)') ' s (A-1)    fe(s) (A)    fe0(s) (A)   fio(s) (A)'
+        !do i=1,20
+        !  fe1 = real(CS_scaff2d(1,i,jptr)) * fscale
+        !  fe2 = real(crgio*CS_scagn(1,i,3)) * fscale
+        !  qx = -0.1*imag(CS_scagn(1,i,1))/CS_tpi
+        !  qy = -0.1*imag(CS_scagn(1,i,2))/CS_tpi
+        !  write(unit=*,fmt='(A1,F8.4,A3,F10.4,A3,F10.4,A3,F10.4)') ' ',qx*0.5,'   ',fe1+fe2,'   ',fe1,'   ',fe2
+        !end do
       end if
     end if
     !

@@ -3,7 +3,7 @@
 !                                                                      !
 !    File     :  msasub.f90                                            !
 !                                                                      !
-!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2019   !
+!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2020   !
 !                                                                      !
 !**********************************************************************!
 !                                                                      !
@@ -1932,6 +1932,7 @@ SUBROUTINE ParseCommandLine()
     ! THE PLASMON EXCITATION MODE (real plasmons)
     case ("-ple")
       nfound = 1
+      ! read the plasmon energy (eV)
       i = i + 1
       if (i>cnt) goto 101
       call get_command_argument (i, buffer, plen, status)
@@ -1942,6 +1943,7 @@ SUBROUTINE ParseCommandLine()
           & ": failed to read plasmon energy (eV).")
         return
       end if
+      ! real the mean free path (nm)
       i = i + 1
       if (i>cnt) goto 101
       call get_command_argument (i, buffer, plen, status)
@@ -1957,6 +1959,7 @@ SUBROUTINE ParseCommandLine()
     ! THE PLASMON EXCITATION MODE (fake low loss intraband transitions)
     case ("-plp")
       nfound = 1
+      ! read the mean free path (nm)
       i = i + 1
       if (i>cnt) goto 101
       call get_command_argument (i, buffer, plen, status)
@@ -1967,6 +1970,7 @@ SUBROUTINE ParseCommandLine()
           & ": failed to read mean-free path (nm).")
         return
       end if
+      ! read the characteristic angle (mrad)
       i = i + 1
       if (i>cnt) goto 101
       call get_command_argument (i, buffer, plen, status)
@@ -1978,6 +1982,8 @@ SUBROUTINE ParseCommandLine()
         return
       end if
       PL_qe = rtmp * 0.001 ! characteristic angle from mrad to rad
+      ! read the critical angle (mrad)
+      i = i + 1
       if (i>cnt) goto 101
       call get_command_argument (i, buffer, plen, status)
       if (status/=0) goto 102
@@ -1988,6 +1994,7 @@ SUBROUTINE ParseCommandLine()
         return
       end if
       PL_qc = rtmp * 0.001 ! critical angle from mrad to rad
+      ! read the maximum number of excitations per electron
       i = i + 1
       if (i>cnt) goto 101
       call get_command_argument (i, buffer, plen, status)
@@ -3961,7 +3968,7 @@ SUBROUTINE STEMMultiSlice()
   MSP_Kmomresult = 0.0
   rtmpresult = 0.0
   MSP_TheResult = 0.0
-  nvarnum = max(1,nint(real(MSP_FL_varcalc)/real(nznum))) ! number of variant calculations per focus spread loop
+  nvarnum = max(1,ceiling(real(MSP_FL_varcalc)/real(nznum))) ! number of variant calculations per focus spread loop
   write(unit=stmp,fmt='(I)') nvarnum
   nvdigits = MAX( 3, LEN_TRIM(adjustl(stmp)) )
   vrescale = 1.0/real(nvarnum)
@@ -4108,7 +4115,7 @@ SUBROUTINE STEMMultiSlice()
           call MSP_LoadPGR(nslc, lvar(1+MS_slicecur), nslcidx, nerr)
           if (nerr/=0) goto 17
         end if
-        call MS_CalculateNextSlice(MSP_phasegrt(1:nx, 1:nx, nslcidx), nx, ny)
+        call MS_CalculateNextSlice(MSP_phasegrt(1:nx, 1:ny, nslcidx), nx, ny)
         ncalcslc = ncalcslc + 1 ! increase number of calculated slices
         
         if (nerr/=MS_err_num) goto 16 ! error check
