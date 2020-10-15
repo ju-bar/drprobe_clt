@@ -1,10 +1,10 @@
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program WAVIMG, Version 1.0.1                               #
+#   HOWTO use the program WAVIMG, Version 1.0.2                               #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2018-08-28                                                          #
+#   Date: 2020-10-15                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -320,6 +320,12 @@ Here is an example, which defines a combined defocus and CS variation:
 
 7) History of changes
 
+201015: JB: Version 1.0.2
+- Fixed focus spread resonance options so that the focus spread will no
+  longer become ineffective on low resolution calculations. The focal
+  kernel sampling will now only depend on the information limit of imaging.
+- Fixed an error in the linear and quasi-coherent image calculation occuring
+  with beam tilt.
 190828: JB: Version 1.0.1
 - Consistent definition of the probe forming aperture in all parts of the
   program and as in msa.
@@ -656,12 +662,6 @@ Contact data:
 
   Dr. Juri Barthel
   ju.barthel@fz-juelich.de
-
-  Central Facility for Electron Microscopy
-  RWTH Aachen University
-  Ahornstr. 55
-  52074 Aachen
-  Germany
 
   Ernst Ruska-Centre for Microscopy and Spectroscopy with Electrons
   Forschungszentrum Jülich GmbH

@@ -57,16 +57,16 @@ subroutine PrepareIC(pmode)
     aps = apr*oapr(2)
     apx = 0.001*oapx
     apy = 0.001*oapy
-    ! setup scrambled frequencies x
+    ! setup scrambled frequencies x indices
     do i=1, nwx
       ic_iwx(i) = modulo(i-1+nx2,nwx)-nx2
     end do
-    ic_twx = itowx*real(ic_iwx) + tx
-    ! setup scrambled frequencies y
+    ic_twx = itowx*real(ic_iwx) + tx ! store angles plus beam tilt
+    ! setup scrambled frequencies y indices
     do i=1, nwy
       ic_iwy(i) = modulo(i-1-ny2,nwy)-ny2
     end do
-    ic_twy = itowy*real(ic_iwy) + ty
+    ic_twy = itowy*real(ic_iwy) + ty ! store angles plus beam tilt
     ! aperture and chi on twx,y
     do i=1, nwx
       awxs = (itowx*real(ic_iwx(i))-apx)**2
@@ -569,7 +569,7 @@ subroutine ExplicitTCC2(wave)
         call AF_AberrationFunctionGradient(wi, wj, dchix, dchiy)
         Envs = exp( -scpf*((dchix-dchix0)**2+(dchiy-dchiy0)**2) )
       end if
-      chi = AF_AberrationFunction(wi, wj)
+      chi = AF_AberrationFunction(wi, wj) ! get aberration phase shifts
       cqpp(j,i) = ic_objaper(j,i) * exp( cmplx(0.0,-chi) ) * Envs
     end do
   end do
@@ -594,7 +594,7 @@ subroutine ExplicitTCC2(wave)
       wx2 = wxs(i)
       do j=1, nwy
         w2 = wx2 + wys(j)
-        wsub(j,i) = wtmp(j,i)*cqpp(j,i)*exp( cmplx(0.0,-ffoc*w2) )
+        wsub(j,i) = wtmp(j,i)*cqpp(j,i)*exp( cmplx(0.0,-ffoc*w2)) ! add defocus
       end do
     end do
         
@@ -1010,7 +1010,7 @@ subroutine LinearEnvelopeTCC(wave)
       ! - ctf
       ctf = cctf(j1,i1)*conjg(cctf(1,1))
       ! - temporal envelope
-      Envt = exp( -fspf*( ( wxs(i1) + wys(j1) )**2) )
+      Envt = exp( -fspf*( ( wxs(i1) + wys(j1) - wxs(1) - wys(1) )**2 ) )
       ! - spatial envelope
       Envs = exp( -scpf*( (dchix(j1,i1)-dchix(1,1))**2 + (dchiy(j1,i1)-dchiy(1,1))**2 ) )
       ! - add up to the image in Fourier space
@@ -1020,7 +1020,7 @@ subroutine LinearEnvelopeTCC(wave)
       ! - ctf
       ctf = cctf(1,1)*conjg(cctf(j2,i2))
       ! - temporal envelope
-      Envt = exp( -fspf*( ( wxs(i2) +wys(j2) )**2) )
+      Envt = exp( -fspf*( ( wxs(i2) + wys(j2) - wxs(1) - wys(1) )**2) )
       ! - spatial envelope
       Envs = exp( -scpf*( (dchix(1,1)-dchix(j2,i2))**2 + (dchiy(1,1)-dchiy(j2,i2))**2 ) )
       ! - add up to the image in Fourier space
@@ -1189,7 +1189,7 @@ subroutine QuasiCoherent(wave)
       ! - ctf
       ctf = cctf(j,i)
       ! - temporal envelope
-      Envt = exp( -fspf*( ( wxs(i) + wys(j) )**2) )
+      Envt = exp( -fspf*( ( wxs(i) + wys(j) - wxs(1) - wys(1) )**2) )
       ! - spatial envelope
       Envs = exp( -scpf*( (dchix(j,i)-dchix(1,1))**2 + (dchiy(j,i)-dchiy(1,1))**2 ) )
       ! - image wave coefficient

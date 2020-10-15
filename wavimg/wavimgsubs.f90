@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementations for image simulations
 !
-! VERSION: 1.0.1, J.B., 28.08.2019
+! VERSION: 1.0.2, J.B., 15.10.2020
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -34,7 +34,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program: [wavimg]                                 |")
-  call PostMessage(" | Version: 1.0.1 64-bit  -  2019 Aug  28  -         |")
+  call PostMessage(" | Version: 1.0.2 64-bit  -  2020 Oct  15  -         |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -1100,7 +1100,7 @@ subroutine checkprm
   implicit none
   
   logical :: fex
-  real*4 :: dZ, gmax, dinfo
+  real*4 :: dZ, gmax, sigma, dinfo, dinfofs, dinfois, ginfofs, ginfois
   real*4, external :: HT2WL
   integer*4 :: i, j, k
   character(len=5) :: snft
@@ -1134,10 +1134,30 @@ subroutine checkprm
     el_conv = 1.0
     call PostWarning("Invalid counts per electron rate, reset to default 1.0.")
   end if
-  ! temp. calculate info-limit from focus spread parameter
-  dinfo = ( (pi*wl*fs)**2 / 8.0 )**0.25
-  ginfo = 1/dinfo
+  ! temp. calculate info-limit from focus spread
+  dinfofs = ( (pi*wl*fs)**2 / 8.0 )**0.25
+  ginfofs = 1/dinfofs
   gmax = 0.5/min(swx,swy)
+  write(unit=sdbgmsg,fmt=*) "parameter calc.: focus-spread info limit [nm]: ",dinfofs
+  call PostDBGMessage(trim(sdbgmsg))
+  write(unit=sdbgmsg,fmt=*) "parameter calc.: focus-spread info limit [1/nm]: ",ginfofs
+  call PostDBGMessage(trim(sdbgmsg))
+  dinfo = dinfofs
+  ginfo = ginfofs
+  if (dovib > 0) then
+    sigma = vibamp
+    if (dovib > 1) then
+      sigma = max(sigma, vibamp2)
+    end if
+    dinfois = pi * sigma
+    ginfois = 1./dinfois
+    write(unit=sdbgmsg,fmt=*) "parameter calc.: image-spread info limit [nm]: ",dinfois
+    call PostDBGMessage(trim(sdbgmsg))
+    write(unit=sdbgmsg,fmt=*) "parameter calc.: image-spread info limit [1/nm]: ",ginfois
+    call PostDBGMessage(trim(sdbgmsg))
+    dinfo = max(dinfo, dinfois)
+    ginfo = min(ginfo, ginfois)
+  end if
   write(unit=sdbgmsg,fmt=*) "parameter calc.: info limit [nm]: ",dinfo
   call PostDBGMessage(trim(sdbgmsg))
   write(unit=sdbgmsg,fmt=*) "parameter calc.: info limit [1/nm]: ",ginfo
@@ -1147,14 +1167,14 @@ subroutine checkprm
   
   ! calculate additional parameters for kernels
   nsre = 0
-  if (sqrt(2.0)*gmax<3.0*ginfo) then
-    call PostDBGMessage("  Choosing focal kernel sampling such that it is outsides the image spectrum.")
-    gres1 = 1.1*sqrt(2.0)*gmax
-  else
+  !if (sqrt(2.0)*gmax<3.0*ginfo) then ! removed because this effective turns the focus spread off, though the effect is still needed in case of a beam tilt
+  !  call PostDBGMessage("  Choosing focal kernel sampling such that it is outsides the image spectrum.")
+  !  gres1 = 1.1*sqrt(2.0)*gmax
+  !else
     call PostDBGMessage("  Choosing focal kernel sampling such that first linear resonance is equal to 3*ginfo.")
     gres1 = 3.0*ginfo
     nsre = 1
-  end if
+  !end if
   dZ = 2.0/wl/(gres1**2)
   write(unit=sdbgmsg,fmt=*) "parameter calc.: focal kernel sampling [nm/pixel]: ",dZ
   call PostDBGMessage(trim(sdbgmsg))
