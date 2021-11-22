@@ -9,7 +9,7 @@
 !         RWTH Aachen University, Aachen, Germany
 !         27.11.2019
 !
-! last modified: J.B. 11.06.2019
+! last modified: J.B. 22.11.2021
 !
 !**********************************************************************!
 !----------------------------------------------------------------------
@@ -41,8 +41,8 @@ MODULE celslcprm
 ! ---[ global parameters ]--------------------------------------------------------------------------
 
   integer*4, parameter :: stdout = 6        ! standard output unit
-  integer*4, parameter :: fft_dmin = 32     ! min. size of fft
-  integer*4, parameter :: fft_dmax = 8192   ! max. size of fft
+!  integer*4, parameter :: fft_dmin = 32     ! min. size of fft
+!  integer*4, parameter :: fft_dmax = 8192   ! max. size of fft
   integer*4, parameter :: ext_pot_max = 32  ! max. number of external potential definitions
 
 ! ---[ global variables ]---------------------------------------------------------------------------
@@ -76,6 +76,10 @@ MODULE celslcprm
   DATA csprm_clrate /1/                     ! initial clock rate
   DATA csprm_clmax /0/                      ! initial clock max. count
   DATA csprm_clmeasure /0/                  ! initial clock measure
+  
+  ! RNG seed
+  integer :: csprm_rngseed                  ! seed of the random number generator
+  DATA csprm_rngseed /0/
       
 ! ---[ input variables ]----------------------------------------------------------------------------
 

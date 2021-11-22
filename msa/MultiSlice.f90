@@ -13,8 +13,8 @@
 !    Purpose  : Implementation of a multi-slice algorithm              !
 !    Version  : 1.4.3, Sep 30, 2019                                    !
 !                                                                      !
-!   Linked Libs: libfftwf-3.3.lib                                      !
-!   Includes   : fftw3.f03.in                                          !
+!   Linked Libs: Intel Math Kernel Library (sequential)                !
+!   Includes   : mkl_dfti.f90                                          !
 !                                                                      !
 !**********************************************************************!
 !                                                                       

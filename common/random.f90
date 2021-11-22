@@ -122,36 +122,29 @@ END SUBROUTINE InitRand
 
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE InitRand2()
+SUBROUTINE InitRand2(newseed)
 ! function: initiates the internal pseudo random number generator with
-!           a processor dependent value
+!           a given value
 ! -------------------------------------------------------------------- !
-! parameter: none
+! parameter: integer newseed (seed number for the rng)
 ! -------------------------------------------------------------------- !
 
   implicit none
 
 ! ------------
 ! DECLARATION
-  integer :: seed_size, newseed, values(8)
+  integer, intent(inout) :: newseed
+  integer :: seed_size
   integer,allocatable :: seed(:)
-  character*8 :: cldate
-  character*10 :: cltime
-  character*5 :: clzone
 ! ------------
 
 ! ------------
   call RANDOM_SEED() ! initialize with system generated seed
   call RANDOM_SEED(SIZE=seed_size) ! find out size of seed
   allocate(seed(seed_size))
-  call date_and_time(cldate,cltime,clzone,values)
-	
-  newseed = values(1)+values(2)+values(3)
-  newseed = newseed+values(7)*1000+values(6)*60000+values(5)*3600000
   seed = newseed
   call RANDOM_SEED(PUT=seed) ! put new seed
-
-  deallocate(seed)           ! safe
+  deallocate(seed)
 ! ------------
 
 ! ------------

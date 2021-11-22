@@ -1,10 +1,10 @@
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program CELSLC, Version 1.0                                 #
+#   HOWTO use the program CELSLC, Version 1.1                                 #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2020-08-12                                                          #
+#   Date: 2021-11-22                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -275,6 +275,10 @@ Detailed explanations of options:
   defined with the -nz option. This option may be used to calculate all
   phase gratings in parallel. Keep all other settings identical to an
   all-slice calculation.
+  This option is not valid in combination with any 3-d potential
+  calculation mode, as it doesn't make any sense in that case. The
+  single slice calculation mode is limited to the model of full
+  atomic potential projection into each slice.
   
   
   -prj <9 numbers> = new super-cell, re-orientation and re-sizing
@@ -323,7 +327,7 @@ Additional and experimental options:
   -3dp = create a 3-dimensional potential then slice it
 
   The software will calculate a full 3-dimensional potential with
-  sampling nx, ny, nz. Slices will be calculated for each plane nz.
+  sampling nx, ny and project it in nz slices.
 
 
   -fx <filename> = external x-ray form-factor table
@@ -411,6 +415,13 @@ Additional and experimental options:
   electrostatic potential and the imaginary part represents an
   absorptive potential. Relativistic correction by a gamma factor
   will be done upon loading.
+
+
+  -seed <number> = Initializes the random number generator to a
+  given seed.
+
+  Without this option, the seed is determined at run-time from a
+  value returned by the system clock.
 
 
   -rti = print run-time information
@@ -636,6 +647,13 @@ Example cel files:
 
 
 7) History of changes:
+
+- 211112. JB: Version 1.1.0
+              Changed to Intel MKL for FFT calculations -> new file fftmkl.f90
+			  Added option -seed to define the seed of the random number
+			  generator from the command line.
+			  Implemented an improved version of calculating projected
+			  potentials and phase gratings from a 3d potential (option -3dp).
 
 - 200812. JB: Version 1.0.3
               Fixed output file naming with number of slices larger than 999.

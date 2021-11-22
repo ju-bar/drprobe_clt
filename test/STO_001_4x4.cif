@@ -3,9 +3,9 @@ data_CELSLC
 
 # Crystal data
 _pd_phase_name                         'Super Cell'
-_cell_length_a                         15.620001
-_cell_length_b                         15.620001
-_cell_length_c                         3.905000
+_cell_length_a                         15.604000
+_cell_length_b                         15.604000
+_cell_length_c                         3.901000
 _cell_angle_alpha                      90.0000
 _cell_angle_beta                       90.0000
 _cell_angle_gamma                      90.0000

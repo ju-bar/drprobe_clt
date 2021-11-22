@@ -12,9 +12,9 @@
 ! 
 ! MODULE: 3dpot
 !
-! VERSION: 1.1, J.B., 09.06.2015
+! VERSION: 1.1, J.B., 15.11.2021
 !
-! LINK:   "binio2.f90", "FFTs.f"
+! LINK:   "binio2.f90", "fftmkl.f90"
 !         link a file which implements the routines <UPPERCASE> and 
 !         <LOWERCASE>, e.g. "simsubs.f90"
 !
@@ -59,9 +59,9 @@ MODULE m3dpot
   public :: M3D_CellAngles
   public :: M3D_PostCellInfo
   !
-  private :: M3D_FFT1D
-  private :: M3D_FFT2D
-  private :: M3D_FFT3D
+  !private :: M3D_FFT1D
+  !private :: M3D_FFT2D
+  !private :: M3D_FFT3D
   !
   public :: M3D_OrthoGamma
   public :: M3D_OrthoBeta
@@ -72,6 +72,7 @@ MODULE m3dpot
   public :: M3D_ApplyDiffApAuto
   public :: M3D_ApplyDWF
   !
+  public :: M3D_project
   public :: M3D_getslice_pgr
   !
   private :: M3D_Message
@@ -82,7 +83,7 @@ MODULE m3dpot
   !
   integer*4, public, parameter :: M3D_ll = 2048 ! default string/line length
   integer*4, public, parameter :: M3D_stdout = 6 ! standard output unit
-  integer*4, public, parameter :: M3D_FFTBOUND = 8192 ! max. size of implemented FFT routines
+!  integer*4, public, parameter :: M3D_FFTBOUND = 8192 ! max. size of implemented FFT routines
   real*4, public, parameter :: M3D_orththr = 0.001 ! orthogonality threshold (rad)
   real*8, public, parameter :: M3D_diophthr = 1.0D-04 ! diophantine threshold (rel. mismatch)
   
@@ -103,6 +104,9 @@ MODULE m3dpot
   integer*4, public :: M3D_n3     ! 3rd dimension sampling
   DATA M3D_n3 /0/
   
+  integer*4, public :: M3D_n3p    ! 3rd dimension sampling after projection
+  DATA M3D_n3p /0/
+  
   real*8, public :: M3D_b1(3)     ! 1st dimension physical basis vector
   DATA M3D_b1 /0.0,0.0,0.0/
   real*8, public :: M3D_b2(3)     ! 2nd dimension physical basis vector
@@ -111,6 +115,7 @@ MODULE m3dpot
   DATA M3D_b3 /0.0,0.0,0.0/
   
   complex*8, public, allocatable :: M3D_pot(:,:,:) ! potential, allocated on call of input routine
+  complex*8, public, allocatable :: M3D_pot_prj(:,:,:) ! projected potential, allocated on call of projection routine
   
   integer*4, public :: M3D_backup_slcpot ! flag: set to 1 to switch slice potential backup saving
   DATA M3D_backup_slcpot /0/
@@ -474,246 +479,246 @@ end subroutine M3D_PostCellInfo
 
 
 
-!**********************************************************************!
+!!**********************************************************************!
+!!
+!subroutine M3D_FFT1D(dat, n, nft, dir)
 !
-subroutine M3D_FFT1D(dat, n, nft, dir)
-
-  implicit none
-  
-  integer*4, intent(in) :: n, nft
-  character(len=*), intent(in) :: dir
-  complex*8, intent(inout) :: dat(nft)
-    
-  integer*4 :: i
-  character*40 :: direction
-  external :: ODDCC128, ODDCC256, ODDCC512, ODDCC1024
-  external :: ODDCC2048, ODDCC4096, ODDCC8192 ! link FFTs.f
-  
-  if (n<1 .or. n>nft) then
-    call M3D_ErrorMessage("(M3D_FFT1D) Invalid array size.", 1)
-    return
-  end if
-  direction = dir
-  
-  i = 0
-  select case (nft)
-  case (128)
-    call ODDCC128(dat,n,direction)
-    i = nft
-  case (256)
-    call ODDCC256(dat,n,direction)
-    i = nft
-  case (512)
-    call ODDCC512(dat,n,direction)
-    i = nft
-  case (1024)
-    call ODDCC1024(dat,n,direction)
-    i = nft
-  case (2048)
-    call ODDCC2048(dat,n,direction)
-    i = nft
-  case (4096)
-    call ODDCC4096(dat,n,direction)
-    i = nft
-  case (8192)
-    call ODDCC8192(dat,n,direction)
-    i = nft
-  end select
-  
-  if (i==0) call M3D_ErrorMessage("(M3D_FFT1D) Unsupported size.", 2)
-  
-  return
-  
-end subroutine M3D_FFT1D
+!  implicit none
+!  
+!  integer*4, intent(in) :: n, nft
+!  character(len=*), intent(in) :: dir
+!  complex*8, intent(inout) :: dat(nft)
+!    
+!  integer*4 :: i
+!  character*40 :: direction
+!  external :: ODDCC128, ODDCC256, ODDCC512, ODDCC1024
+!  external :: ODDCC2048, ODDCC4096, ODDCC8192 ! link FFTs.f
+!  
+!  if (n<1 .or. n>nft) then
+!    call M3D_ErrorMessage("(M3D_FFT1D) Invalid array size.", 1)
+!    return
+!  end if
+!  direction = dir
+!  
+!  i = 0
+!  select case (nft)
+!  case (128)
+!    call ODDCC128(dat,n,direction)
+!    i = nft
+!  case (256)
+!    call ODDCC256(dat,n,direction)
+!    i = nft
+!  case (512)
+!    call ODDCC512(dat,n,direction)
+!    i = nft
+!  case (1024)
+!    call ODDCC1024(dat,n,direction)
+!    i = nft
+!  case (2048)
+!    call ODDCC2048(dat,n,direction)
+!    i = nft
+!  case (4096)
+!    call ODDCC4096(dat,n,direction)
+!    i = nft
+!  case (8192)
+!    call ODDCC8192(dat,n,direction)
+!    i = nft
+!  end select
+!  
+!  if (i==0) call M3D_ErrorMessage("(M3D_FFT1D) Unsupported size.", 2)
+!  
+!  return
+!  
+!end subroutine M3D_FFT1D
+!!
+!!**********************************************************************!
 !
-!**********************************************************************!
-
-
-
-
-!**********************************************************************!
 !
-subroutine M3D_FFT2D(dat, nx, ny, nft, dir)
-
-  implicit none
-  
-  integer*4, intent(in) :: nx, ny, nft
-  character(len=*), intent(in) :: dir
-  complex*8, intent(inout) :: dat(nft,nft)
-    
-  integer*4 :: i
-  character*40 :: direction
-  external :: ODDCC128S, ODDCC256S, ODDCC512S, ODDCC1024S
-  external :: ODDCC2048S, ODDCC4096S, ODDCC8192S ! link FFTs.f
-  
-  if (nx<1 .or. nx>nft .or. ny<1 .or. ny>nft) then
-    call M3D_ErrorMessage("(M3D_FFT2D) Invalid array size.", 1)
-    return
-  end if
-  direction = dir
-  
-  i = 0
-  select case (nft)
-  case (128)
-    call ODDCC128S(dat,nx,ny,direction)
-    i = nft
-  case (256)
-    call ODDCC256S(dat,nx,ny,direction)
-    i = nft
-  case (512)
-    call ODDCC512S(dat,nx,ny,direction)
-    i = nft
-  case (1024)
-    call ODDCC1024S(dat,nx,ny,direction)
-    i = nft
-  case (2048)
-    call ODDCC2048S(dat,nx,ny,direction)
-    i = nft
-  case (4096)
-    call ODDCC4096S(dat,nx,ny,direction)
-    i = nft
-  case (8192)
-    call ODDCC8192S(dat,nx,ny,direction)
-    i = nft
-  end select
-  
-  if (i==0) call M3D_ErrorMessage("(M3D_FFT2D) Unsupported size.", 2)
-  
-  return
-  
-end subroutine M3D_FFT2D
 !
-!**********************************************************************!
-
-
-
-
-!**********************************************************************!
 !
-subroutine M3D_FFT3D(datr, datk, nx, ny, nz, dir)
+!!**********************************************************************!
+!!
+!subroutine M3D_FFT2D(dat, nx, ny, nft, dir)
 !
-! complex*8 -> complex*8     3-dimesional
-! Fourier-Transforms between datr and datk in direction dir.
-! datk is scrambled and x-y tranposed.
-! The respective input is left unchanged.
+!  implicit none
+!  
+!  integer*4, intent(in) :: nx, ny, nft
+!  character(len=*), intent(in) :: dir
+!  complex*8, intent(inout) :: dat(nft,nft)
+!    
+!  integer*4 :: i
+!  character*40 :: direction
+!  external :: ODDCC128S, ODDCC256S, ODDCC512S, ODDCC1024S
+!  external :: ODDCC2048S, ODDCC4096S, ODDCC8192S ! link FFTs.f
+!  
+!  if (nx<1 .or. nx>nft .or. ny<1 .or. ny>nft) then
+!    call M3D_ErrorMessage("(M3D_FFT2D) Invalid array size.", 1)
+!    return
+!  end if
+!  direction = dir
+!  
+!  i = 0
+!  select case (nft)
+!  case (128)
+!    call ODDCC128S(dat,nx,ny,direction)
+!    i = nft
+!  case (256)
+!    call ODDCC256S(dat,nx,ny,direction)
+!    i = nft
+!  case (512)
+!    call ODDCC512S(dat,nx,ny,direction)
+!    i = nft
+!  case (1024)
+!    call ODDCC1024S(dat,nx,ny,direction)
+!    i = nft
+!  case (2048)
+!    call ODDCC2048S(dat,nx,ny,direction)
+!    i = nft
+!  case (4096)
+!    call ODDCC4096S(dat,nx,ny,direction)
+!    i = nft
+!  case (8192)
+!    call ODDCC8192S(dat,nx,ny,direction)
+!    i = nft
+!  end select
+!  
+!  if (i==0) call M3D_ErrorMessage("(M3D_FFT2D) Unsupported size.", 2)
+!  
+!  return
+!  
+!end subroutine M3D_FFT2D
+!!
+!!**********************************************************************!
 !
-
-  implicit none
-  
-  integer*4, intent(in) :: nx, ny, nz
-  character(len=*), intent(in) :: dir
-  complex*8, intent(inout) :: datr(nx,ny,nz), datk(ny,nx,nz)
-    
-  integer*4 :: i, j, k, nft1, nft2, nalloc
-  character*40 :: direction
-  character(len=80) :: sline
-  complex*8, allocatable :: ctmp2d(:,:), ctmp1d(:) ! transformation helper arrays
-  external :: UPPERCASE
-  
-  if (nx<1 .or. ny<1 .or. nz<1) goto 101
-  call UPPERCASE(dir, direction)
-  
-  nft1 = 2**CEILING( LOG( real( nz ) )/LOG(2.0) ) ! next 2^N above nz
-  nft1 = max(nft1, 256)
-  if (nft1>M3D_FFTBOUND) goto 114
-  nft2 = 2**CEILING( LOG( real( max(nx,ny) ) )/LOG(2.0) ) ! next 2^N above max(nx,ny)
-  nft2 = max(nft2, 256)
-  if (nft2>M3D_FFTBOUND) goto 114
-  
-  ! - prepare transform helper arrays
-  allocate(ctmp2d(nft2,nft2),ctmp1d(nft1),stat=nalloc)
-  if (nalloc/=0) goto 115
-  
-  ! - different sequence for forward and backward transformations
-  if (direction(1:3)=='FOR') then ! FORWARD FT
-    !
-    call M3D_Message("Running forward 3D FFT ...")
-    ! - all x-y planes first
-    !   to temp. fill the result array and keep the input array
-    ctmp2d = cmplx(0.0,0.0)
-    do k=1, nz ! LOOP planes
-      do j=1, ny ! LOOP rows & transfer to helper
-        ctmp2d(1:nx,j) = datr(1:nx,j,k)
-      end do
-      call M3D_FFT2D(ctmp2d, nx, ny, nft2, direction)
-      ! - now x and y is swaped 
-      do j=1, nx ! LOOP rows & transfer to result
-        datk(1:ny,j,k) = ctmp2d(1:ny,j)
-      end do
-    end do
-    ! - all z lines second
-    ctmp1d = cmplx(0.0,0.0)
-    do j=1, nx ! LOOP rows
-      do i=1, ny ! LOOP columns & transfer
-        do k=1, nz
-          ctmp1d(k) = datk(i,j,k)
-        end do
-        call M3D_FFT1D(ctmp1d, nz, nft1, direction)
-        do k=1, nz
-          datk(i,j,k) = ctmp1d(k)
-        end do
-      end do
-    end do
-    ! - done
-    call M3D_Message("Forward 3D FFT done.")
-    !
-  else if (direction(1:3)=='BAC') then ! BACKWARD FT
-    !
-    call M3D_Message("Running backward 3D FFT ...")
-    ! - all x-y planes first
-    !   to temp. fill the result array and keep the input array
-    ctmp2d = cmplx(0.0,0.0)
-    do k=1, nz ! LOOP planes
-      do j=1, nx ! LOOP rows & transfer to helper
-        ctmp2d(1:ny,j) = datk(1:ny,j,k)
-      end do
-      call M3D_FFT2D(ctmp2d, nx, ny, nft2, direction)
-      ! - now x and y is swaped 
-      do j=1, ny ! LOOP rows & transfer to result
-        datr(1:nx,j,k) = ctmp2d(1:nx,j)
-      end do
-    end do
-    ! - all z lines second
-    ctmp1d = cmplx(0.0,0.0)
-    do j=1, ny ! LOOP rows
-      do i=1, nx ! LOOP columns & transfer
-        do k=1, nz
-          ctmp1d(k) = datr(i,j,k)
-        end do
-        call M3D_FFT1D(ctmp1d, nz, nft1, direction)
-        do k=1, nz
-          datr(i,j,k) = ctmp1d(k)
-        end do
-      end do
-    end do
-    ! - done
-    call M3D_Message("Backward 3D FFT done.")
-    !
-  else ! UNKNOW DIRECTION
-    goto 103
-  end if
-  !
-  ! - get rid of the helper arrays
-  deallocate(ctmp2d,ctmp1d,stat=nalloc)
-  if (nalloc/=0) goto 116
-    
-  return
-  
-! error handling
-101 call M3D_ErrorMessage("(M3D_FFT3D) Invalid array size.", 1)
-  return
-103 call M3D_ErrorMessage("(M3D_FFT3D) Invalid direction input.", 3)
-  return
-114 call M3D_ErrorMessage("(M3D_FFT3D) FFT size out of range (8192).", 14)
-  return
-115 call M3D_ErrorMessage("(M3D_FFT3D) Memory allocation failed.", 15)
-  return
-116 call M3D_ErrorMessage("(M3D_FFT3D) Memory deallocation failed.", 16)
-  return
-  
-end subroutine M3D_FFT3D
 !
-!**********************************************************************!
+!
+!
+!!**********************************************************************!
+!!
+!subroutine M3D_FFT3D(datr, datk, nx, ny, nz, dir)
+!!
+!! complex*8 -> complex*8     3-dimesional
+!! Fourier-Transforms between datr and datk in direction dir.
+!! datk is scrambled and x-y tranposed.
+!! The respective input is left unchanged.
+!!
+!
+!  implicit none
+!  
+!  integer*4, intent(in) :: nx, ny, nz
+!  character(len=*), intent(in) :: dir
+!  complex*8, intent(inout) :: datr(nx,ny,nz), datk(ny,nx,nz)
+!    
+!  integer*4 :: i, j, k, nft1, nft2, nalloc
+!  character*40 :: direction
+!  character(len=80) :: sline
+!  complex*8, allocatable :: ctmp2d(:,:), ctmp1d(:) ! transformation helper arrays
+!  external :: UPPERCASE
+!  
+!  if (nx<1 .or. ny<1 .or. nz<1) goto 101
+!  call UPPERCASE(dir, direction)
+!  
+!  nft1 = 2**CEILING( LOG( real( nz ) )/LOG(2.0) ) ! next 2^N above nz
+!  nft1 = max(nft1, 256)
+!  if (nft1>M3D_FFTBOUND) goto 114
+!  nft2 = 2**CEILING( LOG( real( max(nx,ny) ) )/LOG(2.0) ) ! next 2^N above max(nx,ny)
+!  nft2 = max(nft2, 256)
+!  if (nft2>M3D_FFTBOUND) goto 114
+!  
+!  ! - prepare transform helper arrays
+!  allocate(ctmp2d(nft2,nft2),ctmp1d(nft1),stat=nalloc)
+!  if (nalloc/=0) goto 115
+!  
+!  ! - different sequence for forward and backward transformations
+!  if (direction(1:3)=='FOR') then ! FORWARD FT
+!    !
+!    call M3D_Message("Running forward 3D FFT ...")
+!    ! - all x-y planes first
+!    !   to temp. fill the result array and keep the input array
+!    ctmp2d = cmplx(0.0,0.0)
+!    do k=1, nz ! LOOP planes
+!      do j=1, ny ! LOOP rows & transfer to helper
+!        ctmp2d(1:nx,j) = datr(1:nx,j,k)
+!      end do
+!      call M3D_FFT2D(ctmp2d, nx, ny, nft2, direction)
+!      ! - now x and y is swaped 
+!      do j=1, nx ! LOOP rows & transfer to result
+!        datk(1:ny,j,k) = ctmp2d(1:ny,j)
+!      end do
+!    end do
+!    ! - all z lines second
+!    ctmp1d = cmplx(0.0,0.0)
+!    do j=1, nx ! LOOP rows
+!      do i=1, ny ! LOOP columns & transfer
+!        do k=1, nz
+!          ctmp1d(k) = datk(i,j,k)
+!        end do
+!        call M3D_FFT1D(ctmp1d, nz, nft1, direction)
+!        do k=1, nz
+!          datk(i,j,k) = ctmp1d(k)
+!        end do
+!      end do
+!    end do
+!    ! - done
+!    call M3D_Message("Forward 3D FFT done.")
+!    !
+!  else if (direction(1:3)=='BAC') then ! BACKWARD FT
+!    !
+!    call M3D_Message("Running backward 3D FFT ...")
+!    ! - all x-y planes first
+!    !   to temp. fill the result array and keep the input array
+!    ctmp2d = cmplx(0.0,0.0)
+!    do k=1, nz ! LOOP planes
+!      do j=1, nx ! LOOP rows & transfer to helper
+!        ctmp2d(1:ny,j) = datk(1:ny,j,k)
+!      end do
+!      call M3D_FFT2D(ctmp2d, nx, ny, nft2, direction)
+!      ! - now x and y is swaped 
+!      do j=1, ny ! LOOP rows & transfer to result
+!        datr(1:nx,j,k) = ctmp2d(1:nx,j)
+!      end do
+!    end do
+!    ! - all z lines second
+!    ctmp1d = cmplx(0.0,0.0)
+!    do j=1, ny ! LOOP rows
+!      do i=1, nx ! LOOP columns & transfer
+!        do k=1, nz
+!          ctmp1d(k) = datr(i,j,k)
+!        end do
+!        call M3D_FFT1D(ctmp1d, nz, nft1, direction)
+!        do k=1, nz
+!          datr(i,j,k) = ctmp1d(k)
+!        end do
+!      end do
+!    end do
+!    ! - done
+!    call M3D_Message("Backward 3D FFT done.")
+!    !
+!  else ! UNKNOW DIRECTION
+!    goto 103
+!  end if
+!  !
+!  ! - get rid of the helper arrays
+!  deallocate(ctmp2d,ctmp1d,stat=nalloc)
+!  if (nalloc/=0) goto 116
+!    
+!  return
+!  
+!! error handling
+!101 call M3D_ErrorMessage("(M3D_FFT3D) Invalid array size.", 1)
+!  return
+!103 call M3D_ErrorMessage("(M3D_FFT3D) Invalid direction input.", 3)
+!  return
+!114 call M3D_ErrorMessage("(M3D_FFT3D) FFT size out of range (8192).", 14)
+!  return
+!115 call M3D_ErrorMessage("(M3D_FFT3D) Memory allocation failed.", 15)
+!  return
+!116 call M3D_ErrorMessage("(M3D_FFT3D) Memory deallocation failed.", 16)
+!  return
+!  
+!end subroutine M3D_FFT3D
+!!
+!!**********************************************************************!
 
 
 
@@ -736,7 +741,7 @@ subroutine M3D_OrthoGamma(maxdim, nerr)
   integer*4 :: nalloc
   integer*4 :: i, j, k, l, i1, j1, k1, l1
   integer*4 :: kmax, lmax, kmin, lmin, kuse, luse
-  integer*4 :: n1, n2, n3, n1p, n2p, nft1
+  integer*4 :: n1, n2, n3, n1p, n2p!, nft1
   real*4 :: gamma
   complex*8, allocatable :: potcopy(:,:,:)
   real*8 :: b1(3), b2(3), e1(3), e2(3), e2p(3)
@@ -744,6 +749,7 @@ subroutine M3D_OrthoGamma(maxdim, nerr)
   real*8 :: dioph, dmin, rtmp, rmin
   complex*8, allocatable :: cshft(:)
   character(len=M3D_ll) :: sinfo
+  external :: fft_cc
   
   nerr = 0
   nalloc = 0
@@ -906,9 +912,9 @@ subroutine M3D_OrthoGamma(maxdim, nerr)
      & "failed.", nerr)
     return
   end if
-  nft1 = 2**CEILING( LOG( real( n1p ) )/LOG(2.0) ) ! next 2^N above the new 1st dimension
-  nft1 = max(nft1, 256) ! min FFT size
-  allocate(M3D_pot(n1p,n2p,n3), cshft(nft1), stat=nalloc)
+  !nft1 = 2**CEILING( LOG( real( n1p ) )/LOG(2.0) ) ! next 2^N above the new 1st dimension
+  !nft1 = max(nft1, 256) ! min FFT size
+  allocate(M3D_pot(n1p,n2p,n3), cshft(n1p), stat=nalloc)
   if (nalloc/=0) then
     nerr = 7
     call M3D_ErrorMessage("(M3D_OrthoGamma) Memory allocation "// &
@@ -933,16 +939,18 @@ subroutine M3D_OrthoGamma(maxdim, nerr)
       vtmp = 1.0D+00*dble(j-1)*sp12/real(n1p)
       ! 1D-shift by Fourier interpolation:
       ! - FT of the new line
-      call M3D_FFT1D(cshft,n1p,nft1,'for')
+      !call M3D_FFT1D(cshft,n1p,nft1,'for')
+      call fft_cc(cshft,n1p,1)
       ! - Apply the shift by multiplication with a phase ramp EXP( -2*Pi*I*K*D )
       do i=1, n1p
         i1 = i-1 ! positive K
         if (i1>=n1p/2) i1 = i1 - n1p ! negative K
         vpha = twopi*real(i1)*vtmp ! Phase = 2*Pi*K*D
-        cshft(i) = cshft(i)*exp( cmplx(0.0, -vpha) ) ! Phase ramp multiplication
+        cshft(i) = cshft(i)*exp( cmplx(0.0, -vpha) )/real(n1p) ! Phase ramp multiplication and transform scale correction
       end do
       ! - iFT of the shifted line
-      call M3D_FFT1D(cshft,n1p,nft1,'bac')
+      !call M3D_FFT1D(cshft,n1p,nft1,'bac')
+      call fft_cc(cshft,n1p,-1)
       ! - Copy the shifted data (real-part) into the new array.
       if (M3D_intype==0) then ! complex input potentals remain complex
         M3D_pot(1:n1p,j,k) = cshft(1:n1p)
@@ -1005,7 +1013,7 @@ subroutine M3D_OrthoBeta(maxdim, nerr)
   integer*4 :: nalloc
   integer*4 :: i, j, k, l, i1, j1, k1, l1
   integer*4 :: kmax, lmax, kmin, lmin, kuse, luse
-  integer*4 :: n1, n2, n3, n1p, n3p, nft1
+  integer*4 :: n1, n2, n3, n1p, n3p!, nft1
   real*4 :: beta
   complex*8, allocatable :: potcopy(:,:,:)
   real*8 :: b1(3), b3(3), e1(3), e3(3), e3p(3)
@@ -1013,6 +1021,7 @@ subroutine M3D_OrthoBeta(maxdim, nerr)
   real*8 :: dioph, dmin, rtmp, rmin
   complex*8, allocatable :: cshft(:)
   character(len=M3D_ll) :: sinfo
+  external :: fft_cc
   
   nerr = 0
   nalloc = 0
@@ -1175,9 +1184,9 @@ subroutine M3D_OrthoBeta(maxdim, nerr)
      & "failed.", nerr)
     return
   end if
-  nft1 = 2**CEILING( LOG( real( n1p ) )/LOG(2.0) ) ! next 2^N above the new 1st dimension
-  nft1 = max(nft1, 256) ! min FFT size
-  allocate(M3D_pot(n1p,n2,n3p), cshft(nft1), stat=nalloc)
+  !nft1 = 2**CEILING( LOG( real( n1p ) )/LOG(2.0) ) ! next 2^N above the new 1st dimension
+  !nft1 = max(nft1, 256) ! min FFT size
+  allocate(M3D_pot(n1p,n2,n3p), cshft(n1p), stat=nalloc)
   if (nalloc/=0) then
     nerr = 7
     call M3D_ErrorMessage("(M3D_OrthoBeta) Memory allocation "// &
@@ -1202,16 +1211,18 @@ subroutine M3D_OrthoBeta(maxdim, nerr)
       vtmp = 1.0D+00*dble(k-1)*sp13/real(n1p)
       ! 1D-shift by Fourier interpolation:
       ! - FT of the new line
-      call M3D_FFT1D(cshft,n1p,nft1,'for')
+      !call M3D_FFT1D(cshft,n1p,nft1,'for')
+      call fft_cc(cshft, n1p, 1)
       ! - Apply the shift by multiplication with a phase ramp EXP( -2*Pi*I*K*D )
       do i=1, n1p
         i1 = i-1 ! positive K
         if (i1>=n1p/2) i1 = i1 - n1p ! negative K
         vpha = twopi*real(i1)*vtmp ! Phase = 2*Pi*K*D
-        cshft(i) = cshft(i)*exp( cmplx(0.0, -vpha) ) ! Phase ramp multiplication
+        cshft(i) = cshft(i)*exp( cmplx(0.0, -vpha) )/real(n1p) ! Phase ramp multiplication and transform scale correction
       end do
       ! - iFT of the shifted line
-      call M3D_FFT1D(cshft,n1p,nft1,'bac')
+      !call M3D_FFT1D(cshft,n1p,nft1,'bac')
+      call fft_cc(cshft, n1p, -1)
       ! - Copy the shifted data into the new array.
       if (M3D_intype==0) then ! complex input potentals remain complex
         M3D_pot(1:n1p,j,k) = cshft(1:n1p)
@@ -1272,7 +1283,7 @@ subroutine M3D_OrthoAlpha(maxdim, nerr)
   integer*4 :: nalloc
   integer*4 :: i, j, k, l, i1, j1, k1, l1
   integer*4 :: kmax, lmax, kmin, lmin, kuse, luse
-  integer*4 :: n1, n2, n3, n2p, n3p, nft1
+  integer*4 :: n1, n2, n3, n2p, n3p!, nft1
   real*4 :: alpha
   complex*8, allocatable :: potcopy(:,:,:)
   real*8 :: b2(3), b3(3), e2(3), e3(3), e3p(3)
@@ -1280,6 +1291,7 @@ subroutine M3D_OrthoAlpha(maxdim, nerr)
   real*8 :: dioph, dmin, rtmp, rmin
   complex*8, allocatable :: cshft(:)
   character(len=M3D_ll) :: sinfo
+  external :: fft_cc
   
   nerr = 0
   nalloc = 0
@@ -1442,9 +1454,9 @@ subroutine M3D_OrthoAlpha(maxdim, nerr)
      & "failed.", nerr)
     return
   end if
-  nft1 = 2**CEILING( LOG( real( n2p ) )/LOG(2.0) ) ! next 2^N above the new 1st dimension
-  nft1 = max(nft1, 256) ! min FFT size
-  allocate(M3D_pot(n1,n2p,n3p), cshft(nft1), stat=nalloc)
+  !nft1 = 2**CEILING( LOG( real( n2p ) )/LOG(2.0) ) ! next 2^N above the new 1st dimension
+  !nft1 = max(nft1, 256) ! min FFT size
+  allocate(M3D_pot(n1,n2p,n3p), cshft(n2p), stat=nalloc)
   if (nalloc/=0) then
     nerr = 7
     call M3D_ErrorMessage("(M3D_OrthoAlpha) Memory allocation "// &
@@ -1469,16 +1481,18 @@ subroutine M3D_OrthoAlpha(maxdim, nerr)
       vtmp = 1.0D+00*dble(k-1)*sp23/real(n2p)
       ! 1D-shift by Fourier interpolation:
       ! - FT of the new line
-      call M3D_FFT1D(cshft,n2p,nft1,'for')
+      !call M3D_FFT1D(cshft,n2p,nft1,'for')
+      call fft_cc(cshft,n2p,1)
       ! - Apply the shift by multiplication with a phase ramp EXP( -2*Pi*I*K*D )
       do j=1, n2p
         j1 = j-1 ! positive K
         if (j1>=n2p/2) j1 = j1 - n2p ! negative K
         vpha = twopi*real(j1)*vtmp ! Phase = 2*Pi*K*D
-        cshft(j) = cshft(j)*exp( cmplx(0.0, -vpha) ) ! Phase ramp multiplication
+        cshft(j) = cshft(j)*exp( cmplx(0.0, -vpha) )/real(n2p) ! Phase ramp multiplication and transform scale correction
       end do
       ! - iFT of the shifted line
-      call M3D_FFT1D(cshft,n2p,nft1,'bac')
+      !call M3D_FFT1D(cshft,n2p,nft1,'bac')
+      call fft_cc(cshft,n2p,-1)
       ! - Copy the shifted data (real-part) into the new array.
       if (M3D_intype==0) then ! complex input potentals remain complex
         do j=1, n2p
@@ -1563,11 +1577,11 @@ subroutine M3D_Othogonalize(maxdim, nerr)
   
     select case (oseq(i))
     case (1)
-      call M3D_OrthoAlpha(maxdim,nerr)
+      call M3D_OrthoAlpha(maxdim, nerr)
     case (2)
-      call M3D_OrthoBeta(maxdim,nerr)
+      call M3D_OrthoBeta(maxdim, nerr)
     case (3)
-      call M3D_OrthoGamma(maxdim,nerr)
+      call M3D_OrthoGamma(maxdim, nerr)
     end select ! case (oseq(i))
   
   end do
@@ -1600,7 +1614,8 @@ subroutine M3D_DiffractionFilter(nautoap, nbuni, buniv)
   
   integer*4 :: nact, ndata, nalloc
   real*4 :: sx, sy, sz, ssx, ssy, ssz
-  complex*8, dimension(:,:,:), allocatable :: cpotft
+  !complex*8, dimension(:,:,:), allocatable :: cpotft
+  external :: fft3_cc
   
   nact = nautoap + nbuni
   
@@ -1610,10 +1625,10 @@ subroutine M3D_DiffractionFilter(nautoap, nbuni, buniv)
   
   if (ndata<=0) return ! no data
   
-  ! allocate memory for the fourier transform of the potential
-  allocate(cpotft(M3D_n2,M3D_n1,M3D_n3), stat=nalloc)
-  if (nalloc/=0) goto 115
-  cpotft = cmplx(0.0,0.0)
+  !! allocate memory for the fourier transform of the potential
+  !allocate(cpotft(M3D_n2,M3D_n1,M3D_n3), stat=nalloc)
+  !if (nalloc/=0) goto 115
+  !cpotft = cmplx(0.0,0.0)
   
   ! calculate the fourier-space sampling rates
   call M3D_CellDimension(ssx, ssy, ssz )
@@ -1622,21 +1637,25 @@ subroutine M3D_DiffractionFilter(nautoap, nbuni, buniv)
   sz = 1.0 / ssz
   
   ! forward fourier transform
-  call M3D_FFT3D(M3D_pot, cpotft, M3D_n1, M3D_n2, M3D_n3, 'FORWARD')
+  !call M3D_FFT3D(M3D_pot, cpotft, M3D_n1, M3D_n2, M3D_n3, 'FORWARD')
+  call fft3_cc(M3D_pot, M3D_n1, M3D_n2, M3D_n3, 1)
   
   if (nautoap/=0) then ! apply auto aperture
-    call M3D_ApplyDiffApAuto(cpotft, M3D_n1, M3D_n2, M3D_n3, sx, sy, sz)
+    call M3D_ApplyDiffApAuto(M3D_pot, M3D_n1, M3D_n2, M3D_n3, sx, sy, sz)
   end if
   
   if (nbuni/=0) then ! apply dwf
-    call M3D_ApplyDWF(cpotft, M3D_n1, M3D_n2, M3D_n3, sx, sy, sz, buniv)
+    call M3D_ApplyDWF(M3D_pot, M3D_n1, M3D_n2, M3D_n3, sx, sy, sz, buniv)
   end if
   
   ! backward fourier transform
-  call M3D_FFT3D(M3D_pot, cpotft, M3D_n1, M3D_n2, M3D_n3, 'BACKWARD')
+  !call M3D_FFT3D(M3D_pot, cpotft, M3D_n1, M3D_n2, M3D_n3, 'BACKWARD')
+  call fft3_cc(M3D_pot, M3D_n1, M3D_n2, M3D_n3, -1)
+  ! correct transformation scale
+  M3D_pot = M3D_pot / real(ndata)
   
-  deallocate(cpotft, stat=nalloc)
-  if (nalloc/=0) goto 116
+  !deallocate(cpotft, stat=nalloc)
+  !if (nalloc/=0) goto 116
   
   return
   
@@ -1663,12 +1682,12 @@ subroutine M3D_ApplyDiffApAuto(potk, nx, ny, nz, sx, sy, sz)
 !
   implicit none
   
-  complex*8, intent(inout) :: potk(ny,nx,nz) ! fourier transform of pot
+  complex*8, intent(inout) :: potk(nx,ny,nz) ! fourier transform of pot
   integer*4, intent(in) :: nx, ny, nz ! sampling of potk
   real*4, intent(in) :: sx, sy, sz ! sampling rates of potk (kx, ky, kz per pixel)
   
   integer*4 :: i, j, k, i1, j1, k1, nyqx, nyqy, nyqz
-  real*4 :: gz, gz2, gx, gx2, gy, gxy, gmax, gmaxz
+  real*4 :: gz, gz2, gx, gy2, gy, gxy, gmax, gmaxz
   real*4 :: apz, apxy ! aperture values
   real*4, dimension(nx) :: agx
   real*4, dimension(ny) :: agy
@@ -1701,12 +1720,12 @@ subroutine M3D_ApplyDiffApAuto(potk, nx, ny, nz, sx, sy, sz)
     !
     apz = 0.5 - 0.5*tanh( (sqrt(gz2)/gmaxz-0.9)*30.0 )
     !
-    do j=1, nx ! loop rows (wx-axis, transposed)
-      gx = agx(j)
-      gx2 = gx*gx
-      do i=1, ny ! loop columns (wy-axis, transposed)
-        gy = agy(i)
-        gxy = sqrt(gx2 + gy*gy)
+    do j=1, ny ! loop rows (wx-axis, transposed)
+      gy = agy(j)
+      gy2 = gy*gy
+      do i=1, nx ! loop columns (wy-axis, transposed)
+        gx = agx(i)
+        gxy = sqrt(gy2 + gx*gx)
         !
         apxy = 0.5 - 0.5*tanh( (gxy/gmax-0.9)*30.0 )
         !
@@ -1737,13 +1756,13 @@ subroutine M3D_ApplyDWF(potk, nx, ny, nz, sx, sy, sz, Bprm)
 !
   implicit none
   
-  complex*8, intent(inout) :: potk(ny,nx,nz) ! fourier transform of pot
+  complex*8, intent(inout) :: potk(nx,ny,nz) ! fourier transform of pot
   integer*4, intent(in) :: nx, ny, nz ! sampling of potk
   real*4, intent(in) :: sx, sy, sz ! sampling rates of potk (kx, ky, kz per pixel)
   real*4, intent(in) :: Bprm ! B_ISO parameter in nm^2
   
   integer*4 :: i, j, k, i1, j1, k1, nyqx, nyqy, nyqz
-  real*4 :: gz, gz2, gx, gx2, gy, gxy2, g2, dwprm
+  real*4 :: gz, gz2, gx, gy2, gy, gxy2, g2, dwprm
   real*4 :: dwf ! value of the Debye-Waller factor
   real*4, dimension(nx) :: agx
   real*4, dimension(ny) :: agy
@@ -1773,12 +1792,12 @@ subroutine M3D_ApplyDWF(potk, nx, ny, nz, sx, sy, sz, Bprm)
     gz = agz(k)
     gz2 = gz*gz
     !
-    do j=1, nx ! loop rows (wx-axis, transposed)
-      gx = agx(j)
-      gx2 = gx*gx
-      do i=1, ny ! loop columns (wy-axis, transposed)
-        gy = agy(i)
-        g2 = gz2 + gx2 + gy*gy
+    do j=1, ny ! loop rows (wy-axis)
+      gy = agy(j)
+      gy2 = gy*gy
+      do i=1, nx ! loop columns (wx-axis)
+        gx = agx(i)
+        g2 = gz2 + gy2 + gx*gx
         !
         dwf = EXP( dwprm*g2 )
         !
@@ -1795,20 +1814,134 @@ end subroutine M3D_ApplyDWF
 
 
 
+!**********************************************************************!
+!
+subroutine M3D_project(nz, nerr)
+!
+! Projects the potential M3D_pot to M3D_pot_prj along z in nz planes.
+! The projection in plane number i is an integral
+!  pp_i(x,y) = int_z={z_i,z_{i+1}} dz p(x,y,z)
+! with dz = z_{i+1} - z_i = c / nz.
+! The implementation uses Fourier transformations along z to perform
+! the integral, including possible aliasing.
+
+  use mkl_dfti
+  use CellSlicer
+  
+  implicit none
+  
+  integer*4, intent(in) :: nz
+  integer*4, intent(inout) :: nerr
+  
+  integer*4 :: ierr
+  integer*4 :: i, j, k, ka, nyqz
+  integer*4 :: ftstatus
+  type(DFTI_DESCRIPTOR), POINTER :: descr_in
+  type(DFTI_DESCRIPTOR), POINTER :: descr_out
+  
+  real*8 :: sz_z, dz, itogz, gz
+  
+  complex*8 :: cproj
+  complex*8, allocatable :: ccol_trf(:), ccol_in(:), ccol_out(:) ! columns of data
+  
+  external :: fft_cc
+    
+  nerr = 0
+  ierr = 0
+  M3D_n3p = nz
+  nyqz = rshift(nz, 1)
+  sz_z = dsqrt( sum( M3D_b3*M3D_b3 ) ) * dble(M3D_n3)
+  dz = sz_z / nz
+  itogz = 1. / sz_z
+  
+  if (.not.allocated(M3D_pot)) goto 103
+  
+  if (allocated(M3D_pot_prj)) deallocate(M3D_pot_prj,stat=ierr)
+  if (ierr/=0) goto 101
+  allocate(M3D_pot_prj(M3D_n1, M3D_n2, M3D_n3p), stat=ierr)
+  if (ierr/=0) goto 102
+  allocate(ccol_trf(M3D_n3), ccol_in(M3D_n3), ccol_out(M3D_n3p), stat=ierr)
+  if (ierr/=0) goto 102
+  
+  ! prepare MKL DFT descriptors
+  ftstatus = DftiCreateDescriptor(descr_in, DFTI_SINGLE, DFTI_COMPLEX, 1, M3D_n3)
+  ftstatus = DftiCommitDescriptor(descr_in)
+  ftstatus = DftiCreateDescriptor(descr_out, DFTI_SINGLE, DFTI_COMPLEX, 1, M3D_n3p)
+  ftstatus = DftiCommitDescriptor(descr_out)
+  
+  ! prepare the transfer function (projection)
+  do k = 1, M3D_n3
+    ka = mod((k+nyqz-1),nz)-nyqz
+    gz = itogz * ka
+    call CS_GETPROJCOEFF(ccol_trf(k), real(gz,kind=4), real(dz,kind=4)) ! projection function (convolution with a box function and aliasing)
+    ! check whether a scaling factor is needed to compensate fft factors
+  end do
+  
+  ! for each column
+  do j = 1, M3D_n2
+    do i = 1, M3D_n1
+      ! get the current column of potential data (i, j, :)
+      do k = 1, M3D_n3
+        ccol_in(k) = M3D_pot(i,j,k)
+      end do
+      ! compute the forward DFT on input 3d potential sampling along z
+      ftstatus = DftiComputeForward(descr_in, ccol_in)
+      ! accumulate the output coefficients including aliasing
+      ccol_out(:) = cmplx(0.0, 0.0)
+      do k = 1, M3D_n3
+        ka = 1 + mod(k - 1, nz)
+        ccol_out(ka) = ccol_out(ka) + ccol_in(k) * ccol_trf(k)
+      end do
+      ! compute the backward DFT on projected slice sampling along z
+      ftstatus = DftiComputeBackward(descr_out, ccol_out)
+      ! set the projected potential values
+      do k = 1, nz
+        M3D_pot_prj(i, j, k) = ccol_out(k)
+      end do
+    end do
+  end do
+  
+  ! release MKL DFT descriptors
+  ftstatus = DftiFreeDescriptor(descr_in)
+  ftstatus = DftiFreeDescriptor(descr_out)
+  
+  return
+  
+101 nerr = 1
+  call M3D_ErrorMessage("(M3D_project) "// &
+     & "Failed to deallocate an allocated array.", ierr )
+  return
+  
+102 nerr = 2
+  call M3D_ErrorMessage("(M3D_project) "// &
+     & "Failed to allocate memory for an array.", ierr )
+  return
+  
+103 nerr = 3
+  call M3D_ErrorMessage("(M3D_project) "// &
+     & "3d potential is not allocated.", ierr )
+  return
+  
+end subroutine M3D_project
+!**********************************************************************!
+
+
 
 
 !**********************************************************************!
 !
 subroutine M3D_getslice_pgr(islc, nslc, nrx, nry, fabs, ht, pgr, nerr)
 !
+! Handle cases of imaginary input potentials manually:
 ! - Use "fabs" = 0 if  IMAG( "M3D_pot" ) can be /= 0 !
 ! - Use "fabs" > 0 ONLY IF  IMAG( "M3D_pot" ) == 0 !
 
   implicit none
   
   ! PARAMETER DECLARATIONS
-  real*4, parameter :: erest = 510.998928   ! electron rest energy in eV
-  real*4, parameter :: psig = 2.088656      ! 2*pi*m0*e / h**2 *10e-18 nm-2
+  real*4, parameter :: erest = 510.99895   ! electron rest energy in keV
+  real*4, parameter :: psig = 2.0886573497 ! m0 * e / (2*Pi * hbar^2) * (10^-9)^2  [ V^-1 nm^-2 ]
+  real*4, parameter :: elwl = 1.23984198433 ! c*h/e [nm/kV]
   real*4, parameter :: pi4 = 0.7853981634   ! pi/4
   
   ! INTERFACE DECLARATIONS
@@ -1832,80 +1965,87 @@ subroutine M3D_getslice_pgr(islc, nslc, nrx, nry, fabs, ht, pgr, nerr)
   ndimy = M3D_n2*nry
   cabsorb = cmplx(1.0, fabs) ! absorption potential transfer to imaginary part
   cimag = cmplx(0.0, 1.0) ! factor to transform *I (imaginary constant)
-  wl = 1.239842447 / sqrt( ht * ( 1022.0 + ht ) ) ! lambda, electron wavelength [nm]
+  wl = elwl / sqrt( ht * ( 2. * erest + ht ) ) ! lambda, electron wavelength [nm]
   sigmae = psig * wl ! interaction constant [nm-1]
     
   ! PRE-CHECK PARAMETERS
-  if (nslc>M3D_n3) goto 101
+  if (nslc>M3D_n3p) goto 101
   if (islc<1.or.islc>nslc) goto 102
   if (fabs<0.0.or.fabs>1.0) goto 103
   
   ! ALLOCATIONS
-  ! - projected potential
+  ! - projected potential of a slice including tiling
   if (allocated(M3D_slcpot)) deallocate(M3D_slcpot, stat=nalloc)
   if (nalloc/=0) goto 108
   allocate(M3D_slcpot(ndimx,ndimy), stat=nalloc)
   if (nalloc/=0) goto 109
   M3D_slcpot = cmplx(0.0,0.0)
+  !write(*,*) "[dbg] (M3D_getslice_pgr) init"
   
-  ! PROJECTION
-  ! - calculate fractional z coordinates of the slice start and end
-  csz = sqrt( sum( M3D_b3*M3D_b3 ) ) * real( M3D_n3 ) ! cell size along the 3rd dimension [nm]
-  fdz = 1.0 / real(nslc) ! fractional slice thickness
-  dz  = fdz * csz ! real slice thickness [nm]
-  fz0 = real(islc-1) * fdz ! fractional slice start z-coordinate
-  fz1 = real(islc) * fdz   ! fractional slice stop  z-coordinate
-  pscal = sigmae * dz ! projected potential phase action pre-factor
-  fk0 = fz0 * real( M3D_n3 ) ! fractional 3D potential start z-coordinate
-  fk1 = fz1 * real( M3D_n3 ) ! fractional 3D potential stop  z-coordinate
-  k0 = floor(fk0)   ! integer z coordinate below the start coordinate
-  k1 = ceiling(fk1) ! integer z coordinate above the start coordinate
-  ! -----> M3D_slcpot <-----| SUM( M3D_pot(:,:,k+1), k=fk0...fk1 )
-  !
-  ! Example of the projection algorithm for the case of 8 3D potential planes
-  ! and 3 projected slice potentials.
-  !
-  ! k=  8  1  2  3  4  5  6  7  8  1  2
-  !        |                    |  |  
-  ! ----+--+--+--+--+--+--+--+--+--+--+--> fz
-  !    -1  0  1  2  3  4  5  6  7  8  9
-  !        |       |       |       |
-  ! fkx=   0.000   2.667   5.333   1.000
-  !
-  ! sl1=  (1)*1.000
-  !         +(2)*1.000
-  !            +(3)*0.667
-  ! sl2=        (3)*0.333
-  !               +(4)*1.000
-  !                  +(5)*1.000
-  !                     +(6)*0.333
-  ! sl3=                 (6)*0.667
-  !                        +(7)*1.000
-  !                           +(8)*1.000
-  !
-  do k=k0, k1
-    fki = max(0.0, min(1.0, fk1-real(k)))
-    fkt = min(1.0, max(0.0, real(k+1)-fk0))
-    fk  = min(fki,fkt) ! contribution of plane k to islc
-    if (fk==0.0) cycle ! skip this plane
-    k2 = 1 + modulo(k, M3D_n3)
-    do j=1, M3D_n2
-      do i=1, M3D_n1
-        M3D_slcpot(i,j) = M3D_slcpot(i,j) + fk*cabsorb*M3D_pot(i,j,k2)
-      end do
-    end do
-  end do
+  !! PROJECTION // removed 2021-11-15 - the projection is done elsewhere and we use M3D_pot_prj here now
+  !! - calculate fractional z coordinates of the slice start and end
+  !csz = sqrt( sum( M3D_b3*M3D_b3 ) ) * real( M3D_n3p ) ! cell size along the 3rd dimension [nm]
+  !fdz = 1.0 / real(nslc) ! fractional slice thickness
+  !dz  = fdz * csz ! real slice thickness [nm]
+  !fz0 = real(islc-1) * fdz ! fractional slice start z-coordinate
+  !fz1 = real(islc) * fdz   ! fractional slice stop  z-coordinate
+  !pscal = sigmae * dz ! projected potential phase action pre-factor
+  !fk0 = fz0 * real( M3D_n3 ) ! fractional 3D potential start z-coordinate
+  !fk1 = fz1 * real( M3D_n3 ) ! fractional 3D potential stop  z-coordinate
+  !k0 = floor(fk0)   ! integer z coordinate below the start coordinate
+  !k1 = ceiling(fk1) ! integer z coordinate above the start coordinate
+  !! -----> M3D_slcpot <-----| SUM( M3D_pot(:,:,k+1), k=fk0...fk1 )
+  !!
+  !! Example of the projection algorithm for the case of 8 3D potential planes
+  !! and 3 projected slice potentials.
+  !!
+  !! k=  8  1  2  3  4  5  6  7  8  1  2
+  !!        |                    |  |  
+  !! ----+--+--+--+--+--+--+--+--+--+--+--> fz
+  !!    -1  0  1  2  3  4  5  6  7  8  9
+  !!        |       |       |       |
+  !! fkx=   0.000   2.667   5.333   1.000
+  !!
+  !! sl1=  (1)*1.000
+  !!         +(2)*1.000
+  !!            +(3)*0.667
+  !! sl2=        (3)*0.333
+  !!               +(4)*1.000
+  !!                  +(5)*1.000
+  !!                     +(6)*0.333
+  !! sl3=                 (6)*0.667
+  !!                        +(7)*1.000
+  !!                           +(8)*1.000
+  !!
+  !do k=k0, k1
+  !  fki = max(0.0, min(1.0, fk1-real(k)))
+  !  fkt = min(1.0, max(0.0, real(k+1)-fk0))
+  !  fk  = min(fki,fkt) ! contribution of plane k to islc
+  !  if (fk==0.0) cycle ! skip this plane
+  !  k2 = 1 + modulo(k, M3D_n3)
+  !  do j=1, M3D_n2
+  !    do i=1, M3D_n1
+  !      M3D_slcpot(i,j) = M3D_slcpot(i,j) + fk*cabsorb*M3D_pot(i,j,k2)
+  !    end do
+  !  end do
+  !end do
   
   ! PERIODIC REPEAT (nrx,nry)
+  !write(*,*) "[dbg] (M3D_getslice_pgr) copy"
   do j1=1, nry
     do i1=1, nrx
-      if (i1==1.and.j1==1) cycle ! this part contains the data to repeat
-      i2 = 1 + (i1-1)*M3D_n1
-      i3 = i1*M3D_n1
-      do j=1, M3D_n2
-        j2 = j + (j-1)*M3D_n2  
-        M3D_slcpot(i2:i3,j2) = M3D_slcpot(1:M3D_n1,j)
-      end do
+      if (i1==1.and.j1==1) then ! this part sets (first) the data to repeat
+        do j=1, M3D_n2
+          M3D_slcpot(1:M3D_n1,j) = M3D_pot_prj(1:M3D_n1,j,islc) ! get from slice islc of the projected potential buffer
+        end do
+      else ! this repeats on M3D_slcpot to make a tiling (second)
+        i2 = 1 + (i1-1)*M3D_n1
+        i3 = i1*M3D_n1
+        do j=1, M3D_n2
+          j2 = j + (j-1)*M3D_n2  
+          M3D_slcpot(i2:i3,j2) = M3D_slcpot(1:M3D_n1,j)
+        end do
+      end if
     end do
   end do
   
@@ -1913,13 +2053,15 @@ subroutine M3D_getslice_pgr(islc, nslc, nrx, nry, fabs, ht, pgr, nerr)
   !
   ! save as phase grating
   !
+  !write(*,*) "[dbg] (M3D_getslice_pgr) pgr"
   do j=1, ndimy
     do i=1, ndimx
-      cpgr = exp( cimag*pscal*M3D_slcpot(i,j) ) ! phase grating = exp( I*V - ABF*V )
+      cpgr = exp( cimag*sigmae*M3D_slcpot(i,j) ) ! phase grating = exp( I*V - ABF*V ) (only sigmae here, since dz is already multiplied during projection)
       pgr(i,j) = cpgr ! set phase grating value
     end do
   end do
   
+  !write(*,*) "[dbg] (M3D_getslice_pgr) return"
   return
 
 ! ------ Error #1 : Invalid input parameter (number of slices).

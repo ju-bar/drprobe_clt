@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementations of program CELSLC
 !
-! VERSION: 1.0.3 (20200812)
+! VERSION: 1.1.0 (20211022)
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -70,7 +70,7 @@ program celslc
   real*4 :: fz0, fz1
   complex*8, allocatable, dimension(:,:,:) :: slcdat
   
-  external :: InitRand
+  external :: InitRand, InitRand2
   !
   ! ****************************************************************** !
   
@@ -91,7 +91,7 @@ program celslc
   j = 0
   k = 0
   nat = 0
-  call InitRand()
+!  call InitRand()
 !  call CS_INIT()
   call EMS_INIT()
   call ParseCommandLine()
@@ -100,6 +100,11 @@ program celslc
   if (nerr/=0) call CriticalError("Failed to determine input parameters.")
   call Introduce()
   call CheckCommandLine()
+  if (csprm_rngseed > 0) then ! init the RNG of this process
+    call InitRand2(csprm_rngseed)
+  else
+    call InitRand()
+  end if
   !
   ! ****************************************************************** !
   
@@ -285,7 +290,7 @@ program celslc
     call M3D_PostCellInfo()
     
     ! orthogonalize the cell if required
-    call M3D_Othogonalize(fft_dmax, nerr)
+    call M3D_Othogonalize(8192, nerr) ! well, this is can go quickly beyond memory limits, careful with this number
     !
     ! apply apterture and dwf
     call M3D_DiffractionFilter(1, buni*ndwf, buniv)
@@ -296,45 +301,58 @@ program celslc
     call M3D_PostCellInfo()
     call PostRuntime("prepared potential data")
     
-    !
+    ! get cell dimensions from the 3D module to the slice module
+    call M3D_CellDimension(CS_scsx, CS_scsy, CS_scsz )
+    ! set sampling rates
     nx = M3D_n1
     ny = M3D_n2
-    if (nz<=0) nz = M3D_n3 ! use potential z-sampling when no nz option is given
-    if (nz>M3D_n3) then
-      call PostWarning("Specified number of slices is larger than "// &
-     &     "the z-sampling of the 3d potential.")
-      call PostWarning("Number of slices is automatically reduced to"//&
-     &     "match the z-sampling of the 3d potential.")
-      nz = M3D_n3
+    if (nz<=0) then ! number of slices is usually set in command-line using the -nz option
+      call CS_SUGGEST_NSLCFOLZ(wl, nx, ny, nz, nerr)
+      if (nerr/=0) then
+        call CriticalError("Failed to determine number of slices automatically.")
+      end if
+    else
+      call CS_SUGGEST_NSLCFOLZ(wl, nx, ny, i, nerr)
+      if (i > nz) then
+        call PostWarning("There is a possibility for an artificial first-order "// &
+     &     "Laue zone due to a too small number of slices taken from the 3d potential.")
+      end if
     end if
-    !
-    call M3D_CellDimension(CS_scsx, CS_scsy, CS_scsz )
+    if (nz>M3D_n3) then
+      call PostWarning("Number of slices is larger than "// &
+     &     "the z-sampling of the 3d potential.")
+    end if
     !
     ! determine sampling rates
     sdx = CS_scsx / real(nx)
     sdy = CS_scsy / real(ny)
     sdz = CS_scsz / real(nz)
     !
-    ! check single slice calculation index
-    ssc = min(ssc,nz) ! limit slice index to number of slices
-    !
-    
+    !! check single slice calculation index (ssc is no longer supported for 3D potentials)
+    !ssc = min(ssc,nz) ! limit slice index to number of slices
     !
     ! Potentials from external sources need a relativistic correction.
-    M3D_pot = M3D_pot * (1.0 + ht / 511.9989)
+    M3D_pot = M3D_pot * (1.0 + ht / CS_elm0)
     
     !
     ! --- make & save slices from the 3d potential ---<<<
     !
     ! prepare slicing
-    call CS_ALLOC_CELLMEM(0,nerr)
+    call CS_ALLOC_CELLMEM(0, nerr)
     call CS_ALLOC_SLICEMEM(nz, nerr)
-    call CS_SETSLICE_EQUIDIST(nz,nrev, nerr)
+    call CS_SETSLICE_EQUIDIST(nz, nrev, nerr)
     !
-    call POT3D2SLC()
-    call PostRuntime("generated phase gratings from 3D potential")
+    call M3D_project(nz, nerr) ! calculate projected potential in slices
+    if (nerr/=0) then
+    endif
+    call PostRuntime("projected the 3D potential to slices")
+    !
+    call POT3D2SLC() ! calculate phase gratings from projected potentials
+    call PostRuntime("generated phase gratings from projected 3D potentials")
     !
     !
+    if (allocated(M3D_pot)) deallocate(M3D_pot,stat=nerr)
+    if (allocated(M3D_pot_prj)) deallocate(M3D_pot_prj,stat=nerr)
     
   !--------------------------------------------------------------------!
    
