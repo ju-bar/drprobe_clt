@@ -8,7 +8,7 @@
 !         Jülich, Germany
 !         ju.barthel@fz-juelich.de
 !         first version: 13.12.2008
-!         last version: 15.11.2021
+!         last version: 24.11.2021
 !
 ! Purpose: Data and Methods to create Potential slices
 !          for TEM, from given atomic data in form of supercells
@@ -647,7 +647,7 @@ subroutine CS_PROG_START(nmax,pstep)
   CS_PROG_last = 0.0
   
   OPEN (UNIT=6,FORM='FORMATTED',CARRIAGECONTROL='FORTRAN')
-  write(unit=6,fmt='("+",A,F5.1,A)') "Progress: ",0.0,"%   "
+  write(unit=6,fmt='("+",A,F6.2,A)') "Progress: ",0.0,"%   "
   
   return
 
@@ -676,7 +676,7 @@ subroutine CS_PROG_UPDATE(idx)
   
   if ( pcur - CS_PROG_last >= CS_PROG_pproc ) then
     CS_PROG_last = CS_PROG_last + CS_PROG_pproc
-    write(unit=6,fmt='("+",A,F5.1,A)') "Progress: ",pcur,"%   "
+    write(unit=6,fmt='("+",A,F6.2,A)') "Progress: ",pcur,"%   "
   end if
   
   return
@@ -701,7 +701,7 @@ subroutine CS_PROG_STOP(idx)
   
   if ( CS_doconsolemsg<=0 .or. CS_PROG_on==0) return
   pcur = 100.*real(idx)/real(CS_PROG_num)
-  write(unit=6,fmt='("+",A,F5.1,A)') "Progress: ",pcur,"%   "
+  write(unit=6,fmt='("+",A,F6.2,A)') "Progress: ",pcur,"%   "
   OPEN (UNIT=6,FORM='FORMATTED',CARRIAGECONTROL='LIST')
   
   CS_PROG_on = 0
@@ -4061,6 +4061,7 @@ end subroutine CS_GETCELL_VOL
 !
 ! INPUT:
 !   integer*4 :: nx, ny, nz         = discretisation of supercell axes
+!   integer*4 :: nze                = 3d potential z-slicing
 !   integer*4 :: nfl                = create frozen latice displacements
 !   integer*4 :: ndw                = apply Debye-Waller factors
 !   real*4 :: wl                    = electron wavelength [nm]
@@ -4069,11 +4070,11 @@ end subroutine CS_GETCELL_VOL
 !   complex*8 :: pot(nx,ny,nz)      = projected potential in slices
 !   integer*4 :: nerr               = error code
 !
-subroutine CS_GETCELL_POT(nx, ny, nz, nfl, ndw, wl, pot, nerr)
+subroutine CS_GETCELL_POT(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
 
   implicit none
   
-  integer*4, intent(in) :: nx, ny, nz, nfl, ndw
+  integer*4, intent(in) :: nx, ny, nz, nze, nfl, ndw
   real*4, intent(in) :: wl
   integer*4, intent(inout) :: nerr
   complex*8, intent(inout) :: pot(nx,ny,nz)
@@ -4082,7 +4083,7 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nfl, ndw, wl, pot, nerr)
   integer*4 :: i, j, k, i1, j1, k1, ia, jptr ! iterators
   integer*4 :: npc, lndw
   integer*4 :: na ! atom count
-  integer*4 :: nze ! extended number of samples to include aliasing along z
+  integer*4 :: lnze ! extended number of samples to include aliasing along z, local value
   integer*4 :: nyqx, nyqy, nyqz, nyqze ! sampling numbers
   integer*4 :: infl ! internal frozen lattice flag
   real*4 :: sx, sy, sz, itogx, itogy, itogz ! sampling constants
@@ -4199,10 +4200,14 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nfl, ndw, wl, pot, nerr)
   ! The above limitation to scattering vectors will also be applied to the z direction
   ! so the form factors are treated as spherical in numerics.
   gmaxz = itogz*real(nyqz)                           ! max. diffraction in z due to slicing
-  nze = nz * ceiling(gmax / gmaxz)                   ! extension of the z sampling to include gmax
-  nyqze = rshift(nze, 1)                             ! respective nyquist
+  if (nze > 0) then 
+    lnze = nze ! work with user input
+  else
+    lnze = nz * ceiling(gmax / gmaxz)                 ! extension of the z sampling to include gmax
+  end if
+  nyqze = rshift(lnze, 1)                             ! respective nyquist
   apthr = min(itogx*real(nyqx-1),itogy*real(nyqy-1)) ! hard aperture cut-off for saving calculation time
-  allocate(agx(nx), agy(ny), agz(nz), agze(nze), cproj(nze), stat=nerr)
+  allocate(agx(nx), agy(ny), agz(nz), agze(lnze), cproj(lnze), stat=nerr)
   if (nerr/=0) goto 15
   do j=1, nx ! qx axis table
     j1 = mod((j+nyqx-1),nx)-nyqx
@@ -4216,12 +4221,13 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nfl, ndw, wl, pot, nerr)
     k1 = mod((k+nyqz-1),nz)-nyqz
     agz(k) = itogz*real(k1)
   end do
-  do k=1, nze ! extended qz axis table
-    k1 = mod((k+nyqze-1),nze)-nyqze
+  do k=1, lnze ! extended qz axis table
+    k1 = mod((k+nyqze-1),lnze)-nyqze
     agze(k) = itogz*real(k1)
     call CS_GETPROJCOEFF(cproj(k), agze(k), sz) ! projection function (convolution with a box function and aliasing)
   end do
-  write(unit=6,fmt='(A,I)') "  3D source potential sampling extended to ", nze
+  write(unit=6,fmt='(A,I)')      "  3D source potential z-sampling: ", lnze
+  write(unit=6,fmt='(A,F8.3,A)') "  -> max. spatial frequency included: ", itogz*real(nyqze), " 1/nm"
   
   !
   ! initialize potential to zero
@@ -4279,7 +4285,7 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nfl, ndw, wl, pot, nerr)
   ! calculate super-cell potential in fourier space
   !
   ncalc = 0
-  ncalcmax = nx*ny*nze
+  ncalcmax = nx*ny*lnze
   ncalcskip = 0
   if (CS_doconsolemsg>0) then
     call CS_PROG_START(ncalcmax,1.0)
@@ -4290,7 +4296,7 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nfl, ndw, wl, pot, nerr)
     do i=1, nx ! loop (qx-axis)
       gx = agx(i)
       gxy2 = gy2 + gx*gx
-      do k=1, nze ! loop over extended qz axis
+      do k=1, lnze ! loop over extended qz axis
         ncalc = ncalc + 1 ! increase calculated Fourier pixel count
         gz = agze(k)
         gz2 = gz*gz
@@ -4451,6 +4457,7 @@ end subroutine CS_GETCELL_POT
 !
 ! INPUT:
 !   integer*4 :: nx, ny, nz         = discretisation of supercell axes
+!   integer*4 :: nze                = 3d potential z-slicing
 !   integer*4 :: nfl                = create frozen latice displacements
 !   integer*4 :: ndw                = apply Debye-Waller factors
 !   real*4 :: wl                    = electron wavelength [nm]
@@ -4459,11 +4466,11 @@ end subroutine CS_GETCELL_POT
 !   complex*8 :: pot(nx,ny,nz)      = projected potential in slices
 !   integer*4 :: nerr               = error code
 !
-subroutine CS_GETCELL_POT2(nx, ny, nz, nfl, ndw, wl, pot, nerr)
+subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
 
   implicit none
   
-  integer*4, intent(in) :: nx, ny, nz, nfl, ndw
+  integer*4, intent(in) :: nx, ny, nz, nze, nfl, ndw
   real*4, intent(in) :: wl
   integer*4, intent(inout) :: nerr
   complex*8, intent(inout) :: pot(nx,ny,nz)
@@ -4472,7 +4479,7 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nfl, ndw, wl, pot, nerr)
   integer*4 :: i, j, k, i1, j1, k1, ia, jptr ! iterators
   integer*4 :: npc, lndw
   integer*4 :: na ! atom count
-  integer*4 :: nze ! extended number of samples to include aliasing along z
+  integer*4 :: lnze ! extended number of samples to include aliasing along z
   integer*4 :: nyqx, nyqy, nyqz, nyqze ! sampling numbers
   integer*4 :: infl ! internal frozen lattice flag
   integer*4 :: iion ! internal ionization potential flag
@@ -4651,12 +4658,16 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nfl, ndw, wl, pot, nerr)
   ! The above limitation to scattering vectors will also be applied to the z direction
   ! so the form factors are treated as spherical in numerics.
   gmaxz = itogz*real(nyqz)                           ! max. diffraction in z due to slicing
-  nze = nz * ceiling(gmax / gmaxz)                   ! extension of the z sampling to include gmax
-  nyqze = rshift(nze, 1)                             ! respective nyquist
+  if (nze > 0) then 
+    lnze = nze ! work with user input
+  else
+    lnze = nz * ceiling(gmax / gmaxz)                ! extension of the z sampling to include gmax
+  end if
+  nyqze = rshift(lnze, 1)                             ! respective nyquist
   apthr = min(itogx*real(nyqx-1),itogy*real(nyqy-1)) ! hard aperture cut-off for saving calculation time
-  allocate(agx(nx), agy(ny), agz(nz), agze(nze), cproj(nze), stat=nerr)
+  allocate(agx(nx), agy(ny), agz(nz), agze(lnze), cproj(lnze), stat=nerr)
   if (nerr/=0) goto 15
-  allocate(acpx(na,nx), acpy(na,ny), acpz(na,nze), ascak(na,4), stat=nerr)
+  allocate(acpx(na,nx), acpy(na,ny), acpz(na,lnze), ascak(na,4), stat=nerr)
   if (nerr/=0) goto 15
   do i=1, nx ! qx axis tables
     i1 = mod((i+nyqx-1),nx)-nyqx
@@ -4672,14 +4683,15 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nfl, ndw, wl, pot, nerr)
     i1 = mod((i+nyqz-1),nz)-nyqz
     agz(i) = itogz*real(i1)
   end do
-  do i=1, nze ! extended qz axis table
-    i1 = mod((i+nyqze-1),nze)-nyqze
+  do i=1, lnze ! extended qz axis table
+    i1 = mod((i+nyqze-1),lnze)-nyqze
     agze(i) = itogz*real(i1)
     call CS_GETPROJCOEFF(cval, agze(i), sz) ! projection function (convolution with a box function and aliasing)
     cproj(i) = dcmplx(cval)
     acpz(:,i) = exp(dcmplx(0.0,-CS_tpi*fld(:,3)*agze(i)))
   end do
-  write(unit=6,fmt='(A,I)') "  3D source potential sampling extended to ", nze
+  write(unit=6,fmt='(A,I)')      "  3D source potential z-sampling: ", lnze
+  write(unit=6,fmt='(A,F8.3,A)') "  -> max. spatial frequency included: ", itogz*real(nyqze), " 1/nm"
   
   
   
@@ -4687,7 +4699,7 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nfl, ndw, wl, pot, nerr)
   ! calculate super-cell potential in fourier space
   !
   ncalc = 0
-  ncalcmax = nx*ny*nze
+  ncalcmax = nx*ny*lnze
   ncalcskip = 0
   cstrfi = dcmplx(0.0D0, 0.0D0)
   if (CS_doconsolemsg>0) then
@@ -4699,7 +4711,7 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nfl, ndw, wl, pot, nerr)
     do i=1, nx ! loop (qx-axis)
       gx = agx(i)
       gxy2 = gy2 + gx*gx
-      do k=1, nze ! loop over extended qz axis
+      do k=1, lnze ! loop over extended qz axis
         ncalc = ncalc + 1 ! increase calculated Fourier pixel count
         gz = agze(k)
         gz2 = gz*gz

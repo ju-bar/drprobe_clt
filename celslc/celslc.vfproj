@@ -61,6 +61,7 @@
 		<File RelativePath="..\common\fitfeprm.f90"/>
 		<File RelativePath=".\fscatab.f90"/>
 		<File RelativePath="..\common\integration.f90"/>
+		<File RelativePath="C:\Program Files (x86)\IntelSWTools\compilers_and_libraries\windows\mkl\include\mkl_dfti.f90"/>
 		<File RelativePath="..\common\random.f90"/>
 		<File RelativePath="..\common\spacegroups.f90">
 			<FileConfiguration Name="Release|x64">

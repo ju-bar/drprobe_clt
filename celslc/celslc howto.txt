@@ -4,7 +4,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2021-11-22                                                          #
+#   Date: 2021-11-25                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -330,6 +330,15 @@ Additional and experimental options:
   sampling nx, ny and project it in nz slices.
 
 
+  -nze <number> = extended sampling along z for 3d potentials
+
+  Use this number of samples along z for the 3d potential instead
+  of the automatic calculation based on the band-width limit
+  along x and y. The number used in the calculation is at least
+  equal to that defined by the option -nz. Passing 0, negative
+  numbers of omitting this option will trigger automatic sampling.
+
+
   -fx <filename> = external x-ray form-factor table
 
   X-ray form factors will be loaded from the specified file. Form
@@ -648,12 +657,14 @@ Example cel files:
 
 7) History of changes:
 
-- 211112. JB: Version 1.1.0
+- 211125. JB: Version 1.1.0
               Changed to Intel MKL for FFT calculations -> new file fftmkl.f90
 			  Added option -seed to define the seed of the random number
 			  generator from the command line.
 			  Implemented an improved version of calculating projected
 			  potentials and phase gratings from a 3d potential (option -3dp).
+			  Added option -nze to define the z-sampling of the 3d potential
+			  to be used during the projection to slices.
 
 - 200812. JB: Version 1.0.3
               Fixed output file naming with number of slices larger than 999.

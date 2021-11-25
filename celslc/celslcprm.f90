@@ -91,6 +91,7 @@ MODULE celslcprm
   integer*4 :: nfin                         ! input format: 0 = cel, 1 = cif, 10 = asc
   real*4 :: ht, abf, buniv                  ! el. energy, abs., universal Biso
   integer*4 :: nx, ny, nz, nv               ! super-cell discretization
+  integer*4 :: nze                          ! extended sampling for 3d potential synthesis
   integer*4 :: nfl, ndwf, nabs, nabf        ! flags frozen lattice, Debye-Waller factor and abs.
   integer*4 :: nrev                         ! flag for slicing the supercell in reverse order
   integer*4 :: npot                         ! flag for potentials export
@@ -126,6 +127,7 @@ MODULE celslcprm
   DATA nx /64/
   DATA ny /64/
   DATA nz /0/
+  DATA nzp /0/
   DATA nv /1/
   DATA nfl /0/
   DATA ndwf /0/

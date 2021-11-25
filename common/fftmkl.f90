@@ -47,8 +47,6 @@
 !-----------------------------------------------------------------------
   
   
-include "mkl_dfti.f90"
-
 subroutine fft_cc(cdata, n, dir)
 ! Calculates a one-dimensional complex-to-complex FFT by the Intel MKL
 ! in place of a given array cdata (complex*8) with length n.

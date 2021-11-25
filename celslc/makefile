@@ -5,11 +5,19 @@ switch3 = -nologo -O3 -recursive -132 -assume byterecl -threads -static-intel
 switch2 = -nologo -O2 -recursive -132 -assume byterecl -threads -static-intel
 switch1 = -nologo -O1 -recursive -132 -assume byterecl -threads -static-intel
 switch0 = -nologo -O0 -recursive -132 -assume byterecl -threads -static-intel
+# mkl path must be adjusted to the local mkl installation
+mklpath = /usr/local/intel/mkl
+mklpar = -I$(mklpath)/include
+# mkl lib linking must be adjusted to the local mkl installation
+# - when linking 64-bit MKL with ifort on OSX:
+#lpar = $(mklpath)/lib/libmkl_intel_lp64.a $(mklpath)/lib/libmkl_sequential.a $(mklpath)/lib/libmkl_core.a -lpthread -lm -ldl
+# - when linking 64-bit MKL with ifort on Linux:
+lpar = -Wl,--start-group $(mklpath)/lib/intel64/libmkl_intel_lp64.a $(mklpath)/lib/intel64/libmkl_sequential.a $(mklpath)/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -lm -ldl
 # removed switches
 #	 -libs:static ???
 # Start of the makefile
-celslc: binio2.o spacegroups.o symops.o cifio.o emsdata.o 3dpot.o AberrationFunctions.o CellSlicer.o fitfeprm.o fscatab.o FFTs_x.o wekoscatt.o wakiscatt.o integration.o random.o celslcsubs.o celslcprm.o celslc.o
-	$(f90comp) -o celslc -nologo binio2.o spacegroups.o symops.o cifio.o emsdata.o 3dpot.o AberrationFunctions.o CellSlicer.o fitfeprm.o fscatab.o FFTs_x.o wekoscatt.o wakiscatt.o integration.o random.o celslcsubs.o celslcprm.o celslc.o
+celslc: binio2.o spacegroups.o symops.o cifio.o emsdata.o AberrationFunctions.o mkl_dfti.o CellSlicer.o 3dpot.o fitfeprm.o fscatab.o fftmkl.o wekoscatt.o wakiscatt.o integration.o random.o celslcsubs.o celslcprm.o celslc.o
+	$(f90comp) -o celslc -nologo binio2.o spacegroups.o symops.o cifio.o emsdata.o mkl_dfti.o 3dpot.o AberrationFunctions.o CellSlicer.o fitfeprm.o fscatab.o fftmkl.o wekoscatt.o wakiscatt.o integration.o random.o celslcsubs.o celslcprm.o celslc.o $(lpar)
 # Modules
 celslcprm.mod: celslcprm.o celslcprm.f90
 	$(f90comp) -c $(switch3) celslcprm.f90
@@ -19,18 +27,22 @@ emsdata.mod: emsdata.o ../common/emsdata.f90
 	$(f90comp) -c $(switch3) ../common/emsdata.f90
 emsdata.o: ../common/emsdata.f90
 	$(f90comp) -c $(switch3) ../common/emsdata.f90
-m3dpot.mod: 3dpot.o 3dpot.f90
-	$(f90comp) -c $(switch3) 3dpot.f90
-3dpot.o: 3dpot.f90
-	$(f90comp) -c $(switch3) 3dpot.f90
 AberrationFunctions.mod: AberrationFunctions.o ../common/AberrationFunctions.f90
 	$(f90comp) -c $(switch3) ../common/AberrationFunctions.f90
 AberrationFunctions.o: ../common/AberrationFunctions.f90
 	$(f90comp) -c $(switch3) ../common/AberrationFunctions.f90
+mkl_dfti.mod: mkl_dfti.o $(mklpath)/include/mkl_dfti.f90
+	$(f90comp) -c $(switch3) $(mklpar) $(mklpath)/include/mkl_dfti.f90
+mkl_dfti.o: $(mklpath)/include/mkl_dfti.f90
+	$(f90comp) -c $(switch3) $(mklpar) $(mklpath)/include/mkl_dfti.f90
 CellSlicer.mod: fscatab.o CellSlicer.o ../common/CellSlicer.f90
 	$(f90comp) -c $(switch3) ../common/CellSlicer.f90
 CellSlicer.o: fscatab.o ../common/CellSlicer.f90
 	$(f90comp) -c $(switch3) ../common/CellSlicer.f90
+m3dpot.mod: 3dpot.o 3dpot.f90
+	$(f90comp) -c $(switch3) $(mklpar) 3dpot.f90
+3dpot.o: 3dpot.f90
+	$(f90comp) -c $(switch3) $(mklpar) 3dpot.f90
 fitfeprm.mod: fitfeprm.o ../common/fitfeprm.f90
 	$(f90comp) -c $(switch3) ../common/fitfeprm.f90
 fitfeprm.o: ../common/fitfeprm.f90
@@ -54,8 +66,8 @@ spacegroups.o: ../common/spacegroups.f90
 # Routine sources
 binio2.o: ../common/binio2.f90
 	$(f90comp) -c $(switch3) ../common/binio2.f90
-FFTs_x.o: ../common/FFTs_x.f
-	$(f90comp) -c $(switch3) ../common/FFTs_x.f
+fftmkl.o: ../common/fftmkl.f90
+	$(f90comp) -c $(switch3) $(mklpar) ../common/fftmkl.f90
 wekoscatt.o: ../common/wekoscatt.f90
 	$(f90comp) -c $(switch3) ../common/wekoscatt.f90
 wakiscatt.o: ../common/wakiscatt.f90

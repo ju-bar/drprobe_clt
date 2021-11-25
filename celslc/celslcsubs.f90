@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementation of subroutines for CELSLC
 !
-! VERSION: 1.1.0, J.B., 22.11.2021
+! VERSION: 1.1.0, J.B., 23.11.2021
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -47,7 +47,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program [celslc]                                  |")
-  call PostMessage(" | Version: 1.1.0 64-bit  -  2021 November 22        |")
+  call PostMessage(" | Version: 1.1.0 64-bit  -  2021 November 25        |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -578,6 +578,7 @@ subroutine ParseCommandLine()
   nx = 0
   ny = 0
   nz = -1
+  nze = 0
   nv = 1
   nfin = 0 ! default input format = 0 = cel structure file
   abf = 0.0
@@ -768,7 +769,7 @@ subroutine ParseCommandLine()
         call ExplainUsage()
         call CriticalError("Command line parsing error (-nv <number>).")
       end if
-      call get_command_argument (i, buffer, len, status) ! outputfile
+      call get_command_argument (i, buffer, len, status) ! number of variants
       if (status/=0) then
         call ExplainUsage()
         call CriticalError("Command line parsing error (-nv <number>).")
@@ -778,6 +779,26 @@ subroutine ParseCommandLine()
         call ExplainUsage()
         call CriticalError("Failed to read number of variants per slice.")
       end if
+      
+    ! THE 3D POTENTIAL Z DISRETIZATION
+    case ("-nze")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error (-nze <number>).")
+      end if
+      call get_command_argument (i, buffer, len, status) ! number of samples
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error (-nze <number>).")
+      end if
+      read(unit=buffer,fmt=*,iostat=status) nze
+      if (status/=0) then
+        call PostWarning("Failed to read number of samples, using automatic sampling.")
+        nze = 0 ! set back to default
+      end if
+      if (nze<0) nze = 0 ! set back to default auto sampling
       
     ! EXTERNAL POTENTIAL (INDIVIDUAL)
     case ("-addpoti")
@@ -1233,7 +1254,13 @@ SUBROUTINE CheckCommandLine
   if (npot==1) call PostMessage("Exporting potentials to files *.pot.")
   if (npps==0) call PostMessage("Output in slice files are phase gratings.")
   if (npps==1) call PostMessage("Output in slice files are projected potentials.")
-  if (n3dp==1) call PostMessage("Creating a 3D potential from the atomic structure model.")
+  if (n3dp==1) then
+    call PostMessage("Creating a 3D potential from the atomic structure model.")
+    if (nze > 0 .and. nze < nz) then
+      nze = nz
+      call PostMessage("- Input override: 3D potential z-sampling set equal to number of slices.")
+    end if
+  end if
   if (nfx==1) call PostMessage("Using external x-ray scattering factor tables.")
   if (nfe==1) call PostMessage("Using external electron scattering factor parameters.")
   if (nrev==0) call PostMessage("Sorting slices in default order from z/c=0 to z/c=1.")
@@ -1827,7 +1854,7 @@ subroutine CEL2POT3D2SLC()
   M3D_b1 = (/ sdx , 0.0 , 0.0 /)
   M3D_b2 = (/ 0.0 , sdy , 0.0 /)
   M3D_b3 = (/ 0.0 , 0.0 , sdz /)
-  call CS_GETCELL_POT2(nx, ny, nz, nfl, ndwf, wl, M3D_pot_prj, nerr)
+  call CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndwf, wl, M3D_pot_prj, nerr)
   if (nerr/=0) call CriticalError("Failed to project to slices from the 3D potential.")
   if (nerr==0) then
     ! dump the potential back to HD, remove the relativistic correction just for this
