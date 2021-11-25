@@ -17,7 +17,7 @@ lpar = -Wl,--start-group $(mklpath)/lib/intel64/libmkl_intel_lp64.a $(mklpath)/l
 #	 -libs:static ???
 # Start of the makefile
 celslc: binio2.o spacegroups.o symops.o cifio.o emsdata.o AberrationFunctions.o mkl_dfti.o CellSlicer.o 3dpot.o fitfeprm.o fscatab.o fftmkl.o wekoscatt.o wakiscatt.o integration.o random.o celslcsubs.o celslcprm.o celslc.o
-	$(f90comp) -o celslc -nologo binio2.o spacegroups.o symops.o cifio.o emsdata.o mkl_dfti.o 3dpot.o AberrationFunctions.o CellSlicer.o fitfeprm.o fscatab.o fftmkl.o wekoscatt.o wakiscatt.o integration.o random.o celslcsubs.o celslcprm.o celslc.o $(lpar)
+	$(f90comp) -o celslc -nologo binio2.o spacegroups.o symops.o cifio.o emsdata.o mkl_dfti.o AberrationFunctions.o CellSlicer.o 3dpot.o fitfeprm.o fscatab.o fftmkl.o wekoscatt.o wakiscatt.o integration.o random.o celslcsubs.o celslcprm.o celslc.o $(lpar)
 # Modules
 celslcprm.mod: celslcprm.o celslcprm.f90
 	$(f90comp) -c $(switch3) celslcprm.f90
