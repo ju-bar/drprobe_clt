@@ -5284,7 +5284,7 @@ end subroutine CS_GETSLICE_POT
 ! - when using frozen lattice displacements, be aware that
 !   damping of scattering factors by debye-waller factors
 !   is senseless and wrong! So turn them off when calculating
-!   the scatterung factors by CS_PREPARE_SCATTAMPS
+!   the scattering factors by CS_PREPARE_SCATTAMPS
 !
 ! - when using frozen lattice generation, call InitRand() before
 !

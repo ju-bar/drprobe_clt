@@ -367,16 +367,16 @@ FUNCTION FFE_FCHI(p)
   if (n>0) then
     ctmp = 0.0
     if (FFE_USE_WEIGHTS==0) then
-      ctmp = ( FFE_ZRED - &
-             & (p(1)*p(1)+p(5)*p(5)+p(9)*p(9))/FFE_PREFAC)**2.0
+      ctmp = ( FFE_ZRED - (p(1)+p(5)+p(9))/FFE_PREFAC)**2.0
+             !& (p(1)*p(1)+p(5)*p(5)+p(9)*p(9))/FFE_PREFAC)**2.0
       do i=1, n
         call FFE_FUNCPRM(FFE_S(i), p(1:np), vy, FFE_DFDP(1:np), np)
         diff = FFE_F(i) - vy
         ctmp = ctmp + diff*diff
       end do
     else
-      ctmp = FFE_W_EXTRA*(FFE_ZRED - &
-              & (p(1)*p(1)+p(5)*p(5)+p(9)*p(9))/FFE_PREFAC)**2.0
+      ctmp = FFE_W_EXTRA*( FFE_ZRED - (p(1)+p(5)+p(9))/FFE_PREFAC)**2.0
+              !& (p(1)*p(1)+p(5)*p(5)+p(9)*p(9))/FFE_PREFAC)**2.0
       do i=1, n
         call FFE_FUNCPRM(FFE_S(i), p(1:np), vy, FFE_DFDP(1:np), np)
         diff = FFE_F(i) - vy
@@ -426,11 +426,12 @@ FUNCTION FFE_DFCHI(p)
   if (FFE_USE_WEIGHTS/=0) n = min(n,nw)
   if (n>0) then
     FFE_PTMP = 0.0
-    econ = FFE_ZRED - (p(1)*p(1)+p(5)*p(5)+p(9)*p(9))/FFE_PREFAC
+    !econ = FFE_ZRED - (p(1)*p(1)+p(5)*p(5)+p(9)*p(9))/FFE_PREFAC
+    econ = FFE_ZRED - (p(1)+p(5)+p(9))/FFE_PREFAC
     if (FFE_USE_WEIGHTS==0) then
-      FFE_PTMP(1) = 2.0*p(1)/FFE_PREFAC*econ
-      FFE_PTMP(5) = 2.0*p(5)/FFE_PREFAC*econ
-      FFE_PTMP(9) = 2.0*p(9)/FFE_PREFAC*econ
+      FFE_PTMP(1) = -1.0 / FFE_PREFAC !2.0*p(1)/FFE_PREFAC*econ
+      FFE_PTMP(5) = -1.0 / FFE_PREFAC !2.0*p(5)/FFE_PREFAC*econ
+      FFE_PTMP(9) = -1.0 / FFE_PREFAC !2.0*p(9)/FFE_PREFAC*econ
       do i=1, n
         call FFE_FUNCPRM(FFE_S(i), p(1:np), vy, FFE_DFDP(1:np), np)
         diff = FFE_F(i) - vy
@@ -439,9 +440,9 @@ FUNCTION FFE_DFCHI(p)
         end do
       end do
     else
-      FFE_PTMP(1) = FFE_W_EXTRA*2.0*p(1)/FFE_PREFAC*econ
-      FFE_PTMP(5) = FFE_W_EXTRA*2.0*p(5)/FFE_PREFAC*econ
-      FFE_PTMP(9) = FFE_W_EXTRA*2.0*p(9)/FFE_PREFAC*econ
+      FFE_PTMP(1) = -1.0 * FFE_W_EXTRA / FFE_PREFAC !FFE_W_EXTRA*2.0*p(1)/FFE_PREFAC*econ
+      FFE_PTMP(5) = -1.0 * FFE_W_EXTRA / FFE_PREFAC !FFE_W_EXTRA*2.0*p(5)/FFE_PREFAC*econ
+      FFE_PTMP(9) = -1.0 * FFE_W_EXTRA / FFE_PREFAC !FFE_W_EXTRA*2.0*p(9)/FFE_PREFAC*econ
       do i=1, n
         call FFE_FUNCPRM(FFE_S(i), p(1:np), vy, FFE_DFDP(1:np), np)
         diff = FFE_F(i) - vy

@@ -8,7 +8,7 @@
 !         Jülich, Germany
 !         ju.barthel@fz-juelich.de
 !         first version: 05.01.2016
-!         last version: 21.03.2018
+!         last version: 08.02.2022
 !
 ! Purpose: Input and output of structure data from CIF files.
 !          The most recently loaded data is stored in module variables.
@@ -311,6 +311,7 @@ SUBROUTINE CIF_get_value(sval, dval, nchk)
   dval = 0.0d+0
   if (0==len_trim(sval)) return ! zero length strings are interpreted as 0
   if ("."==trim(sval)) return ! "." is interpreted as 0
+  if ("?"==trim(sval)) return ! "?" is interpreted as 0 // sometimes occurring with VESTA output
   ilen = len_trim(sval) ! get length of the data string
   ipar = index(sval,"(") ! get position of a possible precision bracket
   if (ipar>0) ilen = ipar-1 ! shorten the string length for interpretation
@@ -1867,6 +1868,7 @@ LSKL: do ! this code loop jumps over consecutive CIF loops
     if (allocated(CIF_atom_site)) deallocate(CIF_atom_site,stat=nalloc)
     allocate(CIF_atom_site(CIF_atom_site_items_num,n), stat=nalloc) ! allocate
     CIF_atom_site = 0.0d+0 ! initialize
+    CIF_atom_site(6, :) = 1.0d+0 ! initialize site occupancy with 1.0 to catch cases were someone forgot to write it to the CIF
     CIF_atom_site_number = 0 ! CIF_atom_site_number keeps track of the rows used
     !
     ! - now read process the table data

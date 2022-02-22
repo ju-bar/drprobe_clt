@@ -4,7 +4,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2021-11-25                                                          #
+#   Date: 2022-02-08                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -656,6 +656,13 @@ Example cel files:
 
 
 7) History of changes:
+
+- 220222. JB: Version 1.1.2
+              The CIF reader interprets missing site occupancy factors as 1
+			  instead of 0.
+
+- 220208. JB: Version 1.1.1
+              The CIF reader now handles "?" as zero.
 
 - 211125. JB: Version 1.1.0
               Changed to Intel MKL for FFT calculations -> new file fftmkl.f90
