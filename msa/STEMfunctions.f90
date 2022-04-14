@@ -3,7 +3,7 @@
 !                                                                      !
 !    File     :  STEMfunction                                          !
 !                                                                      !
-!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2019   !
+!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2022   !
 !                                                                      !
 !**********************************************************************!
 !                                                                      !
@@ -15,7 +15,7 @@
 !               This is a reduced and single-thread version of the     !
 !               original file, designed for use with the program ms.   !
 !                                                                      !
-!    Version  : 1.1.2, Aug 28, 2019                                    !
+!    Version  : 1.1.3, Apr 13, 2022                                    !
 !                                                                      !
 !   Linked Libs: libfftwf-3.3.lib                                      !
 !   Includes   : fftw3.f03.in                                          !
@@ -1522,21 +1522,18 @@ SUBROUTINE STF_PrepareProbeWaveFourier(wave, nx, ny, sampx,sampy)
   wave(1:nx,1:ny) = 0.0
   tpower = 0.0
   do j=1, ny
-    wy = STF_TABBED_SCR2(j)*itowy + lbty
-    wy2 = (wy-camy)**2
+    wy = STF_TABBED_SCR2(j)*itowy
+    wy2 = (wy-camy-lbty)**2
     do i=1, nx
-      wx = STF_TABBED_SCR(i)*itowx + lbtx
-      wap = wy2 + (wx-camx)**2 ! distance of (wx,wy) from aperture center
+      wx = STF_TABBED_SCR(i)*itowx
+      wap = wy2 + (wx-camx-lbtx)**2 ! distance of (wx,wy) from aperture center
       ! aperture
       if (STF_cap_type==0) then ! set sigmoid aperture function
-        call STF_ApertureFunctionA(wx, wy, camx, camy, arm, ara, aldir, asm, rval)
+        call STF_ApertureFunctionA(wx-lbtx, wy-lbty, camx, camy, arm, ara, aldir, asm, rval)
         power = rval
-        !call STF_TABBED_SIGMOID(sqrt(wap),anglethresh,threshwidth,rval)
-        !power = 1.0-rval
       else if (STF_cap_type==1) then ! set gaussian aperture function
-        call STF_GaussianFunctionA(wx, wy, camx, camy, arm, ara, aldir, rval)
+        call STF_GaussianFunctionA(wx-lbtx, wy-lbty, camx, camy, arm, ara, aldir, rval)
         power = rval
-        !power = exp(-wap/(anglethresh*anglethresh))
       else ! set zero beam only
         power = 0.0
         if (sqrt(wap)<min(itowx,itowy)) then
@@ -1546,7 +1543,7 @@ SUBROUTINE STF_PrepareProbeWaveFourier(wave, nx, ny, sampx,sampy)
       ! check aperture
       if (power<STF_APERTURETHRESH) cycle ! skip beam of insignificant amplitude
       ! aberration function
-      chi = STF_AberrationFunction(wx,wy)
+      chi = STF_AberrationFunction(wx,wy) ! no beam tilt here, this is the optics fixed to the grid
       cval = cmplx(cos(chi),-sin(chi)) ! phase plate
       wave(i,j) = cval*power
       STF_PreparedWavePower = STF_PreparedWavePower + power*power
@@ -1634,26 +1631,20 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(wave, oam, nx, ny, sampx, sampy)
   wave(1:nx,1:ny) = 0.0
   tpower = 0.0
   do j=1, ny
-    wy = STF_TABBED_SCR2(j)*itowy + lbty
-    wy2 = (wy-camy)**2
+    wy = STF_TABBED_SCR2(j)*itowy
+    wy2 = (wy-camy-lbty)**2
     do i=1, nx
-      wx = STF_TABBED_SCR(i)*itowx + lbtx
-      wap = wy2 + (wx-camx)**2 ! distance of (wx,wy) from aperture center
+      wx = STF_TABBED_SCR(i)*itowx
+      wap = wy2 + (wx-camx-lbtx)**2 ! distance of (wx,wy) from aperture center
       ! aperture
       if (STF_cap_type==0) then ! set sigmoid aperture function
-        call STF_ApertureFunctionA(wx, wy, camx, camy, arm, ara, aldir, asm, rval)
+        call STF_ApertureFunctionA(wx-lbtx, wy-lbty, camx, camy, arm, ara, aldir, asm, rval)
         power = rval
-        !call STF_TABBED_SIGMOID(sqrt(wap),anglethresh,threshwidth,rval)
-        !power = 1.0-rval
       else if (STF_cap_type==1) then ! set gaussian aperture function
-        call STF_GaussianFunctionA(wx, wy, camx, camy, arm, ara, aldir, rval)
+        call STF_GaussianFunctionA(wx-lbtx, wy-lbty, camx, camy, arm, ara, aldir, rval)
         power = rval
-        !power = exp(-wap/(anglethresh*anglethresh))
       else ! vortex angular cut-off is not defined
         power = 0.0
-        !if (sqrt(wap)<min(itowx,itowy)) then
-        !  power = 1.0
-        !end if
       end if
       ! check aperture
       if (power<STF_APERTURETHRESH) cycle ! apply condenser aperture

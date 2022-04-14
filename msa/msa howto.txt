@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 1.0.7                                  #
+#   HOWTO use the program MSA, Version 1.0.9                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2020-03-02                                                          #
+#   Date: 2022-04-13                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -737,6 +737,11 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 
 6) History of changes
+
+220413: JB: Version 1.0.9
+- Inverted the effect of beam tilt for STEM probes. It is now identical
+  to what an aperture shift does. This is a change made to comply with
+  what the Dr. Probe GUI is doing.
 
 200812: JB: Version 1.0.8
 - Fixed a bug causing crashes with non-square grids. This has slipped in

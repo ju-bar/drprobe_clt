@@ -4837,6 +4837,235 @@ end subroutine CS_GETCELL_POT2
 
 !**********************************************************************!
 !
+! CS_GETCELL_POTR
+!
+! subroutine, calculates potential of the current supercell in 3D
+!             and projects it in slices stored in the output.
+!             using a partial real-space algorith
+!
+! REQUIRES
+! - supercell data to be allocated and set up
+!   (e.g. call CS_LOAD_EMSCELL)
+! - scattering amplitude data to be allocated and prepared
+!   (call CS_PREPARE_SCATTAMPS)
+!
+! REMARKS
+! - when using frozen lattice displacements, be aware that
+!   damping of scattering factors by debye-waller factors
+!   is senseless and wrong! So turn them off when calculating
+!   the scatterung factors by CS_PREPARE_SCATTAMPS
+!
+! - when using frozen lattice generation, call InitRand() before
+!
+! - Adds the ionic charge potentials here instead of to the
+!   screened potentials in the CS_PREPARE_SCATTAMPS routine.
+!
+! - In order to enable parallel computing calls, we allocate
+!   a local complex*8 square array for the fourier transforms
+!   and projection.
+!
+! INPUT:
+!   integer*4 :: nx, ny, nz         = discretisation of supercell axes
+!   real*4 :: rthr                  = relative strength threshold determining the real-space cut-off
+!   integer*4 :: nfl                = create frozen latice displacements
+!   integer*4 :: ndw                = apply Debye-Waller factors
+!   real*4 :: wl                    = electron wavelength [nm]
+!
+! IN/OUTPUT:
+!   complex*8 :: pot(nx,ny,nz)      = projected potential in slices
+!   integer*4 :: nerr               = error code
+!
+subroutine CS_GETCELL_POTR(nx, ny, nz, rthr, nfl, ndw, wl, pot, nerr)
+
+  implicit none
+  
+  integer*4, intent(in) :: nx, ny, nz, nfl, ndw
+  real*4, intent(in) :: rthr, wl
+  integer*4, intent(inout) :: nerr
+  complex*8, intent(inout) :: pot(nx,ny,nz)
+  
+  ! ---------------------------------------------------------------------------
+  
+  logical :: dwflg
+  integer*4 :: ia
+  integer*4 :: infl, lndw, iion
+  integer*4 :: nyqx, nyqy, nyqz, na
+  real*4 :: ht, ap, fldamp, dwc, vol, pfacio, pscal, relcor
+  real*4 :: sx, sy, sz, itogx, itogy, itogz
+  complex*8 :: cval0, cval, csf ! some complex vars
+  complex*16, dimension(:), allocatable :: cproj ! projection form factor
+  real*4, dimension(:), allocatable :: agx, agy, agz, agze ! spatial frequency lists
+  real*4, dimension(:,:), allocatable :: fld ! frozen lattice displacements and other atom properties
+  integer*4, dimension(:,:), allocatable :: ild ! index table for atoms in the slice
+  complex*16, dimension(:,:), allocatable :: acpx, acpy, acpz ! arrays of complex phase factors for x,y, and z shift of atoms
+  complex*16, dimension(:,:), allocatable :: ascak ! complex scattering coefficients of atoms for one spatial frequency
+  real*8, dimension(:,:), allocatable :: ascaf ! other factors used in vectorized calculation
+  
+  real*4, external :: Gaussrand
+  real*4 :: dx, dy, dz
+  
+  ! ---------------------------------------------------------------------------
+  
+  !
+  ! --- Initializations
+  !
+  nerr = 0
+  ap = 1.0 ! init aperture xy
+  
+  !
+  ! --- Checks on preferences
+  !
+  if (.not.(CS_cellmem_allocated.and.CS_scattamp_prepared)) goto 13
+  
+  !
+  ! --- Check input parameters
+  !
+  if (nx<=0.or.ny<=0.or.nz<=0) goto 14
+  if (wl<=0.0) goto 14
+  
+  !
+  ! handle frozen lattice flag
+  !
+  infl = nfl
+  if (infl<0) infl = 0
+  if (infl>1) infl = 1
+  fldamp = 0.0
+  dwc = 0.0
+  lndw = ndw
+  if (infl==1) then
+    lndw = 0
+    fldamp = CS_rr8p2
+  end if
+  
+  !
+  ! handle DWF flag (used for ionic potential calculations only)
+  !
+  if (lndw==0) then
+    dwflg = .FALSE.
+  else
+    dwflg = .TRUE.
+  end if
+  
+  !
+  ! get sampling constants
+  !
+  nyqx = rshift(nx, 1) ! Nyquist number x
+  nyqy = rshift(ny, 1) ! ... y
+  nyqz = rshift(nz, 1) ! ... z
+  sx = CS_scsx/real(nx) ! real-space sampling rate x
+  sy = CS_scsy/real(ny) ! ... y
+  sz = CS_scsz/real(nz) ! ... z
+  itogx = 1.0 / CS_scsx ! fourier space sampling rate x
+  itogy = 1.0 / CS_scsy ! ... y
+  itogz = 1.0 / CS_scsz ! ... z
+  cval0 = cmplx(0.0,0.0)
+  cval = cval0
+  
+  !
+  ! save as global for the module
+  !
+  CS_sdimx = nx
+  CS_sdimy = ny
+  CS_sdimz = nz
+  CS_repx = 1
+  CS_repy = 1
+  CS_repz = 1
+  CS_sampx = sx
+  CS_sampy = sy
+  CS_sampz = sz
+  
+  !
+  ! other parameters
+  !
+  ht = CS_WL2HT(wl)                                 ! high tension in kV
+  na = CS_numat                                     ! number of atoms in cell
+  vol = CS_scsx*CS_scsy*CS_scsz                     ! supercell volume in nm^3 (assuming orthogonal)
+  pscal = CS_v0 / vol                               ! scattering potential pre-factor
+  relcor = dble((CS_elm0 + ht)/CS_elm0)             ! relativistic correction, gamma
+  pfacio = relcor * dble(CS_scaprea*CS_fpi*10.)     ! pre-factor for ionic part: rel-corr * C * 4 Pi * 10. -> 1/nm
+  
+  !
+  ! initialize potential to zero
+  !
+  pot = cval0
+  
+  !
+  ! return in case of empty cell
+  !
+  if (na<=0) then 
+    return
+  end if
+  
+  !
+  ! precalculate atom displacements for frozen lattice
+  !
+  write(unit=6,fmt='(A)') "  Atomic table preparations ... " 
+  allocate(fld(na,9), ild(na,3), ascaf(na, 3), stat=nerr)
+  if (nerr/=0) goto 15
+  fld = 0.0
+  ild = 0
+  !uatl = 0
+  do ia=1, na ! loop ia over all atoms in cell
+    ild(ia,1) = ia
+    ild(ia,2) = CS_scampptr(ia)
+    fld(ia,1) = CS_atpos(1,ia)*CS_scsx              ! get atom x-position
+    fld(ia,2) = CS_atpos(2,ia)*CS_scsy              ! get atom y-position
+    fld(ia,3) = CS_atpos(3,ia)*CS_scsz              ! get atom z-position
+    dwc = sqrt(CS_atdwf(ia))                ! get debye-waller parameter from (nm**2) to (nm)
+    if (infl==1) then                       ! dice frozen lattice displacements (x,y) and apply
+      if (CS_atlnk(ia)==0) then ! independent site
+        dx = CS_rr8p2*dwc*GaussRand()
+        fld(ia,1) = fld(ia,1) + dx            ! add random x displacement
+        dy = CS_rr8p2*dwc*GaussRand()
+        fld(ia,2) = fld(ia,2) + dy            ! add random y displacement
+        dz = CS_rr8p2*dwc*GaussRand()
+        fld(ia,3) = fld(ia,3) + dz            ! add random z displacement
+      else ! dependent site (copy position from linked site)
+        fld(ia,1) = fld(CS_atlnk(ia),1)
+        fld(ia,2) = fld(CS_atlnk(ia),2)
+        fld(ia,3) = fld(CS_atlnk(ia),3)
+      end if
+    end if
+    fld(ia,4) = dwc                         ! Biso
+    fld(ia,5) = CS_atocc(ia)                ! Occupancy
+    fld(ia,6) = CS_atcrg(ia)                ! ionic charge
+    ascaf(ia,1) = dble(CS_atocc(ia))        ! Occupancy
+    ascaf(ia,2) = dble(CS_atcrg(ia))        ! ionic charge
+    if (CS_atcrg(ia) /= 0.0) ild(ia,3) = 1  ! flag ionic potential
+  end do ! loop ia over all atoms in slice
+  iion = sum(ild(:,3))
+  if (CS_useextsca==0) then
+    iion = 0
+    ild(:,3) = 0
+    fld(:,6) = 0.0 ! reset ionic charge to zero for standard potentials, they are not for ions
+    ascaf(:,2) = 0.0D0
+  end if
+  
+  
+  return
+  
+  !
+  ! error handling
+  !
+13 nerr=-1
+  call CS_ERROR("Potential memory not allocated.")
+  return
+14 nerr=-1
+  call CS_ERROR("Invalid parameters for 3D potential calculations.")
+  return
+15 nerr=-1
+  call CS_ERROR("Memory allocation failed.")
+  return
+16 nerr=-1
+  call CS_ERROR("Memory deallocation failed.")
+  return
+  
+  
+end subroutine CS_GETCELL_POTR
+
+
+!**********************************************************************!
+!
 ! CS_GETSLICE_POT
 !
 ! subroutine, calculates projected potential of slice n

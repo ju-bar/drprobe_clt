@@ -3,7 +3,7 @@
 !                                                                      !
 !    File     :  msasub.f90                                            !
 !                                                                      !
-!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2020   !
+!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2022   !
 !                                                                      !
 !**********************************************************************!
 !                                                                      !
@@ -3084,7 +3084,7 @@ SUBROUTINE InsertExternalWavefunction()
   call GetFreeLFU(nlfu,20,100)
 ! open the input file
   open(unit=nlfu, file=trim(MSP_inwfile), form="binary", access="sequential", &
-     & iostat=nerr, status="old", action="read", share='DENYWR' )
+     & iostat=nerr, status="old", action="read", share='DENYNONE' )
   if (nerr/=0) goto 103
 ! load wave function
   read(unit=nlfu,iostat=nerr) cdata
