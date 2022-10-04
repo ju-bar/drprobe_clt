@@ -52,6 +52,7 @@
 !                                                                      
 !----------------------------------------------------------------------
 
+  
 
 !**********************************************************************!
 !**********************************************************************!
@@ -1685,7 +1686,7 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
   !
   ! clear fourier space working field
   !
-  CS_scampdat = cval0  
+  CS_scampdat = cval0
   
   !
   ! fill imaginary long calulation data now, but only if absflg is set
@@ -4425,6 +4426,9 @@ end subroutine CS_GETCELL_POT
 
 
 
+
+
+
 !**********************************************************************!
 !
 ! CS_GETCELL_POT2
@@ -4494,7 +4498,9 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
   real*4 :: pscal ! potential scaling factor
   real*4 :: ap ! aperture function, damping factors at outer Fourier-space perimeters
   real*4 :: apthr ! potential aperture cut-off threshold
+  real*4 :: scathr ! factor strength threshold
   real*4 :: sf1, sf2, coph, siph ! partial structure factor terms
+  real*4 :: viyr ! local range
   !real*8 :: crgio ! ionic charge
   real*8 :: relcor ! relativistic correction factor
   real*8 :: pfacio ! ionic contribution prefactor
@@ -4508,7 +4514,7 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
   complex*16, dimension(:,:), allocatable :: ascak ! complex scattering coefficients of atoms for one spatial frequency
   real*8, dimension(:,:), allocatable :: ascaf ! other factors used in vectorized calculation
   complex*16 :: cstrfe, cstrfi
-  logical :: dwflg
+  logical :: dwflg, dobwl
 
   external :: fft3_cc ! 3-d fourier transform
   real*4, external :: UniRand, GaussRand, getdwf
@@ -4518,7 +4524,9 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
   !
   nerr = 0
   ap = 1.0 ! init aperture xy
-  
+  scathr = CS_scamprthr
+  viyr = CS_iyr
+  dobwl = CS_do_bwl_pot
   !
   ! --- Checks on preferences
   !
@@ -4711,6 +4719,7 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
     do i=1, nx ! loop (qx-axis)
       gx = agx(i)
       gxy2 = gy2 + gx*gx
+      pot(i, j, :) = cval0
       do k=1, lnze ! loop over extended qz axis
         ncalc = ncalc + 1 ! increase calculated Fourier pixel count
         gz = agze(k)
@@ -4721,8 +4730,8 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
         ! --> Precalculate an aperture that smoothly limits the diffraction angles (x,y)
         !     This funcion is sigmoid and drops from 1 to 0 between 0.8*Nyq and 1*Nyq
         !     independent on sampling
-        if (CS_do_bwl_pot) ap = 0.5 - 0.5*tanh( (g/gmax-0.9)*30.0 ) ! spherical potential band-width limit
-        if (ap * abs(cproj(k)) / sz < CS_scamprthr) then ! cut-off due to low pre-factors
+        if (dobwl) ap = 0.5 - 0.5*tanh( (g/gmax-0.9)*30.0 ) ! spherical potential band-width limit
+        if (ap * abs(cproj(k)) / sz < scathr) then ! cut-off due to low pre-factors
           ncalcskip = ncalcskip + 1 ! count skipped coefficients
           cycle ! skip coefficients of low relative contribution
         end if
@@ -4770,8 +4779,9 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
         end if
         !
         ! --> Accumulate the Fourier coefficient of the projected potential in slice space
+        cval = ap * cproj(k) * cmplx(cstrfe + cstrfi) ! value to add to structure factor
         k1 = 1 + mod(k - 1, nz) ! aliasing, index in the target array
-        pot(i,j,k1) = pot(i,j,k1) + ap * cproj(k) * cmplx(cstrfe + cstrfi)
+        pot(i,j,k1) = pot(i,j,k1) + cval
         !
       end do ! loop (qz-axis)
     end do ! loop (qx-axis)
@@ -4780,6 +4790,7 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
       call CS_PROG_UPDATE(ncalc) ! update progress indicator
     end if
   end do ! loop (qy-axis)
+
   if (CS_doconsolemsg>0) then
     call CS_PROG_STOP(ncalcmax)
   end if

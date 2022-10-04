@@ -57,6 +57,53 @@ subroutine Introduce
   return
 
 end subroutine Introduce
+  
+
+!!**********************************************************************!
+!!
+!! subroutine SetupThreading
+!!
+!! initializes the use of multiple threads
+!!
+!! INPUT: none
+!!
+!! IN/OUTPUT: none
+!!
+!subroutine SetupThreading()
+!  use celslcprm
+!  use mkl_service
+!  use omp_lib
+!  implicit none
+!  integer*4 :: mkl_nthr_max, omp_nthr_max, nthr_max, nproc
+!  integer*4 :: nthr_use_omp, nthr_use_mkl
+!  character(len=1024) :: stmp, stmp1
+!  nthr_use_omp = 1 ! init single thread calculation by default
+!  nthr_use_mkl = 1 ! init single thread calculation by default
+!  call PostMessage("Process threading setup:")
+!  nproc = omp_get_num_procs()
+!  omp_nthr_max = omp_get_max_threads()
+!  mkl_nthr_max = mkl_get_max_threads()
+!  write(unit=stmp1, fmt='(A,I3)') "-  number of processors (OpenMP): ", nproc
+!  call PostMessage(trim(adjustl(stmp1)))
+!  write(unit=stmp1, fmt='(A,I3,A,I3)') "-  max. threads (OpenMP): ", omp_nthr_max, &
+!    & "  (MKL): ", mkl_nthr_max
+!  call PostMessage(trim(adjustl(stmp1)))
+!  if (nthr > 1) then ! requesting parallel computation
+!    nthr_use_omp = MIN(nthr, MAX(1, omp_nthr_max*3/4))
+!    nthr_use_mkl = MIN(nthr, mkl_nthr_max)
+!  end if
+!  if (nthr > 1) then ! set parallel computation
+!    call omp_set_num_threads(nthr_use_omp)
+!    call mkl_set_num_threads(nthr_use_mkl)
+!    write(unit=stmp1, fmt='(A,I3,A,I3,A)') "-> working with (OpenMP): ", nthr_use_omp, &
+!      & ", (MKL): ", nthr_use_mkl, " threads"
+!  call PostMessage(trim(adjustl(stmp1)))
+!  else ! set sequential computation
+!    call omp_set_num_threads(1)
+!    call mkl_set_num_threads(1)
+!    call PostMessage("-> single-thread computation")
+!  end if
+!end subroutine SetupThreading
 
 
 !**********************************************************************!
@@ -573,6 +620,7 @@ subroutine ParseCommandLine()
   npps = 0
   nfx = 0
   nfe = 0
+  !nthr = 1
   nsca = 0
   nrev = 0
   nx = 0
@@ -1128,6 +1176,25 @@ subroutine ParseCommandLine()
         call PostWarning("Failed to read form-factor table index. Switching to default.")
         nsca = 0 ! set back to default Weickenmeier and Kohl
       end if
+      
+    !! THE NUMBER OF PARALLEL THREADS
+    !case ("-nthread")
+    !  nfound = 1
+    !  i = i + 1
+    !  if (i>cnt) then
+    !    call ExplainUsage()
+    !    call CriticalError("Command line parsing error (-nthreads <number>).")
+    !  end if
+    !  call get_command_argument (i, buffer, len, status) ! form factor table index
+    !  if (status/=0) then
+    !    call ExplainUsage()
+    !    call CriticalError("Command line parsing error (-nthreads <number>).")
+    !  end if
+    !  read(unit=buffer,fmt=*,iostat=status) nthr
+    !  if (status/=0 .or. nthr<1 ) then
+    !    call PostWarning("Failed to read number of parallel threads.")
+    !    nthr = 1 ! set back to default (single thread)
+    !  end if
       
     end select CHECK_COMMAND
     

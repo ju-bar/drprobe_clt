@@ -1529,10 +1529,10 @@ function FST_GETSCAR1(s)
 	call FFE_FEPRMY(sf, FST_fep(1:np,j), fe, np)
 	!
 	if (dabs(dz)>0.d+0) then ! an ionic charge potential needs to be added
-      dz = dble(FST_crg(3,j))
-      feio = dz * c1 / (s*s+alph2)
-    end if
-    !
+    dz = dble(FST_crg(3,j))
+    feio = dz * c1 / (s*s+alph2)
+  end if
+  !
 	FST_GETSCAR1 = dble(fe) + feio
 	!
   end if

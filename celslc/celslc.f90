@@ -105,6 +105,7 @@ program celslc
   else
     call InitRand()
   end if
+  !call SetupThreading() ! init threading
   !
   ! ****************************************************************** !
   
