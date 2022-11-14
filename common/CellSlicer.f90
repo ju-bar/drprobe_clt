@@ -8,7 +8,7 @@
 !         Jülich, Germany
 !         ju.barthel@fz-juelich.de
 !         first version: 13.12.2008
-!         last version: 24.11.2021
+!         last version: 07.11.2022
 !
 ! Purpose: Data and Methods to create Potential slices
 !          for TEM, from given atomic data in form of supercells
@@ -357,8 +357,8 @@ MODULE CellSlicer
 !     position occupancy
   real*4, allocatable, dimension(:), public :: CS_atocc
 !
-!     debye-waller factor
-  real*4, allocatable, dimension(:), public :: CS_atdwf
+!     debye-waller parameter Biso and in-plane anisotropy factors (changed 22-Nov-07)
+  real*4, allocatable, dimension(:,:), public :: CS_atdwf
 !
 !     Link list of atoms sharing the same site.
 !     This is a list of indices, one index per atom.
@@ -846,7 +846,7 @@ subroutine CS_ALLOC_CELLMEM(n,nerr)
     if (nerr==0) allocate(CS_atcrg(i), stat=nerr)
     if (nerr==0) allocate(CS_atpos(3,i), stat=nerr)
     if (nerr==0) allocate(CS_atocc(i), stat=nerr)
-    if (nerr==0) allocate(CS_atdwf(i), stat=nerr)
+    if (nerr==0) allocate(CS_atdwf(4,i), stat=nerr)
     if (nerr==0) allocate(CS_atlnk(i), stat=nerr)
     if (nerr==0) then
       CS_attype = ""
@@ -1606,10 +1606,11 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
     z = CS_atnum(i)               ! get atom number / type
     dz = CS_atcrg(i)
     dwf = 0.0
-    if (dwfflg) dwf = CS_atdwf(i) ! get atom dwf
+    if (dwfflg) dwf = CS_atdwf(1,i) ! get atom dwf
     k = 0
     if (CS_scampnum>0) then
       do j=1, CS_scampnum ! loop j over known atom types
+        ! note: this will not distinguish anisotropy differences
         if ((trim(CS_scampsym(j))==trim(sym)).and.(CS_scampdwf(j)==dwf)) then ! atom is known
           k = j
           exit  ! loop j
@@ -1622,7 +1623,7 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
       CS_scampsym(k) = sym
       CS_scampatn(k) = z
       CS_scampcrg(k) = dz
-      CS_scampdwf(k) = dwf
+      CS_scampdwf(k) = dwf ! note: this will not distinguish anisotropy differences
     end if
     CS_scampptr(i) = k ! set pointer
   end do ! loop i over all atoms in supercell
@@ -2060,7 +2061,7 @@ subroutine CS_SETSLICE_AUTO(nrev,nerr)
     if (nalloc/=0) goto 13
     atz = 0.0
     do i=1, CS_numat ! copy atom z coordinates
-      if (nrev==0) then ! normal slining order (0 ... 1)
+      if (nrev==0) then ! normal slicing order (0 ... 1)
         atz(i) = CS_atpos(3,i)
       else ! reversed slicing order (1 ... 0)
         atz(i) = 1.0 - CS_atpos(3,i)
@@ -2124,7 +2125,7 @@ subroutine CS_SETSLICE_AUTO(nrev,nerr)
   !
   slcnumscal = real(nslc)
   CS_atlnk = 0 ! reset atom link list
-  dcell = (/ CS_scsz, CS_scsy, CS_scsz/)
+  dcell = (/ CS_scsx, CS_scsy, CS_scsz/)
   do j=1, CS_numat
     z = CS_atpos(3,j)
     if (nrev/=0) z = 1.0 - CS_atpos(3,j) ! reverse order solved by mirroring the SC at z=0.5
@@ -2517,7 +2518,7 @@ subroutine CS_LOAD_EMSCELL(sfile, nerr)
   character(len=CS_atsl) :: atomid ! atom id string
   real*4 :: apx, apy, apz ! atom position
   real*4 :: aoc ! atom occupancy
-  real*4 :: dwf ! debye waller factor
+  real*4 :: dwf(4) ! debye waller factor and anisotropy factors
   real*8 :: crg ! charge
   
   !
@@ -2625,7 +2626,7 @@ subroutine CS_LOAD_EMSCELL(sfile, nerr)
     !
     read(unit=sline(1:ntmp-1),err=18,iostat=nerr,fmt='(A)') atomid
     if (nerr/=0) goto 18
-    read(unit=sline(ntmp:ndummy),err=18,iostat=nerr,fmt=*) apx, apy, apz, aoc, dwf
+    read(unit=sline(ntmp:ndummy),err=18,iostat=nerr,fmt=*) apx, apy, apz, aoc, dwf(1:4) ! changed 22-Nov-07 to include dwf anisotropy
     if (nerr/=0) goto 18
     
     !
@@ -2644,7 +2645,7 @@ subroutine CS_LOAD_EMSCELL(sfile, nerr)
     end if
     
     CS_atocc(nct) = aoc
-    CS_atdwf(nct) = dwf
+    CS_atdwf(1:4,nct) = dwf(1:4)
 !    write(unit=smsg,fmt='(A,I4,A,A2,1x,5F10.6)') "Atom data (",nct,"): ",adjustl(atomid), apx, apy, apz, aoc, dwf
 !    call CS_MESSAGE(trim(smsg))
     
@@ -3086,7 +3087,8 @@ subroutine CS_SAVE_EMSCELL(sfile, nerr)
     !1002 FORMAT(1x,a2,a1,8f8.4)
     write(unit=lun,fmt=1002,err=15) trim(CS_attype(i)), " ", &
      &                             CS_atpos(1,i), CS_atpos(2,i), CS_atpos(3,i), &
-     &                             CS_atocc(i), CS_atdwf(i), 0.0, 0.0, 0.0
+     &                             CS_atocc(i), CS_atdwf(1,i), CS_atdwf(2,i), &
+     &                             CS_atdwf(3,i), CS_atdwf(4,i) ! modifed 22-Nov-07
     
   end do
   !
@@ -3335,7 +3337,8 @@ subroutine CS_LOAD_CIFCELL(sfile, nerr)
       CS_atcrg(i)   = real(CIF_atom_site(5,i),kind=4)
       CS_atocc(i)   = real(CIF_atom_site(6,i),kind=4)
       call CIF_get_atom_site_biso(i,rtmp) ! get the biso value (A^2)
-      CS_atdwf(i)   = real(rtmp,kind=4)*0.01 ! scale to (nm^2)
+      CS_atdwf(1,i)   = real(rtmp,kind=4)*0.01 ! scale to (nm^2) ! changed 22-Nov-07
+      CS_atdwf(2:4,i) = (/ 1., 1., 0. /) ! biso anisotropy added 22-Nov-07, not supported with CIF input yet
     end do
     !
   end if
@@ -3428,7 +3431,7 @@ subroutine CS_SAVE_CIFCELL(sfile, nerr)
       CIF_atom_site(5,i) = dble(CS_atcrg(i))
       CIF_atom_site(6,i) = dble(CS_atocc(i))
       CIF_atom_site(7,i) = dble(2.0) ! adf type = biso
-      CIF_atom_site(8,i) = dble(CS_atdwf(i)*100.0) ! biso value (A^2)
+      CIF_atom_site(8,i) = dble(CS_atdwf(1,i)*100.0) ! biso value (A^2), changed 22-Nov-07
     end do
     !
   end if
@@ -4256,7 +4259,7 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
     fld(ia,1) = CS_atpos(1,ia)*CS_scsx              ! get atom x-position
     fld(ia,2) = CS_atpos(2,ia)*CS_scsy              ! get atom y-position
     fld(ia,3) = CS_atpos(3,ia)*CS_scsz              ! get atom z-position
-    dwc = sqrt(CS_atdwf(ia))                ! get debye-waller parameter from (nm**2) to (nm)
+    dwc = sqrt(CS_atdwf(1,ia))              ! get debye-waller parameter from (nm**2) to (nm), changed 22-Nov-07, no anisotropy supported in 3d
     if (infl==1) then                       ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ia)==0) then ! independent site
         dx = CS_rr8p2*dwc*GaussRand()
@@ -4626,7 +4629,7 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
     fld(ia,1) = CS_atpos(1,ia)*CS_scsx              ! get atom x-position
     fld(ia,2) = CS_atpos(2,ia)*CS_scsy              ! get atom y-position
     fld(ia,3) = CS_atpos(3,ia)*CS_scsz              ! get atom z-position
-    dwc = sqrt(CS_atdwf(ia))                ! get debye-waller parameter from (nm**2) to (nm)
+    dwc = sqrt(CS_atdwf(1,ia))                ! get debye-waller parameter from (nm**2) to (nm) ! changed 22-Nov-07, no anisotropy supported in 3d
     if (infl==1) then                       ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ia)==0) then ! independent site
         dx = CS_rr8p2*dwc*GaussRand()
@@ -5022,7 +5025,7 @@ subroutine CS_GETCELL_POTR(nx, ny, nz, rthr, nfl, ndw, wl, pot, nerr)
     fld(ia,1) = CS_atpos(1,ia)*CS_scsx              ! get atom x-position
     fld(ia,2) = CS_atpos(2,ia)*CS_scsy              ! get atom y-position
     fld(ia,3) = CS_atpos(3,ia)*CS_scsz              ! get atom z-position
-    dwc = sqrt(CS_atdwf(ia))                ! get debye-waller parameter from (nm**2) to (nm)
+    dwc = sqrt(CS_atdwf(1,ia))                ! get debye-waller parameter from (nm**2) to (nm), changed 22-Nov-07, no anisotropy supported in 3d
     if (infl==1) then                       ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ia)==0) then ! independent site
         dx = CS_rr8p2*dwc*GaussRand()
@@ -5140,6 +5143,7 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   real*4 :: ht ! high tension in kV
   real*8 :: trpha ! translation phase
   real*4 :: x, y, z, dx, dy, dz ! atom position
+  real*4 :: px, py, ca, sa ! 2d anisotropy random position precast
   real*4 :: dwc, fldamp, dwf ! displacement calculation helpers
   real*4 :: pocc ! atom occupancy
   real*4 :: dsz, vol ! slice thickness and volume in nm^3
@@ -5312,15 +5316,20 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
     fld(1,ia) = CS_atpos(1,ja)*CS_scsx              ! get atom avg. x-position
     fld(2,ia) = CS_atpos(2,ja)*CS_scsy              ! get atom avg. y-position
     fld(3,ia) = CS_atpos(3,ja)*CS_scsz - CS_slczlim(1,nslc) ! get atom z-position in slice relative to the entrance plane of a slice (should be positive)
-    dwc = sqrt(CS_atdwf(ja))                ! get debye-waller parameter from (nm**2) to (nm)
+    dwc = sqrt(CS_atdwf(1,ja))                ! get debye-waller parameter from (nm**2) to (nm), changed 22-Nov-07
     if (infl==1) then                       ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ja)==0) then ! independent site
-        dx = CS_rr8p2*dwc*GaussRand()         !   CS_rr8p2*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
-        fld(1,ia) = fld(1,ia) + dx            ! add random x displacement
-        dy = CS_rr8p2*dwc*GaussRand()
-        fld(2,ia) = fld(2,ia) + dy            ! add random y displacement
+        ! CS_rr8p2*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
+        px = CS_rr8p2*dwc*GaussRand()*CS_atdwf(2,ja) ! random anisotropic displacement precast x, added 22-Nov-07
+        py = CS_rr8p2*dwc*GaussRand()*CS_atdwf(3,ja) ! random anisotropic displacement precast y, added 22-Nov-07
+        ca = cos(CS_atdwf(4,ja))             ! rotation matrix elements ...
+        sa = sin(CS_atdwf(4,ja))             ! ...
+        dx = px * ca - py * sa               ! combined effective x displacement, added 22-Nov-07
+        fld(1,ia) = fld(1,ia) + dx           ! add random x displacement
+        dy = px * sa + py * ca               ! combined effective y displacement, added 22-Nov-07
+        fld(2,ia) = fld(2,ia) + dy           ! add random y displacement
         dz = CS_rr8p2*dwc*GaussRand()
-        fld(3,ia) = dz + fld(3,ia)            ! random z displacments (! are ignored -> projected)
+        fld(3,ia) = dz + fld(3,ia)           ! random z displacments (! are ignored -> projected)
       else ! dependent site (copy positions from linked site)
         fld(1:3,ia) = fld(1:3,jld(CS_atlnk(ja)))
       end if
@@ -5571,6 +5580,7 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   real*4 :: sx, sy, itogx, itogy ! sampling constants
   real*4 :: ht ! high tension in kV
   real*4 :: dx, dy, dz ! atom position
+  real*4 :: px, py, sa, ca ! anisotropic dwf support, added 22-Nov-07
   real*4 :: dwc, fldamp, biso ! displacement calculation helpers
   real*4 :: pocc ! atom occupancy
   real*4 :: dsz, vol ! slice thickness and volume in nm^3
@@ -5708,15 +5718,24 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
     lxy(1,ia) = CS_atpos(1,ja)*CS_scsx      ! get atom avg. x-position
     lxy(2,ia) = CS_atpos(2,ja)*CS_scsy      ! get atom avg. y-position
     lxy(3,ia) = CS_atpos(3,ja)*CS_scsz - CS_slczlim(1,nslc)     ! get atom avg. z-position relative to slice entrance plane (this should be a positive distance)
-    biso = CS_atdwf(ja)                     ! get debye-waller parameter (nm**2) = Biso
+    biso = CS_atdwf(1,ja)                   ! get debye-waller parameter (nm**2) = Biso, modified 22-Nov-07
     dwc = sqrt(biso)                        ! get debye-waller parameter from (nm**2) to (nm) (sqrt(Biso))
     if (infl==1) then                     ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ja)==0) then ! independent atom site
-        dx = fldamp*dwc*GaussRand()         !   fldamp*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
-        dy = fldamp*dwc*GaussRand()
+        !dx = fldamp*dwc*GaussRand()         !   fldamp*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
+        !dy = fldamp*dwc*GaussRand()
+        ! fldamp*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
+        px = fldamp*dwc*GaussRand()*CS_atdwf(2,ja) ! random anisotropic displacement precast x, added 22-Nov-07
+        py = fldamp*dwc*GaussRand()*CS_atdwf(3,ja) ! random anisotropic displacement precast y, added 22-Nov-07
+        ca = cos(CS_atdwf(4,ja))             ! rotation matrix elements ...
+        sa = sin(CS_atdwf(4,ja))             ! ...
+        dx = px * ca - py * sa               ! combined effective x displacement, added 22-Nov-07
+        lxy(1,ia) = lxy(1,ia) + dx           ! add random x displacement
+        dy = px * sa + py * ca ! combined effective y displacement, added 22-Nov-07
+        lxy(2,ia) = lxy(2,ia) + dy           ! add random y displacement
         dz = fldamp*dwc*GaussRand()
-        lxy(1,ia) = lxy(1,ia) + dx          ! add random x displacement
-        lxy(2,ia) = lxy(2,ia) + dy          ! add random y displacement
+        !lxy(1,ia) = lxy(1,ia) + dx          ! add random x displacement
+        !lxy(2,ia) = lxy(2,ia) + dy          ! add random y displacement
         lxy(3,ia) = lxy(3,ia) + dz          ! add random z displacement
       else ! dependent atom site
         ia2 = jld(CS_atlnk(ja))
@@ -6228,7 +6247,7 @@ subroutine CS_ORIENT_CELL(oh,ok,ol, yu,yv,yw, sa,sb,sc, nerr)
   real*4, allocatable, dimension(:) :: l_atcrg
   real*4, allocatable, dimension(:,:) :: l_atpos
   real*4, allocatable, dimension(:) :: l_atocc
-  real*4, allocatable, dimension(:) :: l_atdwf
+  real*4, allocatable, dimension(:,:) :: l_atdwf ! modified 22-Nov-07
   real*4 :: rtmp(3), rtmp1 ! some temporary values
 !
   
@@ -6386,7 +6405,7 @@ subroutine CS_ORIENT_CELL(oh,ok,ol, yu,yv,yw, sa,sb,sc, nerr)
     allocate(l_atocc(n), stat=nalloc)
     if (nalloc/=0) goto 804
     l_atocc = 0.0
-    allocate(l_atdwf(n), stat=nalloc)
+    allocate(l_atdwf(1:4,n), stat=nalloc) ! modified 22-Nov-07
     if (nalloc/=0) goto 804
     l_atdwf = 0.0
     allocate(l_atuse(n), stat=nalloc)
@@ -6428,7 +6447,7 @@ subroutine CS_ORIENT_CELL(oh,ok,ol, yu,yv,yw, sa,sb,sc, nerr)
               l_atcrg(m) = CS_atcrg(i)
               l_atpos(1:3,m) = real( v_tmp3(1:3,1), kind=4 )
               l_atocc(m) = CS_atocc(i)
-              l_atdwf(m) = CS_atdwf(i)
+              l_atdwf(1:4,m) = CS_atdwf(1:4,i) ! modified 22-Nov-07
               l_atuse(m) = 1
 !              write(unit=25,fmt='(A,I4,A,I4,A,3F8.4,A)') "  - atom #",m," Z = ",l_atnum(m)," at (",l_atpos(1:3,m),")"
             end if
@@ -6494,7 +6513,7 @@ subroutine CS_ORIENT_CELL(oh,ok,ol, yu,yv,yw, sa,sb,sc, nerr)
           CS_atcrg(j)  = l_atcrg(i)
           CS_atpos(1:3,j) = l_atpos(1:3,i)
           CS_atocc(j)  = l_atocc(i)
-          CS_atdwf(j)  = l_atdwf(i)
+          CS_atdwf(1:4,j)  = l_atdwf(1:4,i) ! modified 22-Nov-07
         end if
       end do
       !
@@ -6665,7 +6684,7 @@ subroutine CS_DICE_PARTIALOCC(dmax, nerr)
   real*4, allocatable, dimension(:) :: l_atcrg
   real*4, allocatable, dimension(:,:) :: l_atpos
   real*4, allocatable, dimension(:) :: l_atocc
-  real*4, allocatable, dimension(:) :: l_atdwf
+  real*4, allocatable, dimension(:,:) :: l_atdwf ! modified 22-Nov-07
 ! external references
 !  external :: InitRand
   real*4, external :: UniRand
@@ -6699,7 +6718,7 @@ subroutine CS_DICE_PARTIALOCC(dmax, nerr)
   allocate(l_atocc(n), stat=nalloc)
   if (nalloc/=0) goto 804
   l_atocc = 0.0
-  allocate(l_atdwf(n), stat=nalloc)
+  allocate(l_atdwf(1:4,n), stat=nalloc) ! modified 22-Nov-07
   if (nalloc/=0) goto 804
   l_atdwf = 0.0
   allocate(l_atuse(n), stat=nalloc)
@@ -6713,7 +6732,7 @@ subroutine CS_DICE_PARTIALOCC(dmax, nerr)
     l_atcrg(i) = CS_atcrg(i)
     l_atpos(1:3,i) = CS_atpos(1:3,i)
     l_atocc(i) = CS_atocc(i)
-    l_atdwf(i) = CS_atdwf(i)
+    l_atdwf(1:4,i) = CS_atdwf(1:4,i) ! modified 22-Nov-07
   end do
   !
   ! Allocate an index field for the partial occupation calculation
@@ -6856,7 +6875,7 @@ subroutine CS_DICE_PARTIALOCC(dmax, nerr)
         CS_atcrg(j)  = l_atcrg(i)
         CS_atpos(1:3,j) = l_atpos(1:3,i)
         CS_atocc(j)  = l_atocc(i)
-        CS_atdwf(j)  = l_atdwf(i)
+        CS_atdwf(1:4,j)  = l_atdwf(1:4,i) ! modified 22-Nov-07
       end if
     end do
     !

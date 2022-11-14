@@ -4,7 +4,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2022-02-08                                                          #
+#   Date: 2022-11-07                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -389,6 +389,23 @@ Additional and experimental options:
   -buni <number> = use the provided Biso value [nm^2] for all atoms.
 
 
+  -fl2 = interprete the 3 numbers following the Biso parameter
+
+  This will activate anisotropic thermal displacements
+  in 2d slice calculations. The implementation affects QEP
+  calculations only and the 3 numbers in each line must be
+  carefully set: <fx> <fy> <angle>, where fx is the factor
+  for the first principal axis of vibration relative to the
+  Biso parameter, fy is the factor for the second principal
+  axis and the angle defines the rotation of the first principal
+  axis towards the supercell a-axis in radians. Note: the
+  default CEL writing zeros for these numbers turns off any
+  displacement when this option is used.
+  Note: This is experimental and should not be used without
+  prior consultation with the developer. There are several
+  other options which will not treat the anisotropy correctly.
+
+
   -nsca <number> = switch internal table of atomic form factors.
 
   Selects from internal tables of atomic form factors:
@@ -656,6 +673,14 @@ Example cel files:
 
 
 7) History of changes:
+
+- 221114. JB: Version 1.1.3
+              Added anisotropy of thermal displacements in 2d QEP calculations.
+			  This is only available with CEL input and uses the last three
+			  numbers (following the Biso parameter). This is not implemented
+			  for absorptive and 3d potentials. Activate this by using the
+			  the command line flag -fl2 instead of -fl.
+			  Fixed a bug in the automatic non-eqidistant slicing.
 
 - 220222. JB: Version 1.1.2
               The CIF reader interprets missing site occupancy factors as 1

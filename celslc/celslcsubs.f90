@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementation of subroutines for CELSLC
 !
-! VERSION: 1.1.2, J.B., 22.02.2022
+! VERSION: 1.1.3, J.B., 14.11.2022
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -47,7 +47,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program [celslc]                                  |")
-  call PostMessage(" | Version: 1.1.2 64-bit  -  2022 February 22        |")
+  call PostMessage(" | Version: 1.1.3 64-bit  -  2022 November 14        |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -339,7 +339,7 @@ subroutine CheckCell()
   if (CS_numat>0) then
     j = 0
     do i=1, CS_numat
-      if (CS_atdwf(i)<0.00001) j = j + 1
+      if (CS_atdwf(1,i)<0.00001) j = j + 1
     end do
     if (j>0) then
       write(unit=smsg,fmt=*) j
@@ -944,6 +944,11 @@ subroutine ParseCommandLine()
       nfound = 1
       nfl = 1 ! switch on frozen lattice calculation
       
+    ! ANISOTROPIC DISPLACEMENT FROZEN LATTICE USAGE
+    case ("-fl2")
+      nfound = 1
+      nfl = 2 ! switch on anisotropic displacements
+      
     ! DEBYE-WALLER FACTOR USAGE
     case ("-dwf")
       nfound = 1
@@ -1247,7 +1252,7 @@ SUBROUTINE CheckCommandLine
   ! ------------
 ! treat unwanted combination of optional parameters
   if (nfl<0) nfl = 0
-  if (nfl>1) nfl = 1
+  !if (nfl>1) nfl = 1 ! modified 22-Nov-07, allow more fl modes
   if (nabs<0) nabs = 0
   if (nabs>1) nabs = 1
   if (nabf<0) nabf = 0
@@ -1263,15 +1268,30 @@ SUBROUTINE CheckCommandLine
   if (nrev<0) nrev = 0
   if (nrev>1) nrev = 1
   
-  if (nfl==1) then ! turn OFF dwf and !abs
-    ndwf = 0
-    !nabs = 0
+  if (nfin==1.and.nfl>1) then ! added 22-Nov-07
+    call CriticalError("Option -nfl2 is not supported in combination " // &
+                & "with option -cif, only with option -cel for this.")
+  end if
+  
+  if (n3dp>0.and.nfl>1) then ! added 22-Nov-07
+    call CriticalError("Option -nfl2 is not supported in combination " // &
+                & "with option -3dp.")
+  end if
+  
+  if (nfl>0) then ! modified 22-Nov-07, was for turn OFF dwf and !abs
+  !  ndwf = 0
+  !  !nabs = 0
+    if (ndwf>0) then
+      call PostWarning("Unusual combination of flags -fl* and -dwf")
+    end if
   else
     nv = 1 ! set number of variants back to default 1.
     if (ndwf==0) then ! turn OFF abs
       !nabs = 0
     end if
   end if
+  
+  
   
   if (nabs==1) then ! turn OFF abf
     nabf = 0
@@ -1314,9 +1334,10 @@ SUBROUTINE CheckCommandLine
   else
     abf = 0.0
   end if
-  if (nfl==1) call PostMessage("Generating frozen-lattice configurations.")
-  if (nfl==1.and.nv==1) call PostWarning(&
-     & "Only one frozen lattice configuration is generated per slice.")
+  if (nfl==1) call PostMessage("Generating thermal displacement configurations.")
+  if (nfl==2) call PostMessage("Generating anisotropic thermal displacement configurations.")
+  if (nfl>0.and.nv==1) call PostWarning(&
+     & "Only one thermal displacement configuration is generated per slice.")
   if (nv>1) call PostMessage("Generating several variants per slice.")
   if (npot==1) call PostMessage("Exporting potentials to files *.pot.")
   if (npps==0) call PostMessage("Output in slice files are phase gratings.")
@@ -1805,8 +1826,8 @@ subroutine CEL2SLC()
     !
     call EMS_SLI_settab1(fz0, fz1, nat, CS_slcatacc(1:nat,i), &
     &     CS_numat, CS_atnum(1:CS_numat), CS_atcrg(1:CS_numat), &
-    &     CS_atdwf(1:CS_numat), CS_atocc(1:CS_numat), &
-    &     CS_atpos(1:3,1:CS_numat) )
+    &     CS_atdwf(1,1:CS_numat), CS_atocc(1:CS_numat), &
+    &     CS_atpos(1:3,1:CS_numat) ) ! modified 22-Nov-07, note: this doesn't save anisotropic dwf
     !
     ! write data to a slice file
     sfil = trim(sslcfile)//"_"//trim(sslnum)//".sli"
@@ -2045,8 +2066,8 @@ subroutine POT3D2SLC()
       ! Prepare the atom table
       call EMS_SLI_settab1(fz0, fz1, nat, CS_slcatacc(1:nat,i), &
     &     CS_numat, CS_atnum(1:CS_numat), CS_atcrg(1:CS_numat), &
-    &     CS_atdwf(1:CS_numat), CS_atocc(1:CS_numat), &
-    &     CS_atpos(1:3,1:CS_numat) )
+    &     CS_atdwf(1,1:CS_numat), CS_atocc(1:CS_numat), &
+    &     CS_atpos(1:3,1:CS_numat) ) ! modified 22-Nov-07, note: this doesn't save anisotropic dwf
       !
       ! Store a slice title made from the slice composition
       call CS_GETSLICETITLE(i,EMS_SLI_data_title,nerr)

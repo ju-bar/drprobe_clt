@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementations of program CELSLC
 !
-! VERSION: 1.1.0 (20211022)
+! VERSION: 1.1.3 (20221107)
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -211,7 +211,17 @@ program celslc
       write(unit=smsg,fmt=*) buniv
       call PostMessage("Replacing individual B_ISO values by "// &
      &    trim(adjustl(smsg))//" nm^2 for all atoms.")
-      CS_atdwf = buniv
+      CS_atdwf(1,:) = buniv ! modified 22-Nov-07
+      CS_atdwf(2,:) = 1.0
+      CS_atdwf(3,:) = 1.0
+      CS_atdwf(4,:) = 0.0
+    end if
+    !
+    if (nfl==1 .and. CS_numat>0) then ! isotropic thermal displacements added 22-Nov-07
+      call PostMessage("Assuming isotropic thermal displacements of atoms.")
+      CS_atdwf(2,:) = 1.0
+      CS_atdwf(3,:) = 1.0
+      CS_atdwf(4,:) = 0.0
     end if
     !
     if (blk==1) then ! re-orientations
