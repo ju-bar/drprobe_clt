@@ -3543,18 +3543,18 @@ SUBROUTINE DetectorReadoutElastic(nerr)
       ! real space export (inverse FT)
       ! - transfer data
       !   for an unknown reason, the following line causes a stack overflow and access violation
-      !   MS_work(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny, ipln)
+      !   MS_work(1:nx,1:ny) = complex(MS_wave_avg(1:nx,1:ny, ipln), kind=4)
       !   Though, the explicit assignement below element by element works.
       do j=1, ny
         do i=1, nx
-          MS_work(i,j) = MS_wave_avg(i,j, ipln)
+          MS_work(i,j) = cmplx(MS_wave_avg(i,j, ipln), kind=4)
         end do
       end do
       ! call MS_FFT(work,MS_dimx,MS_dimy,'forwards') ! RS -> FS
       call MS_FFT_WORK(1)
       wave(1:nx,1:ny) = MS_work(1:nx,1:ny) * sqrt(rsca) * renorm ! renormalize after iDFT and averaging
     else ! Fourier-space averages, can take data as is, but renormalize
-      wave(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny, ipln) * renorm
+      wave(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny, ipln), kind=4) * renorm
     end if
     ! calculate the diffraction data stream used by all detectors and integrators below
     do j=1, ny
@@ -4878,7 +4878,7 @@ END SUBROUTINE UnInitProbeIntegration
 !**********************************************************************!
   
 !**********************************************************************!
-! Warining: No controls are done here to check whether the file is OK.
+! Warning: No controls are done here to check whether the file is OK.
 SUBROUTINE AddImageToOpenFile(lun, lunpos, img, imgbuf, nx, ny, nerr)
   use IFPORT
   integer*4, intent(in) :: lun, lunpos, nx, ny
@@ -4943,7 +4943,7 @@ SUBROUTINE ExportProbeAvgDif(sfile)
   character(len=MSP_ll) :: isfile, sexpfile(3)
   integer*4 :: nerr, nexist, nela, nslc, lun, islc, iout, k
   integer*4 :: nx, ny, nslotbytes
-  real*4, allocatable :: patmp(:,:), patds(:,:)
+  real*4, allocatable :: ptmp(:,:), patmp(:,:), patds(:,:)
   external :: fileopenexclrw ! (sfile, lun, nexist, nerr)
   external :: createfilefolder ! (sfile,nerr) this file
   external :: sinsertslcidx ! (idx,idxlen,sfnin,sfnadd,sfnext,sfnout) this file
@@ -4968,11 +4968,12 @@ SUBROUTINE ExportProbeAvgDif(sfile)
   else ! use the input file name
     isfile = trim(sfile)
   end if
-  allocate(patmp(1:nx,1:ny), stat=nerr)
+  allocate(ptmp(1:nx,1:ny), patmp(1:nx,1:ny), stat=nerr)
   if (nerr/=0) then
     call CriticalError("Failed to allocate memory for storing <padif> data.")
     goto 99
   end if
+  ptmp = 0
   patmp = 0
   if (nela>0) then
     allocate(patds(1:nx,1:ny), stat=nerr)
@@ -5004,8 +5005,9 @@ SUBROUTINE ExportProbeAvgDif(sfile)
         k = MSP_ldetpln(islc) ! get storage slot
         if (k < 0) cycle ! nothing stored for islc
         ! add data to slot k in the file
+        ptmp(1:nx,1:ny) = real(MSP_padif(1:nx,1:ny,k), kind=4)
         call AddImageToOpenFile(lun, k*nslotbytes, &
-           & MSP_padif(1:nx,1:ny,k), patmp(1:nx,1:ny), nx, ny , nerr)
+           & ptmp(1:nx,1:ny), patmp(1:nx,1:ny), nx, ny , nerr)
         if (nerr/=0) goto 101
       end do
     else ! new file -> just store all data
@@ -5013,7 +5015,8 @@ SUBROUTINE ExportProbeAvgDif(sfile)
         k = MSP_ldetpln(islc) ! get storage slot
         if (k < 0) cycle ! nothing stored for islc
         ! write the data for slice islc in slot k
-        write(unit=lun,iostat=nerr) MSP_padif(1:nx,1:ny,k)
+        ptmp(1:nx,1:ny) = real(MSP_padif(1:nx,1:ny,k), kind=4)
+        write(unit=lun,iostat=nerr) ptmp(1:nx,1:ny)
         if (nerr/=0) then
           nerr = 3
           goto 101
@@ -5035,8 +5038,9 @@ SUBROUTINE ExportProbeAvgDif(sfile)
           k = MSP_ldetpln(islc) ! get storage slot
           if (k < 0) cycle ! nothing stored for islc
           ! add data to slot k in the file
+          ptmp(1:nx,1:ny) = real(MSP_padif_ela(1:nx,1:ny,k), kind=4)
           call AddImageToOpenFile(lun, k*nslotbytes, &
-             & MSP_padif_ela(1:nx,1:ny,k), patmp(1:nx,1:ny), nx, ny , nerr)
+             & ptmp(1:nx,1:ny), patmp(1:nx,1:ny), nx, ny , nerr)
           if (nerr/=0) goto 101
         end do
       else ! new file -> just store all data
@@ -5044,7 +5048,8 @@ SUBROUTINE ExportProbeAvgDif(sfile)
           k = MSP_ldetpln(islc) ! get storage slot
           if (k < 0) cycle ! nothing stored for islc
           ! write the data for slice islc in slot k
-          write(unit=lun,iostat=nerr) MSP_padif_ela(1:nx,1:ny,k)
+          ptmp(1:nx,1:ny) = real(MSP_padif_ela(1:nx,1:ny,k), kind=4)
+          write(unit=lun,iostat=nerr) ptmp(1:nx,1:ny)
           if (nerr/=0) then
             nerr = 3
             goto 101
@@ -5064,7 +5069,7 @@ SUBROUTINE ExportProbeAvgDif(sfile)
           k = MSP_ldetpln(islc) ! get storage slot
           if (k < 0) cycle ! nothing stored for islc
           ! get the tds data
-          patds(1:nx,1:ny) = MSP_padif(1:nx,1:ny,k) - MSP_padif_ela(1:nx,1:ny,k)
+          patds(1:nx,1:ny) = real(MSP_padif(1:nx,1:ny,k) - MSP_padif_ela(1:nx,1:ny,k), kind=4)
           ! add data to slot k in the file
           call AddImageToOpenFile(lun, k*nslotbytes, &
              & patds(1:nx,1:ny), patmp(1:nx,1:ny), nx, ny , nerr)
@@ -5075,7 +5080,7 @@ SUBROUTINE ExportProbeAvgDif(sfile)
           k = MSP_ldetpln(islc) ! get storage slot
           if (k < 0) cycle ! nothing stored for islc
           ! get the tds data
-          patds(1:nx,1:ny) = MSP_padif(1:nx,1:ny,k) - MSP_padif_ela(1:nx,1:ny,k)
+          patds(1:nx,1:ny) = real(MSP_padif(1:nx,1:ny,k) - MSP_padif_ela(1:nx,1:ny,k), kind=4)
           ! write the data for slice islc in slot k
           write(unit=lun,iostat=nerr) patds(1:nx,1:ny)
           if (nerr/=0) then
@@ -5106,12 +5111,14 @@ SUBROUTINE ExportProbeAvgDif(sfile)
       ! work on the open file
       if (nexist>0) then ! existing file -> add the data
         ! add data to the file
-        call AddImageToOpenFile(lun, 0, MSP_padif(1:nx,1:ny,k), &
+        ptmp(1:nx,1:ny) = real(MSP_padif(1:nx,1:ny,k), kind=4)
+        call AddImageToOpenFile(lun, 0,ptmp(1:nx,1:ny), &
           & patmp(1:nx,1:ny), nx, ny , nerr)
         if (nerr/=0) goto 101
       else ! new file -> just store all data
         ! write the data
-        write(unit=lun,iostat=nerr) MSP_padif(1:nx,1:ny,k)
+        ptmp(1:nx,1:ny) = real(MSP_padif(1:nx,1:ny,k), kind=4)
+        write(unit=lun,iostat=nerr) ptmp(1:nx,1:ny)
         if (nerr/=0) then
           nerr = 3
           goto 101
@@ -5129,12 +5136,14 @@ SUBROUTINE ExportProbeAvgDif(sfile)
         ! work on the open file
         if (nexist>0) then ! existing file -> add the data
           ! add data the file
-          call AddImageToOpenFile(lun, 0, MSP_padif_ela(1:nx,1:ny,k), &
+          ptmp(1:nx,1:ny) = real(MSP_padif_ela(1:nx,1:ny,k), kind=4)
+          call AddImageToOpenFile(lun, 0, ptmp(1:nx,1:ny), &
             & patmp(1:nx,1:ny), nx, ny , nerr)
           if (nerr/=0) goto 101
         else ! new file -> just store all data
           ! write the data
-          write(unit=lun,iostat=nerr) MSP_padif_ela(1:nx,1:ny,k)
+          ptmp(1:nx,1:ny) = real(MSP_padif_ela(1:nx,1:ny,k), kind=4)
+          write(unit=lun,iostat=nerr) ptmp(1:nx,1:ny)
           if (nerr/=0) then
             nerr = 3
             goto 101
@@ -5145,7 +5154,7 @@ SUBROUTINE ExportProbeAvgDif(sfile)
         ! * TDS INTENSITY DATA 
         !
         ! get the tds data
-        patds(1:nx,1:ny) = MSP_padif(1:nx,1:ny,k) - MSP_padif_ela(1:nx,1:ny,k)
+        patds(1:nx,1:ny) = real(MSP_padif(1:nx,1:ny,k) - MSP_padif_ela(1:nx,1:ny,k), kind=4)
         ! open the file 
         call fileopenexclrw(sexpfile(1), lun, nexist, nerr)
         if (nerr/=0) goto 100
@@ -5291,7 +5300,7 @@ SUBROUTINE ExportProbeIntensity(sfile)
       end if
       !
       ! get total intensity
-      pimg(1:nx,1:ny) = MSP_pimg(1:nx,1:ny,k) * rnorm
+      pimg(1:nx,1:ny) = real(MSP_pimg(1:nx,1:ny,k), kind=4) * rnorm
       ! prepare file names
       call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pimg_tot",".dat",sexpfile(1))
       call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pimg_ela",".dat",sexpfile(2))
@@ -5306,12 +5315,12 @@ SUBROUTINE ExportProbeIntensity(sfile)
       if (nwavavg>0) then
         ! get elastic and tds images
         if (nwavavg==1) then ! wave data is in Fourier space, need to transform
-          MS_work(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny,k) * rnorm
+          MS_work(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny,k), kind=4) * rnorm
           ! call MS_FFT(work,MS_dimx,MS_dimy,'backwards')
           call MS_FFT_WORK(-1)
           wave(1:nx,1:ny) = MS_work(1:nx,1:ny) * sqrt(rsca) ! renormalize after iDFT
         else ! wave data is in real space, just copy
-          wave(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny,k) * rnorm
+          wave(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny,k), kind=4) * rnorm
         end if
         ! calculate elastic image
         do j=1, ny
@@ -5368,10 +5377,10 @@ SUBROUTINE ExportProbeIntensity(sfile)
       end if
       !
       ! get total intensity
-      pimg(1:nx,1:ny) = MSP_pdif(1:nx,1:ny,k) * rnorm
+      pimg(1:nx,1:ny) = real(MSP_pdif(1:nx,1:ny,k), kind=4) * rnorm
       !
       if (MSP_padifmode==1) then ! add to average diffraction pattern
-        MSP_padif(1:nx,1:ny,k) = MSP_padif(1:nx,1:ny,k) + pimg(1:nx,1:ny)*rscas ! ... normalized to number of scan points
+        MSP_padif(1:nx,1:ny,k) = MSP_padif(1:nx,1:ny,k) + MSP_pdif(1:nx,1:ny,k)*rscas ! ... normalized to number of scan points
       end if
       if (MSP_pdifmode==1) then ! ouput of diffraction pattern per scan position
         ! prepare file names and save
@@ -5389,12 +5398,12 @@ SUBROUTINE ExportProbeIntensity(sfile)
       if (nwavavg>0) then
         ! get elastic and tds images
         if (nwavavg==2) then ! wave data is in real space, need to transform
-          MS_work(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny,k) * rnorm
+          MS_work(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny,k), kind=4) * rnorm
           ! call MS_FFT(work,MS_dimx,MS_dimy,'forwards')
           call MS_FFT_WORK(1)
           wave(1:nx,1:ny) = MS_work(1:nx,1:ny) * sqrt(rsca) ! renormalize after DFT
         else ! wave data is in Fourier space, just copy
-          wave(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny,k) * rnorm
+          wave(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny,k), kind=4) * rnorm
         end if
         ! calculate elastic image
         do j=1, ny
@@ -5405,7 +5414,7 @@ SUBROUTINE ExportProbeIntensity(sfile)
         end do
         ptds = pimg - pela
         if (MSP_padifmode==1) then ! add elastic diffraction pattern to average elastic diffraction pattern
-          MSP_padif_ela(1:nx,1:ny,k) = MSP_padif_ela(1:nx,1:ny,k) + pela(1:nx,1:ny)*rscas ! ... normalized to number of scan points
+          MSP_padif_ela(1:nx,1:ny,k) = MSP_padif_ela(1:nx,1:ny,k) + real(pela(1:nx,1:ny)*rscas, kind=fpp_ac) ! ... normalized to number of scan points
         end if
         if (MSP_pdifmode==1) then ! output of elastic diffraction pattern per scan position
           if (MSP_3dout > 0 .and. iout > 0) then ! /3dout -> single files append
@@ -5527,6 +5536,7 @@ SUBROUTINE ResetWaveAvg()
 
   use MultiSlice
   use MSAparams
+  use precision
 
   implicit none
 
@@ -5545,7 +5555,7 @@ SUBROUTINE ResetWaveAvg()
     return
   end if
 ! reset the wavefunction data
-  MS_wave_avg = cmplx(0.,0.)
+  MS_wave_avg = cmplx(0.,0., kind=fpp_ac)
   MS_wave_avg_nac = 0
   MS_wave_avg_idx = 0
 ! ------------
@@ -5678,7 +5688,7 @@ SUBROUTINE ExportWaveAvg(sfile)
     else
       rnorm = 1.0
     end if
-    wave(1:nx, 1:ny) = MS_wave_avg(1:nx, 1:ny, k) * rnorm
+    wave(1:nx, 1:ny) = cmplx(MS_wave_avg(1:nx, 1:ny, k), kind=4) * rnorm
     call sinsertslcidx(islc*nuidx,MS_nslid*nuidx,trim(isfile),"_avg",".wav",sexpfile)
     ! export to file
     if (MSP_3dout>0 .and. iout >0) then ! /3dout append
@@ -5720,6 +5730,7 @@ SUBROUTINE ExportWave(sfile, islice)
 
   use MultiSlice
   use MSAparams
+  use precision
 
   implicit none
 
@@ -5789,7 +5800,7 @@ SUBROUTINE ExportWave(sfile, islice)
       end if
     end if
     if (MS_wave_avg_export>0) then ! accumulation of the elastic wave
-      MS_wave_avg(1:nx,1:ny,iwav) = MS_wave_avg(1:nx,1:ny,iwav) + wave(1:nx,1:ny)
+      MS_wave_avg(1:nx,1:ny,iwav) = MS_wave_avg(1:nx,1:ny,iwav) + cmplx(wave(1:nx,1:ny), kind=fpp_ac)
       MS_wave_avg_nac(iwav) = MS_wave_avg_nac(iwav) + 1
     end if
   end if
@@ -5816,7 +5827,7 @@ SUBROUTINE ExportWave(sfile, islice)
         do j=1, MS_dimy
           do i=1, MS_dimx
             pint = real( MS_work(i,j)*conjg(MS_work(i,j)) ) * rsca ! renormalize after iDFT 
-            MSP_pimg(i,j,iimg) = MSP_pimg(i,j,iimg) + pint
+            MSP_pimg(i,j,iimg) = MSP_pimg(i,j,iimg) + real(pint, kind=fpp_ac)
           end do
         end do
       else ! real-space wave function was already created above
@@ -5824,7 +5835,7 @@ SUBROUTINE ExportWave(sfile, islice)
         do j=1, MS_dimy
           do i=1, MS_dimx
             pint = real( wave(i,j)*conjg(wave(i,j)) ) ! wave should already be normalized in this case
-            MSP_pimg(i,j,iimg) = MSP_pimg(i,j,iimg) + pint
+            MSP_pimg(i,j,iimg) = MSP_pimg(i,j,iimg) + real(pint, kind=fpp_ac)
           end do
         end do
       end if
@@ -5834,7 +5845,7 @@ SUBROUTINE ExportWave(sfile, islice)
       do j=1, MS_dimy
         do i=1, MS_dimx
           pint = real( MS_wave(i,j)*conjg(MS_wave(i,j)) )
-          MSP_pdif(i,j,iimg) = MSP_pdif(i,j,iimg) + pint
+          MSP_pdif(i,j,iimg) = MSP_pdif(i,j,iimg) + real(pint, kind=fpp_ac)
         end do
       end do
     end if

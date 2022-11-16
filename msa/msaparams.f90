@@ -12,7 +12,7 @@
 !                                                                      !
 !    Purpose  : parameters, parameter I/O and memory management for    !
 !               the program MSA (see msa.f90)                          !
-!    Version  : 1.3.6, Nov 6, 2019                                     !
+!    Version  : 1.4.0, Nov 10, 2022                                    !
 !    To Link  : MultiSlice.f90                                         !
 !               STEMfunctions.f90                                      !
 !                                                                      !
@@ -77,6 +77,7 @@
 !**********************************************************************!
 MODULE MSAparams
 
+  use precision
   use STEMfunctions
   use MultiSlice
 
@@ -446,10 +447,11 @@ MODULE MSAparams
   DATA MSP_detimg_output /0/
   
 ! probe image and diffraction data for each plane and energy loss
-  real*4, dimension(:,:,:), allocatable, public :: MSP_pimg ! probe images
-  real*4, dimension(:,:,:), allocatable, public :: MSP_pdif ! probe diffraction patterns
-  real*4, dimension(:,:,:), allocatable, public :: MSP_padif ! averaged probe diffraction paterns
-  real*4, dimension(:,:,:), allocatable, public :: MSP_padif_ela ! averaged elastic probe diffraction patterns (no energy loss)
+! accumulators may differ in precision make sure to type-cast in interfaces ( check fpp_ac vs. interface precision )
+  real(kind=fpp_ac), dimension(:,:,:), allocatable, public :: MSP_pimg ! probe images
+  real(kind=fpp_ac), dimension(:,:,:), allocatable, public :: MSP_pdif ! probe diffraction patterns
+  real(kind=fpp_ac), dimension(:,:,:), allocatable, public :: MSP_padif ! averaged probe diffraction patterns
+  real(kind=fpp_ac), dimension(:,:,:), allocatable, public :: MSP_padif_ela ! averaged elastic probe diffraction patterns (no energy loss)
   integer*4, dimension(:,:), allocatable, public :: MSP_pint_nac ! # accumulated images
   integer*4, public :: MSP_pint_num ! number of probe image intensities per scan position
   DATA MSP_pint_num /0/

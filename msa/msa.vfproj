@@ -55,6 +55,7 @@
 		<File RelativePath=".\msasub.f90"/>
 		<File RelativePath=".\MultiSlice.f90"/>
 		<File RelativePath=".\plasmon.f90"/>
+		<File RelativePath="..\common\precision.f90"/>
 		<File RelativePath="..\common\random.f90"/>
 		<File RelativePath=".\STEMfunctions.f90"/></Filter>
 		<File RelativePath=".\detectors.prm"/>

@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 1.0.9                                  #
+#   HOWTO use the program MSA, Version 1.1.0                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2022-04-13                                                          #
+#   Date: 2022-11-14                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -737,6 +737,10 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 
 6) History of changes
+
+221114: JB: Version 1.1.0
+- Changed the floating point precision of the phonon Monte-Carlo array
+  accumulators for options /pdif, /pimg, and average wave functions.
 
 220413: JB: Version 1.0.9
 - Inverted the effect of beam tilt for STEM probes. It is now identical

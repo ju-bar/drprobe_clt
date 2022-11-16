@@ -66,6 +66,7 @@ MODULE MultiSlice
   ! Global module dependencies
   !use, intrinsic :: iso_c_binding   
   use mkl_dfti
+  use precision
    
   implicit none
 
@@ -216,8 +217,8 @@ MODULE MultiSlice
   complex*8, allocatable, public :: MS_wave(:,:) ! in 30.9.
   !complex(C_FLOAT_COMPLEX), public, pointer :: MS_work(:,:) ! pointer to working array ! out 30.9.
   complex*8, allocatable, public :: MS_work(:,:) ! in 30.9.
-! average wavefunctions at different exit planes
-  complex*8, dimension(:,:,:), allocatable, public :: MS_wave_avg
+! average wavefunctions at different exit planes ! may differ in precision make sure to type-cast in interfaces
+  complex(kind=fpp_ac), dimension(:,:,:), allocatable, public :: MS_wave_avg
   integer*4, public :: MS_wave_avg_num ! numer of exit-plane waves
   DATA MS_wave_avg_num /0/
   integer*4, public :: MS_wave_avg_idx ! index of plane for average wave export (volatile and set on use)
