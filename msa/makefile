@@ -3,7 +3,7 @@
 # - choose the compiler, ifort is recommended
 f90c = ifort
 # - set compiler options
-cpar = -nologo -O3 -recursive -132 -assume byterecl -threads -static-intel -I../common
+cpar = -nologo -O3 -recursive -132 -assume byterecl -threads -static-intel -fpp -I../common
 #   add -Ddouble_precision to compile for double precision calculation, default is single precision without this option
 # mkl path must be adjusted to the local mkl installation
 mklpath = /usr/local/intel/mkl
