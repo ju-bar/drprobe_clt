@@ -47,8 +47,16 @@ MODULE precision
 
   implicit none
   
-  integer*4, parameter, public :: fpp_ac = 8 ! accumulator precision
+  ! set precision to 4 for single precision, or 8 for double precision
+#ifdef double_precision 
+  integer*4, parameter, public :: fpp = 8 ! general calculation precision
+#else
+  integer*4, parameter, public :: fpp = 4 ! general calculation precision
+#endif
 
+  ! accumulators  run on double precision  by default
+  integer*4, parameter, public :: fpp_ac = 8 ! accumulator precision
+  
 END MODULE precision
 
 

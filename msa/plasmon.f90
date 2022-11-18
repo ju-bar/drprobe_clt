@@ -4,7 +4,7 @@
 !                    file   "plasmon".f90                              !
 !                                                                      !
 !    Copyright:  J.Barthel, Forschungszentrum Juelich                  !
-!    Version  :  1.1.0, Oct.   11, 2019                                !
+!    Version  :  1.2.0, Nov.   16, 2022                                !
 !                                                                      !
 !**********************************************************************!
 !                                                                       
@@ -118,6 +118,7 @@ MODULE Plasmon
 ! Use PL_ as prefix for public parameters funcs and subs!
     
   ! Global module dependencies
+  use precision
 
   implicit none
   
@@ -150,20 +151,20 @@ MODULE Plasmon
   ! 
   ! physical parameters - to be defined before calling any routine
   !
-  real*4, public, parameter :: PL_e0 = 510999. ! electron rest energy [eV]
+  real(fpp), public, parameter :: PL_e0 = 510998.9499961642 ! electron rest energy [eV]
   !
   ! /!\ REQUIRED INPUT PARAMETERS for PL_INIT
   ! /!\ ALTERNATIVE INPUT PARAMETERS FOR PL_INIT2 ARE MARKED BY -> (*AI*)
   !
-  real*4, public :: PL_ek ! kinetic energy of the probing electron [eV]
+  real(fpp), public :: PL_ek ! kinetic energy of the probing electron [eV]
   DATA PL_ek /200000./
-  real*4, public :: PL_ep ! plasmon energy [eV]
+  real(fpp), public :: PL_ep ! plasmon energy [eV]
   DATA PL_ep /20./
-  real*4, public :: PL_lp ! inelastic mean-free path [nm] (*AI*)
+  real(fpp), public :: PL_lp ! inelastic mean-free path [nm] (*AI*)
   DATA PL_lp /100./
-  real*4, public :: PL_tmax ! max. sample thickness [nm]
+  real(fpp), public :: PL_tmax ! max. sample thickness [nm]
   DATA PL_tmax /0./
-  real*4, public :: PL_wthr ! probability threshold for neglecting higher
+  real(fpp), public :: PL_wthr ! probability threshold for neglecting higher
                             ! plasmon excitations
   DATA PL_wthr /0.01/       ! default: 1%
   !
@@ -173,9 +174,9 @@ MODULE Plasmon
   ! derived parameters - calculated by PL_init from the above values
   ! /!\ Modify these variables with care, as they determine how the
   !     plasmon excitation Monte-Carlo performs.
-  real*4, public :: PL_tol ! t / Lambda
-  real*4, public :: PL_qe, PL_qe2 ! characteristic angle [rad] (*AI*)
-  real*4, public :: PL_qc, PL_qc2 ! critical angle [rad] (*AI*)
+  real(fpp), public :: PL_tol ! t / Lambda
+  real(fpp), public :: PL_qe, PL_qe2 ! characteristic angle [rad] (*AI*)
+  real(fpp), public :: PL_qc, PL_qc2 ! critical angle [rad] (*AI*)
   integer*4, public :: PL_npemax ! max number of plasmon excitations (*AI*)
   DATA PL_npemax /0/ ! turn this off by default
   
@@ -184,8 +185,8 @@ MODULE Plasmon
   !     corresponds to the number of plasmon excitations.
   integer*4, public :: PL_exc_num ! number of excitations for the run <= PL_npemax
   DATA PL_exc_num /0/
-  real*4, public, allocatable :: PL_exc_dq(:,:) ! excitation scattering angle [rad]
-  real*4, public, allocatable :: PL_exc_dqtot(:,:) ! accumulated scattering angle [rad]
+  real(fpp), public, allocatable :: PL_exc_dq(:,:) ! excitation scattering angle [rad]
+  real(fpp), public, allocatable :: PL_exc_dqtot(:,:) ! accumulated scattering angle [rad]
   
   ! statistics of the whole Monte-Carlo
   integer*4, public :: PL_mc_num ! number of MC runs
@@ -230,7 +231,7 @@ MODULE Plasmon
     
     integer*4, intent(inout) :: nerr
     integer*4 :: nalloc
-    real*4 :: wt, facn
+    real(fpp) :: wt, facn
     
     nerr = 0
     nalloc = 0
@@ -426,12 +427,12 @@ MODULE Plasmon
   ! PL_mc_slc
   !
   ! input:
-  !     real*4 :: dt : slice thickness
+  !     real(fpp) :: dt : slice thickness
   !     integer*4 :: iexc_max : max. allowed excitations
   !
   ! output:
   !     integer*4 :: iexc : excitation flag (0 = no, >0: number of excitations)
-  !     real*4 :: output dqx, dqy scattering angle [rad]
+  !     real(fpp) :: output dqx, dqy scattering angle [rad]
   !
   ! purpose: calculate whether inelastic scattering takes place
   !          in a slice, and if so, determines the scattering angle.
@@ -443,15 +444,15 @@ MODULE Plasmon
   
     implicit none
     
-    real*4, intent(in) :: dt ! slice thickness
+    real(fpp), intent(in) :: dt ! slice thickness
     integer*4, intent(in) :: iexc_max ! max. allowed excitations
     integer*4, intent(out) :: iexc ! excitation flag
-    real*4, intent(out) :: dqx, dqy ! scattering angle [rad]
+    real(fpp), intent(out) :: dqx, dqy ! scattering angle [rad]
     
     integer*4 :: i
-    real*4 :: pcur, qcur
+    real(fpp) :: pcur, qcur
     
-    real*4, external :: UniRand ! from "random.f90" -> RNG: 0 ... 1
+    real(fpp), external :: UniRand ! from "random.f90" -> RNG: 0 ... 1
     integer*4, external :: PoissonRand ! from "random.f90" -> Poissonian RNG
     
     iexc = 0
@@ -534,13 +535,13 @@ MODULE Plasmon
   ! PL_scatt_slc
   !
   ! input:
-  !     real*4 :: dt ! current slice thickness [nm]
-  !     real*4 :: sqx, sqy ! sampling rates of the wave function [rad/pixel]
-  !     complex*8 :: wave(:,:) ! wave function before plasmon excitat.
+  !     real(fpp) :: dt ! current slice thickness [nm]
+  !     real(fpp) :: sqx, sqy ! sampling rates of the wave function [rad/pixel]
+  !     complex(fpp) :: wave(:,:) ! wave function before plasmon excitat.
   !     integer*4 :: nx, ny ! size of the wave function grid
   !
   ! output:
-  !     complex*8 :: wave(:,:) ! wave function after plasmon excitat.
+  !     complex(fpp) :: wave(:,:) ! wave function after plasmon excitat.
   !
   ! purpose: Monte-Carlo plasmon scattering call and scattering angle
   !          processing for a wave function sampled on a grid
@@ -549,16 +550,16 @@ MODULE Plasmon
   
     implicit none
     
-    real*4, intent(in) :: dt ! slice thickness [nm]
-    real*4, intent(in) :: sqx, sqy ! sampling rates of the wave function [rad/pixel]
-    complex*8, intent(inout) :: wave(nx,ny) ! wave function
+    real(fpp), intent(in) :: dt ! slice thickness [nm]
+    real(fpp), intent(in) :: sqx, sqy ! sampling rates of the wave function [rad/pixel]
+    complex(fpp), intent(inout) :: wave(nx,ny) ! wave function
     integer*4, intent(in) :: nx, ny ! grid size
     
     integer*4 :: iexc, iexc_max, nexc ! number of excitations
     integer*4 :: isx0, isy0, isx1, isy1, isxd, isyd ! pixel shifts
     integer*4 :: i, j, i1, j1
-    real*4 :: dqx, dqy
-    complex*8, allocatable :: wtmp(:,:)
+    real(fpp) :: dqx, dqy
+    complex(fpp), allocatable :: wtmp(:,:)
     
     iexc = 0
     iexc_max = PL_npemax - PL_exc_num ! max. further allowed excitations

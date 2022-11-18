@@ -245,7 +245,7 @@ MODULE MSAparams
 
 
 ! CALCULATION RESULT
-  real*4, public :: MSP_TheResult
+  real(fpp), public :: MSP_TheResult
 
 ! debug flag
   integer*4, public :: DEBUG_EXPORT
@@ -374,7 +374,7 @@ MODULE MSAparams
   integer*4, public :: MSP_FL_varcalc ! min. number of frozen lattice variants used for calculating one scan pixel or exit plane waves
   DATA MSP_FL_varcalc /1/
   
-! slice data
+! slice data (single precision)
   character(len=MSP_SF_TITLE_LENGTH), dimension(:), allocatable, public :: MSP_SLC_title ! slice titles
   character(len=MSP_ll), public :: MSP_SLC_filenames ! slice file name prefix
   integer*4, dimension(:), allocatable, public :: MSP_SLC_object ! stack of slices in sample
@@ -415,31 +415,31 @@ MODULE MSAparams
                                                             ! MSP_hdetpln(j) == -1 : detection slot j is not used
   
 ! detector definitions
-  real*4, dimension(:,:), allocatable, public :: MSP_detdef ! detector definitions
+  real(fpp), dimension(:,:), allocatable, public :: MSP_detdef ! detector definitions
   character(len=MSP_ll), dimension(:), allocatable, public :: MSP_detname ! detector names
 ! detector arrays
   integer*4, public, parameter :: MSP_detrspnhdr = 3        ! size of the radial sensitivity profile header (use flag, number of data points, theta 1 pixel)
   character(len=MSP_ll), dimension(:), allocatable, public :: MSP_detrspfile ! file name defining a detector relative radial sensitivity profile
-  real*4, dimension(:,:), allocatable, public :: MSP_detrspdat ! detector relative radial sensitivity profile data
-  real*4, dimension(:,:), allocatable, public :: MSP_detrsphdr ! detector relative radial sensitivity profile header data
-  real*4, dimension(:), allocatable, public :: MSP_pdiftmp ! temporary probe diffraction data stream for readout (size: MS_dimx*MS_dimy)
-  real*4, dimension(:), allocatable, public :: MSP_pdettmp ! temporary detector data stream (size: MS_dimx*MS_dimy)
-  real*4, dimension(:,:), allocatable, public :: MSP_detarea ! detector area setup ! these are detector images in stream form
+  real(fpp), dimension(:,:), allocatable, public :: MSP_detrspdat ! detector relative radial sensitivity profile data
+  real(fpp), dimension(:,:), allocatable, public :: MSP_detrsphdr ! detector relative radial sensitivity profile header data
+  real(fpp), dimension(:), allocatable, public :: MSP_pdiftmp ! temporary probe diffraction data stream for readout (size: MS_dimx*MS_dimy)
+  real(fpp), dimension(:), allocatable, public :: MSP_pdettmp ! temporary detector data stream (size: MS_dimx*MS_dimy)
+  real(fpp), dimension(:,:), allocatable, public :: MSP_detarea ! detector area setup ! these are detector images in stream form
   integer*4, dimension(:), allocatable, public :: MSP_detmasklen ! detector mask lengths
   integer*4, dimension(:,:), allocatable, public :: MSP_detmask ! detector masks
-  real*4, dimension(:,:), allocatable, public :: MSP_detresult ! detector readout results
-  real*4, dimension(:,:), allocatable, public :: MSP_detresult_ela ! detector readout results of the elastic channel
+  real(fpp), dimension(:,:), allocatable, public :: MSP_detresult ! detector readout results
+  real(fpp), dimension(:,:), allocatable, public :: MSP_detresult_ela ! detector readout results of the elastic channel
   
 ! moment analysis arrays
   integer*4, public :: MSP_KmomNum ! Number of k-moment components calculated
   DATA MSP_KmomNum /0/
-  real*4, dimension(:), allocatable, public :: MSP_Kmomwgt ! k-moment weights (as list of values for each grid pixel) (aperture function)
+  real(fpp), dimension(:), allocatable, public :: MSP_Kmomwgt ! k-moment weights (as list of values for each grid pixel) (aperture function)
   integer*4, public :: MSP_Kmommasklen ! k-moment mask length (aperture area in number of pixels)
   integer*4, dimension(:), allocatable, public :: MSP_Kmommask ! k-moment mask (hash table to access MSP_Kmomwgt and MSP_pdiftmp)
   integer*4, dimension(:,:), allocatable, public :: MSP_Kmomhash ! k-moment hash (hash table pointing back to original pixel indices)
-  real*4, dimension(:,:), allocatable, public :: MSP_Kmomgx, MSP_Kmomgy ! k-moment k-power tables
-  real*4, dimension(:,:), allocatable, public :: MSP_Kmomresult ! k-moment data (moment components, slice index)
-  real*4, dimension(:,:), allocatable, public :: MSP_Kmomresult_ela ! k-moment data (moment components, slice index) of the elastic channel
+  real(fpp), dimension(:,:), allocatable, public :: MSP_Kmomgx, MSP_Kmomgy ! k-moment k-power tables
+  real(fpp), dimension(:,:), allocatable, public :: MSP_Kmomresult ! k-moment data (moment components, slice index)
+  real(fpp), dimension(:,:), allocatable, public :: MSP_Kmomresult_ela ! k-moment data (moment components, slice index) of the elastic channel
   
   
 ! detector image output flag
@@ -824,7 +824,7 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
   integer*4, parameter :: subnum = 400
   integer*4, intent(in) :: nunit
   integer*4 :: anum, idx, i, j
-  real*4 :: ax, ay, rlamb
+  real(fpp) :: ax, ay, rlamb
   logical :: isopen
   character*STF_aberration_longname_length :: aname
 !  character(len=1024) :: sline
@@ -867,11 +867,11 @@ SUBROUTINE MSP_READBLOCK_microscope(nunit)
   if (rlamb>0.1) then ! assume that the the HT is specified
     STF_ht = rlamb
     ! transform to wavelength
-    STF_lamb = 1.239842447 / sqrt( rlamb * ( 1022.0 + rlamb ) )
+    STF_lamb = STF_HT2WL(STF_ht)
   else ! assume that wavelength is specified
     STF_lamb = rlamb ! just set it
     ! transform to high tension
-    STF_ht = sqrt( 511.0**2 + (1.239842447 / rlamb)**2 ) - 511.0
+    STF_ht = STF_WL2HT(STF_lamb)
   end if
   MS_lamb = STF_lamb
   MS_ht = STF_ht
@@ -1227,7 +1227,7 @@ SUBROUTINE MSP_READdetdef(nu)
 ! INIT
   nalloc = 0
   nversion_found = 0
-  d2r = 0.01745329
+  d2r = 0.0174532925
 !  write(unit=*,fmt=*) " > MSP_READdetdef: INIT."
   INQUIRE(unit=nu,opened=isopen)
   if (.not.isopen) then
@@ -2075,6 +2075,7 @@ SUBROUTINE MSP_LoadStack(lvar, nerr)
   integer*4, intent(inout) :: nerr
   integer*4 :: nalloc, ioerr, lfu, npot
   integer*4 :: islc, nvar, ivar, jvar, n0, ns, nx, ny
+  real(fpp) :: dz, fabs, buni
   character(len=2048) :: sfile
 ! ------------
 
@@ -2126,8 +2127,11 @@ SUBROUTINE MSP_LoadStack(lvar, nerr)
     !
     if (npot/=0) then ! transform from potential to phase grating
       call PostDebugMessage("Transforming loaded potential data to phase grating.")
-      call MS_SlicePot2Pgr( MS_ht, MSP_SLC_fprm(1,islc), MSP_nabf, MSP_Absorption, &
-                          & MSP_nbuni, MSP_Buni, nx, ny, 1, &
+      dz = MSP_SLC_fprm(1,islc)
+      fabs = MSP_Absorption
+      buni = MSP_Buni
+      call MS_SlicePot2Pgr( MS_ht, dz, MSP_nabf, fabs, &
+                          & MSP_nbuni, buni, nx, ny, 1, &
                           & MSP_phasegrt(1:nx, 1:ny, ivar:ivar), nerr)
       if (nerr/=0) goto 105
     end if
@@ -2205,6 +2209,7 @@ SUBROUTINE MSP_LoadPGR(islc, ivar, islot, nerr)
   integer*4, intent(inout) :: nerr
   integer*4 :: nalloc, ioerr, lfu, npot
   integer*4 :: n0, ns, nx, ny
+  real(fpp) :: dz, fabs, buni
   character(len=2048) :: sfile
 ! ------------
 
@@ -2251,8 +2256,11 @@ SUBROUTINE MSP_LoadPGR(islc, ivar, islot, nerr)
   !
   if (npot/=0) then ! transform from potential to phase grating
     call PostDebugMessage("Transforming loaded potential data to phase grating.")
-    call MS_SlicePot2Pgr( MS_ht, MSP_SLC_fprm(1,islc), MSP_nabf, MSP_Absorption, &
-                      & MSP_nbuni, MSP_Buni, nx, ny, 1, &
+    dz = MSP_SLC_fprm(1,islc)
+    fabs = MSP_Absorption
+    buni = MSP_Buni
+    call MS_SlicePot2Pgr( MS_ht, dz, MSP_nabf, fabs, &
+                      & MSP_nbuni, buni, nx, ny, 1, &
                       & MSP_phasegrt(1:nx, 1:ny, islot:islot), nerr)
     if (nerr/=0) goto 105
   end if
@@ -2794,7 +2802,7 @@ SUBROUTINE MSP_WriteTextOutput(nerr)
   integer*4, intent(inout) :: nerr
 
   integer*4 :: i, k, lfu, ioerr, ndet, nslcmax, nkmom, nsig
-  real*4 :: rsig(3)
+  real(fpp) :: rsig(3)
   character(len=MSP_ll) :: sline, stmp1, stmp2
   
   external :: GetFreeLFU ! (lfu,lfu0,lfumax)
@@ -2988,20 +2996,17 @@ SUBROUTINE MSP_SetAnnularDetectors(nerr)
   
   integer*4 :: nalloc
   integer*4 :: i, j, k, nx, ny, nx2, ny2, m, l, i1, j1, idy, idx
-  real*4 :: r0, r1, a0, a1, cx, cy, itogx, itogy, itowx, itowy, itowr
-  real*4 :: wt0, wt02, wt1, wt12, wx, wy, wy2, w2, ac, wcx, wcy
-  real*4 :: rcur, rk, scur
+  real(fpp) :: r0, r1, a0, a1, cx, cy, itogx, itogy, itowx, itowy, itowr
+  real(fpp) :: wt0, wt02, wt1, wt12, wx, wy, wy2, w2, ac, wcx, wcy
+  real(fpp) :: rcur, rk, scur
   character(len=1024) :: stmp
-  real*4, allocatable :: detfunc(:,:)
+  real(fpp), allocatable :: detfunc(:,:)
 ! ------------
 
 ! ------------
 ! INIT
 !  write(unit=*,fmt=*) " > MSP_SetAnnularDetectors: INIT."
   nerr = 0
-  !if (MSP_usedetdef/=1) return
-  !if (MSP_detnum<2) return
-  ! check allocation status
   if (MS_status<1) then
     nerr = 1
     call MSP_ERROR("Multislice Module not initialized.",subnum+nerr)
@@ -3030,28 +3035,28 @@ SUBROUTINE MSP_SetAnnularDetectors(nerr)
   
     if (1/=nint(MSP_detdef(0,k))) cycle ! this is not an annular detector
   
-    r0 = MSP_detdef(1,k)
-    r1 = MSP_detdef(2,k)
-    a0 = MSP_detdef(3,k)
-    a1 = MSP_detdef(4,k)
-    cx = MSP_detdef(5,k)
-    cy = MSP_detdef(6,k)
+    r0 = 1._fpp * MSP_detdef(1,k)
+    r1 = 1._fpp * MSP_detdef(2,k)
+    a0 = 1._fpp * MSP_detdef(3,k)
+    a1 = 1._fpp * MSP_detdef(4,k)
+    cx = 1._fpp * MSP_detdef(5,k)
+    cy = 1._fpp * MSP_detdef(6,k)
   
     ! add 360° to the azimuths until both are definitely positive
-    do while (a0<0.0 .or. a1<0.0)
-      a0 = a0 + 360.0
-      a1 = a1 + 360.0
+    do while (a0<0.0_fpp .or. a1<0.0_fpp)
+      a0 = a0 + 360.0_fpp
+      a1 = a1 + 360.0_fpp
     end do
   
     ! a1 should alsway be larger than a0, if not, than add 360° to a1
     if (a0>=a1) then
-      a1 = a1 + 360.0
+      a1 = a1 + 360.0_fpp
     end if
     
     ! now bring both angles back to the first rotation cycle, at least for a0
-    do while (a0>=360.0)
-      a0 = a0 - 360.0
-      a1 = a1 - 360.0
+    do while (a0>=360.0_fpp)
+      a0 = a0 - 360.0_fpp
+      a1 = a1 - 360.0_fpp
     end do
   
     if (DEBUG_EXPORT==1) then
@@ -3086,31 +3091,31 @@ SUBROUTINE MSP_SetAnnularDetectors(nerr)
 
   ! ------------
   ! prepare parameters
-    wt0 = r0*0.001
+    wt0 = r0*0.001_fpp
     wt02 = wt0*wt0
-    wt1 = r1*0.001
+    wt1 = r1*0.001_fpp
     wt12 = wt1*wt1
-    wcx = cx*0.001
-    wcy = cy*0.001
+    wcx = cx*0.001_fpp
+    wcy = cy*0.001_fpp
     nx = MS_dimx
     ny = MS_dimy
     nx2 = (nx - modulo(nx,2)) / 2
     ny2 = (ny - modulo(ny,2)) / 2
   
     ! set Fourier-space sampling
-    itogx = 1.0 / (MS_samplingx*real(nx))
+    itogx = 1.0_fpp / (MS_samplingx*nx)
     itowx = itogx*MS_lamb
-    itogy = 1.0 / (MS_samplingx*real(ny))
+    itogy = 1.0_fpp / (MS_samplingx*ny)
     itowy = itogy*MS_lamb
   
     ! pre-set Fourier-space sampling for the radial sensitivity profile
-    itowr = 0.0
-    if (MSP_detrsphdr(1,k)>0.9) then ! use this detector with sensitivity profile
-      itowr = 0.001*r0 / (MSP_detrsphdr(3,k) - 1.0 ) ! theta-1 / (associated pixel number - 1) ... and from mrad to rad / pixel
+    itowr = 0.0_fpp
+    if (MSP_detrsphdr(1,k)>0.9_fpp) then ! use this detector with sensitivity profile
+      itowr = 0.001_fpp*r0 / (MSP_detrsphdr(3,k) - 1.0_fpp ) ! theta-1 / (associated pixel number - 1) ... and from mrad to rad / pixel
     end if
   
     ! preset sensitivity
-    scur = 1.0
+    scur = 1.0_fpp
     MSP_detmasklen(k) = 0
     ! loop through calculation array in fourier space
     do j=1, ny
@@ -3126,17 +3131,17 @@ SUBROUTINE MSP_SetAnnularDetectors(nerr)
         ac = atan2(wy, wx)*MSP_r2d
         ! try to find azimuthal cycle beyond a0
         do while (ac<a0)
-          ac = ac + 360.0
+          ac = ac + 360.0_fpp
         end do
         ! range checks on the following general interval : min <= x < max
         if ((w2>=wt02).and.(w2<wt12).and.(ac>=a0).and.(ac<a1)) then ! check if current fourier pixel is inside the annular segement
-          if (itowr>0.0) then ! use radial sensitivity profile
+          if (itowr>0.0_fpp) then ! use radial sensitivity profile
             ! get the sensitivity for this theta angle
-            rcur = max( 0.0, min( MSP_detrsphdr(2,k)-1.0, sqrt(w2)/itowr ) ) ! zero based index in the sensitivity table
+            rcur = max( 0.0_fpp, min( MSP_detrsphdr(2,k)-1.0_fpp, sqrt(w2)/itowr ) ) ! zero based index in the sensitivity table
             i1 = floor(rcur) ! lower integer (index)
-            rk = rcur-real(i1) ! fraction between actual radius and integer radius
+            rk = rcur-real(i1, kind=fpp) ! fraction between actual radius and integer radius
             ! access the sensitivity curve at (i1 + 1)
-            scur = (1.0-rk)*MSP_detrspdat(i1+1,k) + rk*MSP_detrspdat(i1+2,k) ! linear interpolation of the sensitivity curve
+            scur = (1.0_fpp-rk)*MSP_detrspdat(i1+1,k) + rk*MSP_detrspdat(i1+2,k) ! linear interpolation of the sensitivity curve
           end if
           ! this is a valid pixel and we have a sensitivity
           MSP_detmasklen(k) = MSP_detmasklen(k) + 1 ! increase mask length
@@ -3189,7 +3194,7 @@ SUBROUTINE MSP_SetAnnularDetectors(nerr)
       call PostMessage(trim(MSP_stmp))
       write(unit=MSP_stmp,fmt='(A,I4,A,I4)') "- detector function: 32-bit float, size: ",nx," x ",ny
       call PostDebugMessage(trim(MSP_stmp))
-      call SaveDataR4(trim(stmp),detfunc,nx*ny,nerr)
+      call SaveDataR(trim(stmp),detfunc,nx*ny,nerr)
       if (nerr/=0) then
         call MSP_ERROR("Failed to save detector function.",subnum+6)
       end if
@@ -3235,11 +3240,11 @@ SUBROUTINE MSP_SetRectangularDetectors(nerr)
   
   integer*4 :: nalloc
   integer*4 :: i, j, k, nx, ny, nx2, ny2, m, l, i1, j1, idy, idx
-  real*4 :: x0, y0, dx, dy, a0, ca, sa, r0
-  real*4 :: itogx, itogy, itowx, itowy
-  real*4 :: wx, wy, tx, ty
+  real(fpp) :: x0, y0, dx, dy, a0, ca, sa, r0
+  real(fpp) :: itogx, itogy, itowx, itowy
+  real(fpp) :: wx, wy, tx, ty
   character(len=1024) :: stmp
-  real*4, allocatable :: detfunc(:,:)
+  real(fpp), allocatable :: detfunc(:,:)
 ! ------------
 
 
@@ -3279,11 +3284,11 @@ SUBROUTINE MSP_SetRectangularDetectors(nerr)
   
     if (2/=nint(MSP_detdef(0,k))) cycle ! this is not a rectangular detector
   
-    x0 = MSP_detdef(1,k)
-    y0 = MSP_detdef(2,k)
-    dx = MSP_detdef(3,k)
-    dy = MSP_detdef(4,k)
-    a0 = MSP_detdef(5,k)
+    x0 = 1._fpp * MSP_detdef(1,k)
+    y0 = 1._fpp * MSP_detdef(2,k)
+    dx = 1._fpp * MSP_detdef(3,k)
+    dy = 1._fpp * MSP_detdef(4,k)
+    a0 = 1._fpp * MSP_detdef(5,k)
   
     if (DEBUG_EXPORT==1) then
       write(unit=MSP_stmp,fmt='(A,I3.3,A)') &
@@ -3317,9 +3322,9 @@ SUBROUTINE MSP_SetRectangularDetectors(nerr)
     ny2 = (ny - modulo(ny,2)) / 2
   
     ! set Fourier-space sampling
-    itogx = 1.0 / (MS_samplingx*real(nx))
+    itogx = 1.0_fpp / (MS_samplingx*nx)
     itowx = itogx*MS_lamb
-    itogy = 1.0 / (MS_samplingx*real(ny))
+    itogy = 1.0_fpp / (MS_samplingx*ny)
     itowy = itogy*MS_lamb
   
     ! loop through calculation array in fourier space
@@ -3344,9 +3349,9 @@ SUBROUTINE MSP_SetRectangularDetectors(nerr)
         !
         ! check for position inside the rectangle
         ! range checks on the following general interval : min <= x < max
-        if ((tx>=0.0).and.(tx<dx).and.(ty>=0.0).and.(ty<dy)) then ! yes = point is in rect
+        if ((tx>=0.0_fpp).and.(tx<dx).and.(ty>=0.0_fpp).and.(ty<dy)) then ! yes = point is in rect
           MSP_detmasklen(k) = MSP_detmasklen(k) + 1 ! increase number of masked pixels
-          MSP_detarea(idx,k) = 1.0 ! set detector pixel weight to 1
+          MSP_detarea(idx,k) = 1.0_fpp ! set detector pixel weight to 1
           MSP_detmask(MSP_detmasklen(k),k) = idx ! store index in hash tabel / mask
           !MSP_detcols(1,j,k) = MSP_detcols(1,j,k) + 1 ! increase pixel sum
           !MSP_detcols(2,j,k) = min(MSP_detcols(2,j,k),i) ! update minimum column index
@@ -3396,7 +3401,7 @@ SUBROUTINE MSP_SetRectangularDetectors(nerr)
       call PostMessage(trim(MSP_stmp))
       write(unit=MSP_stmp,fmt='(A,I4,A,I4)') "- detector function: 32-bit float, size: ",nx," x ",ny
       call PostDebugMessage(trim(MSP_stmp))
-      call SaveDataR4(trim(stmp),detfunc,nx*ny,nerr)
+      call SaveDataR(trim(stmp),detfunc,nx*ny,nerr)
       if (nerr/=0) then
         call MSP_ERROR("Failed to save detector function.",subnum+6)
       end if
@@ -3443,11 +3448,11 @@ SUBROUTINE MSP_SetKmomentDetector(nerr)
   
   integer*4 :: nalloc
   integer*4 :: i, j, nx, ny, nx2, ny2, m, l, i1, j1, idy, idx
-  real*4 :: r1, itogx, itogy
-  real*4 :: gt1, gx, gy, gy2, g2, gcx, gcy, gm
-  real*4 :: scur, gsx, gsy
+  real(fpp) :: r1, itogx, itogy
+  real(fpp) :: gt1, gx, gy, gy2, g2, gcx, gcy, gm
+  real(fpp) :: scur, gsx, gsy
   character(len=1024) :: stmp
-  real*4, allocatable :: detfunc(:,:)
+  real(fpp), allocatable :: detfunc(:,:)
 ! ------------
 
 ! ------------
@@ -3474,7 +3479,6 @@ SUBROUTINE MSP_SetKmomentDetector(nerr)
 
 ! ------------
   r1 = MSP_KmomRange
-  
   if (DEBUG_EXPORT==1) then
     write(unit=MSP_stmp,fmt='(A,F6.1,A)') &
       & "Using k-moment integration range of ",r1," mrad."
@@ -3488,25 +3492,25 @@ SUBROUTINE MSP_SetKmomentDetector(nerr)
   ny2 = (ny - modulo(ny,2)) / 2
   
   ! grid size (nm)
-  gsx = MS_samplingx*real(nx)
-  gsy = MS_samplingy*real(ny)
+  gsx = MS_samplingx*real(nx, kind=fpp)
+  gsy = MS_samplingy*real(ny, kind=fpp)
   
   ! zero beam center (beam tilt)
-  gcx = 0.001*STF_beam_tiltx / MS_lamb
-  gcy = 0.001*STF_beam_tilty / MS_lamb
+  gcx = 0.001_fpp*STF_beam_tiltx / MS_lamb
+  gcy = 0.001_fpp*STF_beam_tilty / MS_lamb
   
   ! set Fourier-space sampling (1/nm)
-  itogx = 1.0 / gsx
-  itogy = 1.0 / gsy
+  itogx = 1.0_fpp / gsx
+  itogy = 1.0_fpp / gsy
   
   ! preset sensitivity
-  scur = 1.0
-  MSP_Kmomwgt = 0.0
+  scur = 1.0_fpp
+  MSP_Kmomwgt = 0.0_fpp
   MSP_Kmommask = 0
   MSP_Kmommasklen = 0
   ! setup g power tables
-  MSP_Kmomgx(:,0) = 1.0
-  MSP_Kmomgy(:,0) = 1.0
+  MSP_Kmomgx(:,0) = 1.0_fpp
+  MSP_Kmomgy(:,0) = 1.0_fpp
   if (MSP_KmomMmax>0) then ! more than the 0-th moment will be calculated
     do m=1, MSP_KmomMmax ! loop over moments
       do j=1, ny ! set y g-values to the power of m
@@ -3530,7 +3534,7 @@ SUBROUTINE MSP_SetKmomentDetector(nerr)
       g2 = gy2+gx*gx
       gm = sqrt(g2)
       ! get aperture value
-      call STF_ApertureFunctionS(gx, gy, 0., 0., gt1, STF_APSMOOTHPIX, scur)
+      call STF_ApertureFunctionS(gx, gy, 0._fpp, 0._fpp, gt1, STF_APSMOOTHPIX, scur)
       ! check aperture power threshold
       if (scur > STF_APERTURETHRESH) then ! check if current fourier pixel is inside the integration range
         ! this is a valid pixel and we have a sensitivity
@@ -3575,7 +3579,7 @@ SUBROUTINE MSP_SetKmomentDetector(nerr)
     call PostMessage("Saving k-moment function to file ["//trim(stmp)//"].")
     write(unit=MSP_stmp,fmt='(A,I4,A,I4)') "- k-moment function: 32-bit float, size: ",nx," x ",ny
     call PostDebugMessage(trim(MSP_stmp))
-    call SaveDataR4(trim(stmp),detfunc,nx*ny,nerr)
+    call SaveDataR(trim(stmp),detfunc,nx*ny,nerr)
     if (nerr/=0) then
       call MSP_ERROR("Failed to save k-moment function.",subnum+6)
     end if

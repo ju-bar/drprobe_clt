@@ -15,7 +15,7 @@
 !               This is a reduced and single-thread version of the     !
 !               original file, designed for use with the program ms.   !
 !                                                                      !
-!    Version  : 1.1.3, Apr 13, 2022                                    !
+!    Version  : 1.2.0, Nov 16, 2022                                    !
 !                                                                      !
 !   Linked Libs: libfftwf-3.3.lib                                      !
 !   Includes   : fftw3.f03.in                                          !
@@ -69,14 +69,16 @@ MODULE STEMfunctions
 ! Use STF as acronym for public parameters funcs and subs!
     
   ! Global module dependencies
-  use, intrinsic :: iso_c_binding   
+  !use, intrinsic :: iso_c_binding
+  use mkl_dfti
+  use precision
   
   implicit none
   
   ! Declare internal data types
-  integer, parameter :: C_FFTW_R2R_KIND = C_INT ! missing declare in fftw3 include
+  !integer, parameter :: C_FFTW_R2R_KIND = C_INT ! missing declare in fftw3 include
   
-  INCLUDE 'fftw3.f03.in'
+  !INCLUDE 'fftw3.f03.in'
 
   ! accessibility of subroutines or functions
 !  private :: STF_***
@@ -90,7 +92,7 @@ MODULE STEMfunctions
   
   public :: STF_HT2WL
   public :: STF_WL2HT
-  !public :: STF_FFT
+  public :: STF_FFT
   public :: STF_ApertureFunction
   public :: STF_ApertureFunctionS
   public :: STF_ApertureFunctionA
@@ -131,35 +133,35 @@ MODULE STEMfunctions
 !   enpty line placeholder (emptied at startup)
   character(len=STF_ll), private :: STF_el  
 ! pi
-  real*4, private :: STF_pi
-  DATA STF_pi /3.1415927/
+  real(fpp), private :: STF_pi
+  DATA STF_pi /3.1415926535897932384626433832795/
 
 ! scale degree to radian
-  real*4, private :: STF_rd2r
-  DATA STF_rd2r /57.2957795/
+  real(fpp), private :: STF_d2r
+  DATA STF_d2r /57.295779513082320876798154814105/
 
 ! error counter  
   integer*4, public :: STF_err_num
   DATA STF_err_num /0/
   
 ! aberration power threshold
-  real*4, private, parameter :: STF_POWERTHRESH_WA = 1.0E-30
+  real(fpp), private, parameter :: STF_POWERTHRESH_WA = 1.0E-30
   
 ! aperture power threshold
-  real*4, public, parameter :: STF_APERTURETHRESH = 1.0E-03
+  real(fpp), public, parameter :: STF_APERTURETHRESH = 1.0E-03
   
 ! aperture angle thresholds
-  real*4, private, parameter :: STF_RELANGTHRESH = 1.0E-3
-  real*4, private, parameter :: STF_RELANGWIDTHTHRESH = 1.0E-2
-  real*4, public, parameter :: STF_APSMOOTHPIX = 0.05 ! relative smoothness of aperture
+  real(fpp), private, parameter :: STF_RELANGTHRESH = 1.0E-3
+  real(fpp), private, parameter :: STF_RELANGWIDTHTHRESH = 1.0E-2
+  real(fpp), public, parameter :: STF_APSMOOTHPIX = 0.05 ! relative smoothness of aperture
   
 
 ! explicit defocus average parameter defaults
   integer*4, private, parameter :: STF_DEFOCUS_KERNEL_STEPS_DEFAULT = 13
-  real*4, private, parameter :: STF_DEFOCUS_KERNEL_SPREAD_DEFAULT = 3.0
+  real(fpp), private, parameter :: STF_DEFOCUS_KERNEL_SPREAD_DEFAULT = 3.0
 ! explicit defocus average parameters
   integer*4, public :: STF_DEFOCUS_KERNEL_STEPS
-  real*4, public :: STF_DEFOCUS_KERNEL_SPREAD
+  real(fpp), public :: STF_DEFOCUS_KERNEL_SPREAD
   DATA STF_DEFOCUS_KERNEL_STEPS /13/
   DATA STF_DEFOCUS_KERNEL_SPREAD /3.0/
 
@@ -168,18 +170,18 @@ MODULE STEMfunctions
   DATA STF_dim /256/
 
 ! wavelength [nm]
-  real*4, public :: STF_lamb
+  real(fpp), public :: STF_lamb
   DATA STF_lamb /0.001969/
 ! high tension [kV]
-  real*4, public :: STF_ht
+  real(fpp), public :: STF_ht
   DATA STF_ht /300.0/
 
 ! current real-space sampling [nm/pix]
-  real*4, public :: STF_sampling
+  real(fpp), public :: STF_sampling
   DATA STF_sampling /0.05/
 
 ! current Fourier space sampling [(pix*nm)^-1]
-  real*4, public :: STF_itog, STF_itow
+  real(fpp), public :: STF_itog, STF_itow
 
 ! ----------->
 ! ----------->
@@ -204,47 +206,47 @@ MODULE STEMfunctions
   integer*4, public :: STF_maxaberration
   DATA STF_maxaberration /0/
 ! allocatable aberration tables
-  real*4, dimension(:,:), public, allocatable :: STF_wa ! coeffictients
+  real(fpp), dimension(:,:), public, allocatable :: STF_wa ! coeffictients
   integer*4, dimension(:,:), public, allocatable :: STF_waidx ! coeffictients index hash
   integer*1, dimension(:,:), public, allocatable :: STF_asn ! short names
   integer*1, dimension(:,:), public, allocatable :: STF_aln ! long names
      
 ! defocus spread
-  real*4, public :: STF_defocusspread ! [nm]
+  real(fpp), public :: STF_defocusspread ! [nm]
   DATA STF_defocusspread /3.0/
   
 ! source radius
-  real*4, public :: STF_srcradius ! [nm]
+  real(fpp), public :: STF_srcradius ! [nm]
   DATA STF_srcradius /0.025/
   
 ! condenser aperture
-  real*4, public :: STF_caperture(4) ! probe forming aperture parameters
+  real(fpp), public :: STF_caperture(4) ! probe forming aperture parameters
   ! ( radius [mrad], rel. large axis R1/R - 1, large axis dir. [rad], real. smoothness s/R)
   DATA STF_caperture /25.0, 0., 0., 0.03/
-  real*4, public :: STF_caperture_movex ! [mrad]
+  real(fpp), public :: STF_caperture_movex ! [mrad]
   DATA STF_caperture_movex /0.0/
-  real*4, public :: STF_caperture_movey ! [mrad]
+  real(fpp), public :: STF_caperture_movey ! [mrad]
   DATA STF_caperture_movey /0.0/
   integer*4, public :: STF_cap_type ! 0 = sigmoid(top-hat), 1 = gaussian
   DATA STF_cap_type /0/
   
 ! beam tilt
-  real*4, public :: STF_beam_tiltx ! [mrad]
+  real(fpp), public :: STF_beam_tiltx ! [mrad]
   DATA STF_beam_tiltx /0.0/
-  real*4, public :: STF_beam_tilty ! [mrad]
+  real(fpp), public :: STF_beam_tilty ! [mrad]
   DATA STF_beam_tilty /0.0/
   
 ! data arrays used for calculation
   
-  !complex*8, allocatable, dimension(:,:), public :: STF_sc !, STF_sc2
-  real*4, public :: STF_PreparedWavePower
+  !complex(fpp), allocatable, dimension(:,:), public :: STF_sc !, STF_sc2
+  real(fpp), public :: STF_PreparedWavePower
   
 ! anglular function tables
   integer*4, parameter, private :: STF_ANGTAB_SIZE = 1023
-  complex*8, dimension(STF_ANGTAB_SIZE), private :: STF_ANGTAB_EXP
+  complex(fpp), dimension(STF_ANGTAB_SIZE), private :: STF_ANGTAB_EXP
 ! sigmoid function table
-  real*4, parameter, private :: STF_SIGMOID_EXT = 3.0
-  real*4, dimension(STF_ANGTAB_SIZE), private :: STF_ANGTAB_SIGMOID
+  real(fpp), parameter, private :: STF_SIGMOID_EXT = 3.0
+  real(fpp), dimension(STF_ANGTAB_SIZE), private :: STF_ANGTAB_SIGMOID
 ! binomial coefficient tables
   integer*4, dimension(0:2*STF_maxaberration_order,0:2*STF_maxaberration_order) :: STF_BINOMIAL_TAB
 ! scramble and unscramble lists
@@ -319,9 +321,9 @@ SUBROUTINE STF_INIT()
   integer*4, parameter :: asl = 2*STF_aberration_shortname_length
   integer*4, parameter :: all = STF_aberration_longname_length
   integer*4 :: m, n, l, err
-  real*4 :: angle, ascale
+  real(fpp) :: angle, ascale
   integer*4, external :: binomial ! BasicFuncs.f90
-  real*4, external :: sigmoid ! BasicFuncs.f90
+  real(fpp), external :: sigmoid ! BasicFuncs.f90
 ! ------------
 
 ! ------------
@@ -331,7 +333,7 @@ SUBROUTINE STF_INIT()
 
 ! ------------
   STF_pi = atan(1.0)*4.0
-  STF_rd2r = STF_pi/180.0
+  STF_d2r = STF_pi/180.0
   STF_err_num = 0
   STF_el = REPEAT(" ",STF_ll)
 ! ------------
@@ -367,14 +369,14 @@ SUBROUTINE STF_INIT()
     STF_maxaberration = l
     
     ! prepare angular tables now
-    ascale = 2.0*STF_pi/real(STF_ANGTAB_SIZE)
+    ascale = 2.0*STF_pi/real(STF_ANGTAB_SIZE,kind=fpp)
     do m=1,STF_ANGTAB_SIZE
-      angle = real(m-1)*ascale
-      STF_ANGTAB_EXP(m) = cmplx(cos(angle),sin(angle))
+      angle = real(m-1,kind=fpp)*ascale
+      STF_ANGTAB_EXP(m) = cmplx(cos(angle),sin(angle),kind=fpp)
     end do
-    ascale = 2.0*STF_SIGMOID_EXT/real(STF_ANGTAB_SIZE-1)
+    ascale = 2.0*STF_SIGMOID_EXT/real(STF_ANGTAB_SIZE-1,kind=fpp)
     do m=1,STF_ANGTAB_SIZE
-      angle = real(m-1)*ascale-STF_SIGMOID_EXT
+      angle = real(m-1,kind=fpp)*ascale-STF_SIGMOID_EXT
       STF_ANGTAB_SIGMOID(m) = sigmoid(angle,0.0,1.0)
     end do
     
@@ -619,7 +621,7 @@ FUNCTION STF_SetAberrationByName(sname,wax,way)
 !           its short name string
 ! -------------------------------------------------------------------- !
 ! parameter: character*4 :: sname
-!            real*4 :: wax, way
+!            real(fpp) :: wax, way
 ! return value: integer*4 = 1 success
 !               integer*4 = 0 error
 ! -------------------------------------------------------------------- !
@@ -633,7 +635,7 @@ FUNCTION STF_SetAberrationByName(sname,wax,way)
   
   integer*4 :: STF_SetAberrationByName
   character(len=*), intent(in) :: sname
-  real*4, intent(in) :: wax, way
+  real(fpp), intent(in) :: wax, way
   
   character(len=asl) :: sourcestring, searchstring
   integer*4 :: i, j, isl
@@ -679,7 +681,7 @@ FUNCTION STF_GetAberrationByName(sname,wax,way)
 !           its short name string
 ! -------------------------------------------------------------------- !
 ! parameter: character*4 :: sname
-!            real*4 :: wax, way
+!            real(fpp) :: wax, way
 ! return value: integer*4 = 1 success
 !               integer*4 = 0 error
 ! -------------------------------------------------------------------- !
@@ -693,7 +695,7 @@ FUNCTION STF_GetAberrationByName(sname,wax,way)
   
   integer*4 :: STF_GetAberrationByName
   character(len=*), intent(in) :: sname
-  real*4, intent(out) :: wax, way
+  real(fpp), intent(out) :: wax, way
   
   character(len=asl) :: sourcestring, searchstring
   integer*4 :: i, j, isl
@@ -740,7 +742,7 @@ SUBROUTINE STF_SetAberration(nidx,wax,way)
 !           its table index
 ! -------------------------------------------------------------------- !
 ! parameter: integer*4 :: nidx
-!            real*4 :: wax, way
+!            real(fpp) :: wax, way
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -750,7 +752,7 @@ SUBROUTINE STF_SetAberration(nidx,wax,way)
   integer*4, parameter :: subnum = 600
   
   integer*4, intent(in) :: nidx
-  real*4, intent(in) :: wax, way
+  real(fpp), intent(in) :: wax, way
 ! ------------
 
 ! ------------
@@ -780,7 +782,7 @@ SUBROUTINE STF_GetAberration(nidx,wax,way)
 !           its table index
 ! -------------------------------------------------------------------- !
 ! parameter: integer*4 :: nidx
-!            real*4 :: wax, way
+!            real(fpp) :: wax, way
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -790,7 +792,7 @@ SUBROUTINE STF_GetAberration(nidx,wax,way)
   integer*4, parameter :: subnum = 700
   
   integer*4, intent(in) :: nidx
-  real*4, intent(out) :: wax, way
+  real(fpp), intent(out) :: wax, way
 ! ------------
 
 ! ------------
@@ -988,8 +990,8 @@ END SUBROUTINE STF_GetAberrationSName
 SUBROUTINE STF_TABBED_EXP(rangle,cval)
 ! function: returns tabbed complex exp(I*rangle)
 ! -------------------------------------------------------------------- !
-! parameter: real*4 :: rangle [radian]
-!            complex*8 :: cval
+! parameter: real(fpp) :: rangle [radian]
+!            complex(fpp) :: cval
 ! -------------------------------------------------------------------- !
 !!!!!!! BE SHURE TO CALL STF_INIT() BEFORE CALLING THIS ROUTINE !!!!!!!!
 ! -------------------------------------------------------------------- !
@@ -999,9 +1001,9 @@ SUBROUTINE STF_TABBED_EXP(rangle,cval)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 2400
-  real*4 :: rangle
-  complex*8 :: cval
-  real*4 :: iangle, modangle
+  real(fpp) :: rangle
+  complex(fpp) :: cval
+  real(fpp) :: iangle, modangle
   integer*4 :: idx
 ! ------------
 
@@ -1015,10 +1017,10 @@ SUBROUTINE STF_TABBED_EXP(rangle,cval)
 ! parameter preset
   if (rangle>=0.0) then
     iangle = modulo(rangle,modangle)
-    iangle = iangle/modangle*real(STF_ANGTAB_SIZE)
+    iangle = iangle/modangle*real(STF_ANGTAB_SIZE,kind=fpp)
   else
     iangle = modulo(rangle,modangle)
-    iangle = iangle/modangle*real(STF_ANGTAB_SIZE)
+    iangle = iangle/modangle*real(STF_ANGTAB_SIZE,kind=fpp)
   end if
   idx = 1+int(iangle) ! round to next integer
   if (idx==0) then
@@ -1047,9 +1049,9 @@ END SUBROUTINE STF_TABBED_EXP
 !**********************************************************************!
 !**********************************************************************!
 SUBROUTINE STF_TABBED_SIGMOID(x,x0,dx,rval)
-! function: returns tabbed real*4 sigmoid(x,x0,dx)
+! function: returns tabbed real(fpp) sigmoid(x,x0,dx)
 ! -------------------------------------------------------------------- !
-! parameter: real*4 :: x,x0,dx,rval
+! parameter: real(fpp) :: x,x0,dx,rval
 ! -------------------------------------------------------------------- !
 !!!!!!! BE SHURE TO CALL STF_INIT() BEFORE CALLING THIS ROUTINE !!!!!!!!
 ! -------------------------------------------------------------------- !
@@ -1059,8 +1061,8 @@ SUBROUTINE STF_TABBED_SIGMOID(x,x0,dx,rval)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 2500
-  real*4 :: x,x0,dx,rval
-  real*4 :: tx, ix, maxx
+  real(fpp) :: x,x0,dx,rval
+  real(fpp) :: tx, ix, maxx
   integer*4 :: idx
 ! ------------
 
@@ -1081,7 +1083,7 @@ SUBROUTINE STF_TABBED_SIGMOID(x,x0,dx,rval)
     rval = 0.0
     return
   end if
-  ix = 0.5*(tx/STF_SIGMOID_EXT+1.0)*real(STF_ANGTAB_SIZE-1)
+  ix = 0.5*(tx/STF_SIGMOID_EXT+1.0)*real(STF_ANGTAB_SIZE-1,kind=fpp)
   idx = 1+int(ix) ! round to next integer
   if (idx==0) then
     idx = STF_ANGTAB_SIZE
@@ -1225,14 +1227,70 @@ END SUBROUTINE STF_SETTAB_USC
 
 
 
+!!**********************************************************************!
+!!**********************************************************************!
+!SUBROUTINE STF_FFT(cdata,nx,ny,dir)
+!! function: internal in-place 2D complex-to-complex Fourier transform.
+!! -------------------------------------------------------------------- !
+!! parameter: complex(fpp) :: cdata(nx,ny) :: data to be transformed
+!!            integer*4 :: nx, ny :: dimensions
+!!            integer*4 :: dir :: directions (>=0: forward, <0: backward)
+!! -------------------------------------------------------------------- !
+!
+!  implicit none
+!
+!! ------------
+!! DECLARATION
+!  integer*4, parameter :: subnum = 3400
+!  integer*4, intent(in) :: nx,ny
+!  integer*4, intent(in) :: dir
+!  complex(fpp), intent(inout) :: cdata(nx,ny)
+!  complex(C_FLOAT_COMPLEX), pointer :: work(:,:)
+!  type(C_PTR) :: fft_plan ! local fft plan
+!  type(C_PTR) :: fft_pdata ! local aligned data allocated for fft
+!! ------------
+!
+!! ------------
+!! INIT
+!  if (nx <= 0 .and. ny <= 0) return ! better do nothing
+!  fft_pdata = fftwf_alloc_complex( int(nx*ny, C_SIZE_T) )
+!  call c_f_pointer(fft_pdata, work, [nx,ny])
+!  if (dir >= 0) then ! forward dft
+!    fft_plan = fftwf_plan_dft_2d(ny, nx, work, work, FFTW_FORWARD, FFTW_ESTIMATE)
+!  else ! backward dft
+!    fft_plan = fftwf_plan_dft_2d(ny, nx, work, work, FFTW_BACKWARD, FFTW_ESTIMATE)
+!  end if
+!  work(1:nx,1:ny) = cdata(1:nx,1:ny) ! copy data
+!! ------------
+!
+!! ------------
+!! TRANSFORM
+!  call fftwf_execute_dft(fft_plan, work, work)
+!  cdata(1:nx,1:ny) = work(1:nx,1:ny) ! copy result
+!! ------------
+!  
+!! ------------
+!! CLEAN UP
+!  call fftwf_destroy_plan(fft_plan)
+!  call fftwf_free(fft_pdata)
+!! ------------
+!
+!! ------------
+!  return
+!
+!END SUBROUTINE STF_FFT
+!!**********************************************************************!
+
+
 !**********************************************************************!
 !**********************************************************************!
 SUBROUTINE STF_FFT(cdata,nx,ny,dir)
-! function: internal in-place 2D complex-to-complex Fourier transform.
-! -------------------------------------------------------------------- !
-! parameter: complex*8 :: cdata(nx,ny) :: data to be transformed
-!            integer*4 :: nx, ny :: dimensions
-!            integer*4 :: dir :: directions (>=0: forward, <0: backward)
+! function: calculates a complex-to-complex 2D Fourier transform of
+!           cdata with given dimensions nx, ny in directions dir
+!           dir >=0: forwards, <0: backwards
+! remarks : The transformation never applyies a re-normalization of
+!           the data. With each call, there is a factor of
+!           sqrt(nx*ny) applied to each coefficient.
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1240,47 +1298,41 @@ SUBROUTINE STF_FFT(cdata,nx,ny,dir)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 3400
-  integer*4, intent(in) :: nx,ny
-  integer*4, intent(in) :: dir
-  complex*8, intent(inout) :: cdata(nx,ny)
-  complex(C_FLOAT_COMPLEX), pointer :: work(:,:)
-  type(C_PTR) :: fft_plan ! local fft plan
-  type(C_PTR) :: fft_pdata ! local aligned data allocated for fft
+  integer*4, intent(in) :: nx, ny, dir
+  complex(fpp), intent(inout) :: cdata(nx,ny)   
+! fft variables
+  integer*4 :: ftstatus, ftdims(2)
+  type(DFTI_DESCRIPTOR), POINTER :: descr
 ! ------------
 
 ! ------------
-! INIT
-  if (nx <= 0 .and. ny <= 0) return ! better do nothing
-  fft_pdata = fftwf_alloc_complex( int(nx*ny, C_SIZE_T) )
-  call c_f_pointer(fft_pdata, work, [nx,ny])
-  if (dir >= 0) then ! forward dft
-    fft_plan = fftwf_plan_dft_2d(ny, nx, work, work, FFTW_FORWARD, FFTW_ESTIMATE)
-  else ! backward dft
-    fft_plan = fftwf_plan_dft_2d(ny, nx, work, work, FFTW_BACKWARD, FFTW_ESTIMATE)
+  if (nx <= 0 .or. ny <= 0) return ! skip invalid dimensions
+  ftdims = (/ nx, ny /)
+  if (fpp==4) then
+    ftstatus = DftiCreateDescriptor(descr, DFTI_SINGLE,&
+         & DFTI_COMPLEX, 2, ftdims)
+  else
+    ftstatus = DftiCreateDescriptor(descr, DFTI_DOUBLE,&
+         & DFTI_COMPLEX, 2, ftdims)
   end if
-  work(1:nx,1:ny) = cdata(1:nx,1:ny) ! copy data
+  ftstatus = DftiCommitDescriptor(descr)
 ! ------------
 
 ! ------------
-! TRANSFORM
-  call fftwf_execute_dft(fft_plan, work, work)
-  cdata(1:nx,1:ny) = work(1:nx,1:ny) ! copy result
-! ------------
-  
-! ------------
-! CLEAN UP
-  call fftwf_destroy_plan(fft_plan)
-  call fftwf_free(fft_pdata)
+  if (dir >= 0) then ! forward transform
+    ftstatus = DftiComputeForward(descr, cdata(:,1))
+  else ! backward transform
+    ftstatus = DftiComputeBackward(descr, cdata(:,1))
+  end if
 ! ------------
 
+! ------------
+  ftstatus = DftiFreeDescriptor(descr)
 ! ------------
   return
 
 END SUBROUTINE STF_FFT
 !**********************************************************************!
-
-
-
 
 
 
@@ -1357,7 +1409,7 @@ FUNCTION STF_AberrationFunction(wx, wy)
 !           the parameters defined in the declaration section of this
 !           module, namely STF_maxaberration_order and STF_maxaberration
 ! -------------------------------------------------------------------- !
-! parameter: real*4 :: wx, wy : diffraction angle (wx, wy)
+! parameter: real(fpp) :: wx, wy : diffraction angle (wx, wy)
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1365,17 +1417,17 @@ FUNCTION STF_AberrationFunction(wx, wy)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 800
-  real*4, dimension(0:3), parameter :: sgnprm = (/ 1., 0., -1., 0. /)
+  real(fpp), dimension(0:3), parameter :: sgnprm = (/ 1., 0., -1., 0. /)
 
-  real*4 :: STF_AberrationFunction
+  real(fpp) :: STF_AberrationFunction
 
-  real*4, intent(in) :: wx, wy
+  real(fpp), intent(in) :: wx, wy
   
   integer*4 :: j,k,l,m,n
-  real*4 :: wfield(2,0:STF_maxaberration_order)
-  real*4 :: wabs(0:STF_maxaberration_order)
-  real*4 :: pwx, pwy, prefac, w, pw
-  real*4 :: rtmp, wax, way, ttmp, ttmp1, tsgn
+  real(fpp) :: wfield(2,0:STF_maxaberration_order)
+  real(fpp) :: wabs(0:STF_maxaberration_order)
+  real(fpp) :: pwx, pwy, prefac, w, pw
+  real(fpp) :: rtmp, wax, way, ttmp, ttmp1, tsgn
   
   integer*4, external :: binomial ! BasicFuncs.f90
 ! ------------
@@ -1438,7 +1490,7 @@ FUNCTION STF_AberrationFunction(wx, wy)
       end do
       
       j = m - n
-      ttmp = ttmp * wabs(j) / real(m) ! final scaling for current term
+      ttmp = ttmp * wabs(j) / real(m,kind=fpp) ! final scaling for current term
       rtmp = rtmp + ttmp
     end if
     
@@ -1466,8 +1518,8 @@ SUBROUTINE STF_PrepareProbeWaveFourier(wave, nx, ny, sampx,sampy)
 !           Data is scrambled and normalized.
 ! -------------------------------------------------------------------- !
 ! parameter: integer*4 :: nx, ny : dimensions
-!            real*4 :: sampx,sampy : sampling x & y [nm/pix]
-!            complex*8 :: wave(:,:) : wave function data
+!            real(fpp) :: sampx,sampy : sampling x & y [nm/pix]
+!            complex(fpp) :: wave(:,:) : wave function data
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1477,17 +1529,17 @@ SUBROUTINE STF_PrepareProbeWaveFourier(wave, nx, ny, sampx,sampy)
   integer*4, parameter :: subnum = 1700
   
   integer*4, intent(in) :: nx, ny
-  real*4, intent(in) :: sampx,sampy
-  complex*8, intent(out) :: wave(1:nx,1:ny)
+  real(fpp), intent(in) :: sampx,sampy
+  complex(fpp), intent(out) :: wave(1:nx,1:ny)
   
   integer*4 :: i, j, nx2, ny2
-  real*4 :: wx, wy, wy2, chi, power
-  real*4 :: arm, ara, aldir, asm
-  real*4 :: tpower, rval, itowx, itowy
-  real*4 :: camx, camy, lbtx, lbty, wap
-  complex*8 :: cval
+  real(fpp) :: wx, wy, wy2, chi, power
+  real(fpp) :: arm, ara, aldir, asm
+  real(fpp) :: tpower, rval, itowx, itowy
+  real(fpp) :: camx, camy, lbtx, lbty, wap
+  complex(fpp) :: cval
   
-  real*4, external :: sigmoid
+  real(fpp), external :: sigmoid
 ! ------------
 
 ! ------------
@@ -1503,8 +1555,8 @@ SUBROUTINE STF_PrepareProbeWaveFourier(wave, nx, ny, sampx,sampy)
   !STF_dim = ndim
   nx2 = (nx - modulo(nx,2)) / 2
   ny2 = (ny - modulo(ny,2)) / 2
-  itowx = STF_lamb / ( sampx * real(nx) ) ! angular grid sampling rate x
-  itowy = STF_lamb / ( sampy * real(ny) ) ! .. y
+  itowx = STF_lamb / ( sampx * real(nx,kind=fpp) ) ! angular grid sampling rate x
+  itowy = STF_lamb / ( sampy * real(ny,kind=fpp) ) ! .. y
   arm = STF_caperture(1) * 0.001 ! mean aperture radius [rad]
   ara = STF_caperture(2) ! aperture rel. asymmetry
   aldir = STF_caperture(3) ! aperture asymmetry direction (main axis defined by ara)
@@ -1544,7 +1596,7 @@ SUBROUTINE STF_PrepareProbeWaveFourier(wave, nx, ny, sampx,sampy)
       if (power<STF_APERTURETHRESH) cycle ! skip beam of insignificant amplitude
       ! aberration function
       chi = STF_AberrationFunction(wx,wy) ! no beam tilt here, this is the optics fixed to the grid
-      cval = cmplx(cos(chi),-sin(chi)) ! phase plate
+      cval = cmplx(cos(chi),-sin(chi),kind=fpp) ! phase plate
       wave(i,j) = cval*power
       STF_PreparedWavePower = STF_PreparedWavePower + power*power
       !
@@ -1576,8 +1628,8 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(wave, oam, nx, ny, sampx, sampy)
 ! -------------------------------------------------------------------- !
 ! parameter: integer*4 :: oam : vortex orbital angular momentum
 !            integer*4 :: nx, ny : dimensions
-!            real*4 :: sampx,sampy : sampling x & y [nm/pix]
-!            complex*8 :: wave(:,:) : wave function
+!            real(fpp) :: sampx,sampy : sampling x & y [nm/pix]
+!            complex(fpp) :: wave(:,:) : wave function
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1587,17 +1639,17 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(wave, oam, nx, ny, sampx, sampy)
   integer*4, parameter :: subnum = 1710
   
   integer*4, intent(in) :: oam, nx, ny
-  real*4, intent(in) :: sampx,sampy
-  complex*8, intent(out) :: wave(1:nx,1:ny)
+  real(fpp), intent(in) :: sampx,sampy
+  complex(fpp), intent(out) :: wave(1:nx,1:ny)
   
   integer*4 :: i, j, nx2, ny2
-  real*4 :: wx, wy, wy2, chi, power
-  real*4 :: arm, ara, aldir, asm
-  real*4 :: tpower, rval, itowx, itowy
-  real*4 :: camx, camy, lbtx, lbty, wap, vtx
-  complex*8 :: cval
+  real(fpp) :: wx, wy, wy2, chi, power
+  real(fpp) :: arm, ara, aldir, asm
+  real(fpp) :: tpower, rval, itowx, itowy
+  real(fpp) :: camx, camy, lbtx, lbty, wap, vtx
+  complex(fpp) :: cval
   
-  real*4, external :: sigmoid
+  real(fpp), external :: sigmoid
 ! ------------
 
 ! ------------
@@ -1612,8 +1664,8 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(wave, oam, nx, ny, sampx, sampy)
   call STF_SETTAB_SCR(nx, ny)
   nx2 = (nx - modulo(nx,2)) / 2
   ny2 = (ny - modulo(ny,2)) / 2
-  itowx = STF_lamb / ( sampx * real(nx) ) ! angular grid sampling rate x
-  itowy = STF_lamb / ( sampy * real(ny) ) ! .. y
+  itowx = STF_lamb / ( sampx * real(nx,kind=fpp) ) ! angular grid sampling rate x
+  itowy = STF_lamb / ( sampy * real(ny,kind=fpp) ) ! .. y
   arm = STF_caperture(1) * 0.001 ! mean aperture radius [rad]
   ara = STF_caperture(2) ! rel. aperture asymmetry
   aldir = STF_caperture(3) ! aperture asymmetry direction (main axis defined by ara)
@@ -1651,14 +1703,14 @@ SUBROUTINE STF_PrepareVortexProbeWaveFourier(wave, oam, nx, ny, sampx, sampy)
       ! vortex
       vtx = 0. ! preset vortex phase with as zero
       if (wx==0.) then ! calculate the vortex component of the aberration function
-        if (wy>0.) vtx = -real(oam)*0.5*STF_pi + 0.5*STF_pi
-        if (wy<0.) vtx =  real(oam)*0.5*STF_pi + 0.5*STF_pi
+        if (wy>0.) vtx = -real(oam,kind=fpp)*0.5*STF_pi + 0.5*STF_pi
+        if (wy<0.) vtx =  real(oam,kind=fpp)*0.5*STF_pi + 0.5*STF_pi
       else ! wx values other than 0
-        vtx = -real(oam)*atan2(wy,wx) + 0.5*STF_pi
+        vtx = -real(oam,kind=fpp)*atan2(wy,wx) + 0.5*STF_pi
       end if
       ! aberration function
       chi = STF_AberrationFunction(wx,wy) + vtx ! combine lens aberrations and a pure vortex aberration
-      cval = cmplx(cos(chi),-sin(chi)) ! phase plate
+      cval = cmplx(cos(chi),-sin(chi),kind=fpp) ! phase plate
       wave(i,j) = cval*power
       STF_PreparedWavePower = STF_PreparedWavePower + power*power
     end do
@@ -1686,8 +1738,8 @@ SUBROUTINE STF_PreparePlaneWaveFourier(wave, nx, ny, sampx,sampy)
 !           The result is scrambled and normalized.
 ! -------------------------------------------------------------------- !
 ! parameter: integer*4 :: nx, ny : dimensions
-!            real*4 :: sampx,sampy : sampling x & y [nm/pix]
-!            complex*8 :: wave(1:nx,1:ny) :: wave function
+!            real(fpp) :: sampx,sampy : sampling x & y [nm/pix]
+!            complex(fpp) :: wave(1:nx,1:ny) :: wave function
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1697,14 +1749,14 @@ SUBROUTINE STF_PreparePlaneWaveFourier(wave, nx, ny, sampx,sampy)
   integer*4, parameter :: subnum = 3500
   
   integer*4, intent(in) :: nx, ny
-  real*4, intent(in) :: sampx, sampy
-  complex*8, intent(out) :: wave(1:nx,1:ny)
+  real(fpp), intent(in) :: sampx, sampy
+  complex(fpp), intent(out) :: wave(1:nx,1:ny)
   
   integer*4 :: i, j, nx2, ny2
-  real*4 :: rx, ry, chi, rsca
-  real*4 :: lbtx, lbty
+  real(fpp) :: rx, ry, chi, rsca
+  real(fpp) :: lbtx, lbty
   
-  real*4, external :: sigmoid
+  real(fpp), external :: sigmoid
 ! ------------
 
 ! ------------
@@ -1719,7 +1771,7 @@ SUBROUTINE STF_PreparePlaneWaveFourier(wave, nx, ny, sampx,sampy)
   ny2 = (ny - modulo(ny,2)) / 2
   lbtx = STF_beam_tiltx*0.001 ! beam tilt in [rad]
   lbty = STF_beam_tilty*0.001
-  rsca = 1.0 / sqrt( real( nx*ny )) ! transform renormalization
+  rsca = 1.0 / sqrt( real( nx*ny ,kind=fpp)) ! transform renormalization
 ! ------------
 
 
@@ -1731,11 +1783,11 @@ SUBROUTINE STF_PreparePlaneWaveFourier(wave, nx, ny, sampx,sampy)
 ! streak in the Fourier-space representation, if the beam tilt doesn't
 ! fall on a Fourier pixel, condition: bt = i * lambda / (sampling * ndim).
   do j=1, ny
-    ry = real(j-ny2-1)*sampy ! /!\ ry goes negative
+    ry = real(j-ny2-1,kind=fpp)*sampy ! /!\ ry goes negative
     do i=1, nx
-      rx = real(i-nx2-1)*sampx ! /!\ rx goes negative
+      rx = real(i-nx2-1,kind=fpp)*sampx ! /!\ rx goes negative
       chi = 2.0 * STF_pi * (rx*lbtx+ry*lbty) / STF_lamb
-      wave(i,j) = cmplx(cos(chi),sin(chi)) * rsca ! the scaling keeps the norm in Fourier-space
+      wave(i,j) = cmplx(cos(chi),sin(chi),kind=fpp) * rsca ! the scaling keeps the norm in Fourier-space
     end do
   end do
 ! transform to Fourier space
@@ -1757,9 +1809,9 @@ END SUBROUTINE STF_PreparePlaneWaveFourier
 SUBROUTINE STF_GetPhasePlate(p,ndim,sampling)
 ! function: calculates the aberration function in fourier space
 ! -------------------------------------------------------------------- !
-! parameter: real*4 :: p(ndim,ndim) : phase plate
+! parameter: real(fpp) :: p(ndim,ndim) : phase plate
 !            integer*4 :: ndim : dimension (square size)
-!            real*4 :: sampling [nm/pix]
+!            real(fpp) :: sampling [nm/pix]
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1769,11 +1821,11 @@ SUBROUTINE STF_GetPhasePlate(p,ndim,sampling)
   integer*4, parameter :: subnum = 3200
   
   integer*4 :: ndim
-  real*4 :: sampling
-  real*4 :: p(ndim,ndim)
+  real(fpp) :: sampling
+  real(fpp) :: p(ndim,ndim)
   
   integer*4 :: i, j, ndim2
-  real*4 :: wx, wy
+  real(fpp) :: wx, wy
 ! ------------
 
 ! ------------
@@ -1789,7 +1841,7 @@ SUBROUTINE STF_GetPhasePlate(p,ndim,sampling)
   ndim2 = int(ndim/2)
   STF_sampling = sampling
 ! set Fourier-space sampling
-  STF_itog = 0.5/sampling/real(ndim2)
+  STF_itog = 0.5/sampling/real(ndim2,kind=fpp)
   STF_itow = STF_itog*STF_lamb
 ! ------------
 
@@ -1822,9 +1874,9 @@ END SUBROUTINE STF_GetPhasePlate
 SUBROUTINE STF_AberrateWaveFourier(wave, nx, ny, sampx, sampy)
 ! function: applies aberrations to the given wave function
 ! -------------------------------------------------------------------- !
-! parameter: complex*8 :: wave(ny,nx) :: wave function (Fourier-space)
+! parameter: complex(fpp) :: wave(ny,nx) :: wave function (Fourier-space)
 !            integer*4 :: nx, ny :: dimensions
-!            real*4 :: sampx, sampy :: sampling rates x & y [nm/pix]
+!            real(fpp) :: sampx, sampy :: sampling rates x & y [nm/pix]
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1833,14 +1885,14 @@ SUBROUTINE STF_AberrateWaveFourier(wave, nx, ny, sampx, sampy)
 ! DECLARATION
   integer*4, parameter :: subnum = 3600
   
-  complex*8, intent(inout) :: wave(nx, ny)
+  complex(fpp), intent(inout) :: wave(nx, ny)
   integer*4, intent(in) :: nx, ny
-  real*4, intent(in) :: sampx,sampy
+  real(fpp), intent(in) :: sampx,sampy
   
   integer*4 :: i, j, nx2, ny2
-  real*4 :: wx, wy, wy2, chi
-  real*4 :: itowx, itowy
-  complex*8 :: cval
+  real(fpp) :: wx, wy, wy2, chi
+  real(fpp) :: itowx, itowy
+  complex(fpp) :: cval
 ! ------------
 
 ! ------------
@@ -1855,8 +1907,8 @@ SUBROUTINE STF_AberrateWaveFourier(wave, nx, ny, sampx, sampy)
   call STF_SETTAB_SCR(nx, ny)
   nx2 = (nx - modulo(nx,2)) / 2
   ny2 = (ny - modulo(ny,2)) / 2
-  itowx = STF_lamb / ( sampx * real(nx) ) ! angular grid sampling rate x
-  itowy = STF_lamb / ( sampy * real(ny) ) ! .. y
+  itowx = STF_lamb / ( sampx * real(nx,kind=fpp) ) ! angular grid sampling rate x
+  itowy = STF_lamb / ( sampy * real(ny,kind=fpp) ) ! .. y
 ! ------------
 
 
@@ -1868,7 +1920,7 @@ SUBROUTINE STF_AberrateWaveFourier(wave, nx, ny, sampx, sampy)
       wx = STF_TABBED_SCR(i)*itowx
       
       chi = STF_AberrationFunction(wx,wy)
-      cval = cmplx(cos(chi),-sin(chi))
+      cval = cmplx(cos(chi),-sin(chi),kind=fpp)
       wave(i,j) = cval*wave(i,j)
       
     end do
@@ -1889,10 +1941,10 @@ SUBROUTINE STF_ApplyObjectiveAperture(wave, nx, ny, sampx, sampy, acx, acy)
 ! function: applies aberrations to the given wave function in Fourier
 !           space representation.
 ! -------------------------------------------------------------------- !
-! parameter: complex*8 :: wave(nx, ny) :: wavefunction Fourier coeffs.
+! parameter: complex(fpp) :: wave(nx, ny) :: wavefunction Fourier coeffs.
 !            integer*4 :: nx, ny :: dimensions
-!            real*4 :: sampx,sampy :: sampling rates x & y [nm/pix]
-!            real*4 :: acx, acy :: aperture center x & y [rad]
+!            real(fpp) :: sampx,sampy :: sampling rates x & y [nm/pix]
+!            real(fpp) :: acx, acy :: aperture center x & y [rad]
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1901,15 +1953,15 @@ SUBROUTINE STF_ApplyObjectiveAperture(wave, nx, ny, sampx, sampy, acx, acy)
 ! DECLARATION
   integer*4, parameter :: subnum = 3600
   
-  complex*8, intent(inout) :: wave(nx,ny)
+  complex(fpp), intent(inout) :: wave(nx,ny)
   integer*4, intent(in) :: nx, ny
-  real*4, intent(in) :: sampx, sampy, acx, acy
+  real(fpp), intent(in) :: sampx, sampy, acx, acy
   
   integer*4 :: i, j, nx2, ny2
-  real*4 :: wx, wy, wy2, wap
-  real*4 :: itowx, itowy
-  real*4 :: arm, ara, aldir, asm, camx, camy
-  real*4 :: rval, power
+  real(fpp) :: wx, wy, wy2, wap
+  real(fpp) :: itowx, itowy
+  real(fpp) :: arm, ara, aldir, asm, camx, camy
+  real(fpp) :: rval, power
 ! ------------
 
 ! ------------
@@ -1924,8 +1976,8 @@ SUBROUTINE STF_ApplyObjectiveAperture(wave, nx, ny, sampx, sampy, acx, acy)
   call STF_SETTAB_SCR(nx, ny)
   nx2 = (nx - modulo(nx,2)) / 2
   ny2 = (ny - modulo(ny,2)) / 2
-  itowx = STF_lamb / ( sampx * real(nx) ) ! angular grid sampling rate x
-  itowy = STF_lamb / ( sampy * real(ny) ) ! .. y
+  itowx = STF_lamb / ( sampx * real(nx,kind=fpp) ) ! angular grid sampling rate x
+  itowy = STF_lamb / ( sampy * real(ny,kind=fpp) ) ! .. y
   arm = STF_caperture(1) * 0.001 ! mean aperture radius [rad]
   ara = STF_caperture(2)   ! rel. aperture asymmetry
   aldir = STF_caperture(3) ! aperture asymmetry direction (main axis defined by ara)
@@ -1984,11 +2036,11 @@ SUBROUTINE STF_ApertureFunction(kx, ky, kcx, kcy, klim, val)
 ! -------------------------------------------------------------------- !
 ! parameter:
 ! (input)
-!  real*4 :: kx, ky ! k-space coordinate [1/nm]
-!  real*4 :: kcx, kxy ! k-space coordinate of the aperture center [1/nm]
-!  real*4 :: klim ! size of the aperture (radius) [1/nm]
+!  real(fpp) :: kx, ky ! k-space coordinate [1/nm]
+!  real(fpp) :: kcx, kxy ! k-space coordinate of the aperture center [1/nm]
+!  real(fpp) :: klim ! size of the aperture (radius) [1/nm]
 ! (output)
-!  real*4 :: val ! aperture value
+!  real(fpp) :: val ! aperture value
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -1996,11 +2048,11 @@ SUBROUTINE STF_ApertureFunction(kx, ky, kcx, kcy, klim, val)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 3900
-  real*4, intent(in) :: kx, ky ! k-space coordinate [1/nm]
-  real*4, intent(in) :: kcx, kcy ! k-space coordinate of the aperture center [1/nm]
-  real*4, intent(in) :: klim ! size of the aperture (radius) [1/nm]
-  real*4, intent(out) :: val ! aperture value
-  real*4 :: dkx, dky, dkm ! k-space decenter [1/nm]
+  real(fpp), intent(in) :: kx, ky ! k-space coordinate [1/nm]
+  real(fpp), intent(in) :: kcx, kcy ! k-space coordinate of the aperture center [1/nm]
+  real(fpp), intent(in) :: klim ! size of the aperture (radius) [1/nm]
+  real(fpp), intent(out) :: val ! aperture value
+  real(fpp) :: dkx, dky, dkm ! k-space decenter [1/nm]
 ! ------------
 
 ! ------------
@@ -2035,12 +2087,12 @@ SUBROUTINE STF_ApertureFunctionS(kx, ky, kcx, kcy, klim, s, val)
 ! -------------------------------------------------------------------- !
 ! parameter:
 ! (input)
-!  real*4 :: kx, ky ! k-space coordinate [1/nm]
-!  real*4 :: kcx, kxy ! k-space coordinate of the aperture center [1/nm]
-!  real*4 :: klim ! size of the aperture (radius) [1/nm]
-!  real*4 :: s ! rel. smoothness of the aperture edge
+!  real(fpp) :: kx, ky ! k-space coordinate [1/nm]
+!  real(fpp) :: kcx, kxy ! k-space coordinate of the aperture center [1/nm]
+!  real(fpp) :: klim ! size of the aperture (radius) [1/nm]
+!  real(fpp) :: s ! rel. smoothness of the aperture edge
 ! (output)
-!  real*4 :: val ! aperture value
+!  real(fpp) :: val ! aperture value
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -2048,13 +2100,13 @@ SUBROUTINE STF_ApertureFunctionS(kx, ky, kcx, kcy, klim, s, val)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 4000
-  real*4, intent(in) :: kx, ky ! k-space coordinate [1/nm]
-  real*4, intent(in) :: kcx, kcy ! k-space coordinate of the aperture center [1/nm]
-  real*4, intent(in) :: klim ! size of the aperture (radius) [1/nm]
-  real*4, intent(in) :: s ! smoothness of the aperture edge [pixels]
-  real*4, intent(out) :: val ! aperture value
-  real*4 :: dkx, dky ! k-space decenter [1/nm]
-  real*4 :: dkm, dks, darg
+  real(fpp), intent(in) :: kx, ky ! k-space coordinate [1/nm]
+  real(fpp), intent(in) :: kcx, kcy ! k-space coordinate of the aperture center [1/nm]
+  real(fpp), intent(in) :: klim ! size of the aperture (radius) [1/nm]
+  real(fpp), intent(in) :: s ! smoothness of the aperture edge [pixels]
+  real(fpp), intent(out) :: val ! aperture value
+  real(fpp) :: dkx, dky ! k-space decenter [1/nm]
+  real(fpp) :: dkm, dks, darg
   
 ! ------------
 
@@ -2107,14 +2159,14 @@ SUBROUTINE STF_ApertureFunctionA(kx, ky, kcx, kcy, klim, alim, adir, s, val)
 ! -------------------------------------------------------------------- !
 ! parameter:
 ! (input)
-!  real*4 :: kx, ky ! k-space coordinate [1/nm]
-!  real*4 :: kcx, kxy ! k-space coordinate of the aperture center [1/nm]
-!  real*4 :: klim ! size of the aperture (mean radius) [1/nm]
-!  real*4 :: alim ! asymmetry of the aperture (max. radius / mean radius - 1)
-!  real*4 :: adir ! direction of the large aperture radius [rad]
-!  real*4 :: s ! rel. smoothness of the aperture edge
+!  real(fpp) :: kx, ky ! k-space coordinate [1/nm]
+!  real(fpp) :: kcx, kxy ! k-space coordinate of the aperture center [1/nm]
+!  real(fpp) :: klim ! size of the aperture (mean radius) [1/nm]
+!  real(fpp) :: alim ! asymmetry of the aperture (max. radius / mean radius - 1)
+!  real(fpp) :: adir ! direction of the large aperture radius [rad]
+!  real(fpp) :: s ! rel. smoothness of the aperture edge
 ! (output)
-!  real*4 :: val ! aperture value
+!  real(fpp) :: val ! aperture value
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -2122,17 +2174,17 @@ SUBROUTINE STF_ApertureFunctionA(kx, ky, kcx, kcy, klim, alim, adir, s, val)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 4100
-  real*4, intent(in) :: kx, ky ! k-space coordinate [1/nm]
-  real*4, intent(in) :: kcx, kcy ! k-space coordinate of the aperture center [1/nm]
-  real*4, intent(in) :: klim ! size of the aperture (radius) [1/nm]
-  real*4, intent(in) :: alim ! asymmetry of the aperture
-  real*4, intent(in) :: adir ! direction of the large aperture radius [rad]
-  real*4, intent(in) :: s ! rel. smoothness of the aperture edge
-  real*4, intent(out) :: val ! aperture value
-  real*4 :: a1x, a1y, adet, radet ! distortion parameters
-  real*4 :: dkx, dky, dkx1, dky1, dk2, dkm ! k-space values [1/nm]
-  real*4 :: dks ! absolute smoothness parameters
-  real*4 :: darg ! distance argument for aperture function
+  real(fpp), intent(in) :: kx, ky ! k-space coordinate [1/nm]
+  real(fpp), intent(in) :: kcx, kcy ! k-space coordinate of the aperture center [1/nm]
+  real(fpp), intent(in) :: klim ! size of the aperture (radius) [1/nm]
+  real(fpp), intent(in) :: alim ! asymmetry of the aperture
+  real(fpp), intent(in) :: adir ! direction of the large aperture radius [rad]
+  real(fpp), intent(in) :: s ! rel. smoothness of the aperture edge
+  real(fpp), intent(out) :: val ! aperture value
+  real(fpp) :: a1x, a1y, adet, radet ! distortion parameters
+  real(fpp) :: dkx, dky, dkx1, dky1, dk2, dkm ! k-space values [1/nm]
+  real(fpp) :: dks ! absolute smoothness parameters
+  real(fpp) :: darg ! distance argument for aperture function
 ! ------------
 
 ! ------------
@@ -2187,13 +2239,13 @@ SUBROUTINE STF_GaussianFunctionA(kx, ky, kcx, kcy, klim, alim, adir, val)
 ! -------------------------------------------------------------------- !
 ! parameter:
 ! (input)
-!  real*4 :: kx, ky ! k-space coordinate [1/nm]
-!  real*4 :: kcx, kxy ! k-space coordinate of the aperture center [1/nm]
-!  real*4 :: klim ! 1/e radius (1 sigma) [1/nm]
-!  real*4 :: alim ! rel. asymmetry of the aperture (max. radius / mean radius - 1)
-!  real*4 :: adir ! direction of the large aperture radius [rad]
+!  real(fpp) :: kx, ky ! k-space coordinate [1/nm]
+!  real(fpp) :: kcx, kxy ! k-space coordinate of the aperture center [1/nm]
+!  real(fpp) :: klim ! 1/e radius (1 sigma) [1/nm]
+!  real(fpp) :: alim ! rel. asymmetry of the aperture (max. radius / mean radius - 1)
+!  real(fpp) :: adir ! direction of the large aperture radius [rad]
 ! (output)
-!  real*4 :: val ! aperture value
+!  real(fpp) :: val ! aperture value
 ! -------------------------------------------------------------------- !
 
   implicit none
@@ -2201,14 +2253,14 @@ SUBROUTINE STF_GaussianFunctionA(kx, ky, kcx, kcy, klim, alim, adir, val)
 ! ------------
 ! DECLARATION
   integer*4, parameter :: subnum = 4200
-  real*4, intent(in) :: kx, ky ! k-space coordinate [1/nm]
-  real*4, intent(in) :: kcx, kcy ! k-space coordinate of the aperture center [1/nm]
-  real*4, intent(in) :: klim ! size of the aperture (radius) [1/nm]
-  real*4, intent(in) :: alim ! asymmetry of the aperture
-  real*4, intent(in) :: adir ! direction of the large aperture radius [rad]
-  real*4, intent(out) :: val ! aperture value
-  real*4 :: a1x, a1y, adet, radet ! distortion parameters
-  real*4 :: dkx, dky, dkx1, dky1, dk2, dkm ! k-space values [1/nm]
+  real(fpp), intent(in) :: kx, ky ! k-space coordinate [1/nm]
+  real(fpp), intent(in) :: kcx, kcy ! k-space coordinate of the aperture center [1/nm]
+  real(fpp), intent(in) :: klim ! size of the aperture (radius) [1/nm]
+  real(fpp), intent(in) :: alim ! asymmetry of the aperture
+  real(fpp), intent(in) :: adir ! direction of the large aperture radius [rad]
+  real(fpp), intent(out) :: val ! aperture value
+  real(fpp) :: a1x, a1y, adet, radet ! distortion parameters
+  real(fpp) :: dkx, dky, dkx1, dky1, dk2, dkm ! k-space values [1/nm]
 ! ------------
 
 ! ------------
@@ -2251,16 +2303,18 @@ END SUBROUTINE STF_GaussianFunctionA
 FUNCTION STF_HT2WL(ht)
 ! function: calculates wavelength [nm] from high-tension [kV]
 ! -------------------------------------------------------------------- !
-! parameter: real*4 :: ht
+! parameter: real(fpp) :: ht
 ! -------------------------------------------------------------------- !
 
   implicit none
 
 ! ------------
 ! DECLARATION
+  real(fpp),parameter :: wlkev = 1.2398419843320025 ! c * h / q_e * 1E6
+  real(fpp),parameter :: twomc2 = 1021.9978999923284 ! 2*m0*c**2 / q_e
   integer*4, parameter :: subnum = 3700
-  real*4, intent(in) :: ht
-  real*4 :: STF_HT2WL
+  real(fpp), intent(in) :: ht
+  real(fpp) :: STF_HT2WL
 ! ------------
 
 ! ------------
@@ -2269,7 +2323,7 @@ FUNCTION STF_HT2WL(ht)
 ! ------------
 
 ! ------------
-  STF_HT2WL = 1.239842447 / sqrt( ht * ( 1022.0 + ht ) )
+  STF_HT2WL = wlkev / sqrt( ht * ( twomc2 + ht ) )
 ! ------------
 
 ! ------------
@@ -2284,16 +2338,19 @@ END FUNCTION STF_HT2WL
 FUNCTION STF_WL2HT(wl)
 ! function: calculates heigh tension in kV from wavelength
 ! -------------------------------------------------------------------- !
-! parameter: real*4 :: wl
+! parameter: real(fpp) :: wl
 ! -------------------------------------------------------------------- !
 
   implicit none
 
 ! ------------
 ! DECLARATION
+  real(fpp),parameter :: wlkev = 1.2398419843320025 ! c * h / q_e * 1E6
+  real(fpp),parameter :: mc2 = 510.9989499961642 ! m0*c**2 / q_e
   integer*4, parameter :: subnum = 3800
-  real*4, intent(in) :: wl
-  real*4 :: STF_WL2HT
+  real(fpp), intent(in) :: wl
+  real(fpp) :: STF_WL2HT
+  real(fpp) :: c0
 ! ------------
 
 ! ------------
@@ -2302,7 +2359,8 @@ FUNCTION STF_WL2HT(wl)
 ! ------------
 
 ! ------------
-  STF_WL2HT = ( sqrt( 1.0 + (0.0024263/wl)**2 ) - 1.0 ) * 511.0
+  c0 = wlkev / mc2
+  STF_WL2HT = ( sqrt( 1.0 + (c0/wl)**2 ) - 1.0 ) * mc2
 ! ------------
 
 ! ------------

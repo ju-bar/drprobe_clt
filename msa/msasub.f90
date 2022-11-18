@@ -447,12 +447,14 @@ FUNCTION sigmoid(x,x0,dx)
 !            
 ! -------------------------------------------------------------------- !
 
+  use precision
+  
   implicit none
 
 ! ------------
 ! declaration
-  real*4 :: sigmoid
-  real*4, intent(in) :: x, x0, dx
+  real(fpp) :: sigmoid
+  real(fpp), intent(in) :: x, x0, dx
 ! ------------
 
 ! ------------
@@ -812,7 +814,58 @@ subroutine fileopenexclrw(sfile, lun, nexist, nerr)
 end subroutine fileopenexclrw
 !**********************************************************************!
   
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE SaveDataC(sfile,dat,n,nerr)
+! function: saves complex data array to file
+! -------------------------------------------------------------------- !
+! parameter: 
+! -------------------------------------------------------------------- !
 
+  use precision
+  
+  implicit none
+
+! ------------
+! DECLARATION
+  character(len=*), intent(in) :: sfile
+  integer*4, intent(in) :: n
+  complex(fpp), intent(in) :: dat(n)
+  integer*4, intent(inout) :: nerr
+  
+  integer*4 :: lu
+  external :: GETFreeLFU
+  external :: createfilefolder
+! ------------
+
+  nerr = 0
+  call GetFreeLFU(lu,20,99)
+  !
+  ! open file, connect to lun
+  !
+  call createfilefolder(trim(sfile),nerr)
+  open(unit=lu,file=trim(sfile),iostat=nerr,&
+     & form='binary',action='write',status='replace')
+  if (nerr/=0) then
+    call CriticalError("SaveDataC: Failed to open file ["//trim(sfile)//"].")
+  end if
+  !
+  ! write data to file, sequential binary
+  !
+  write(unit=lu,iostat=nerr) dat
+  if (nerr/=0) then
+    call CriticalError("SaveDataC: Failed to write data to file ["//trim(sfile)//"].")
+  end if
+  !
+  ! close and disconnect
+  !
+  close(unit=lu)
+  return
+
+  END SUBROUTINE SaveDataC
+!**********************************************************************!
+  
+  
 !**********************************************************************!
 !**********************************************************************!
 SUBROUTINE SaveDataC8(sfile,dat,n,nerr)
@@ -875,6 +928,57 @@ SUBROUTINE SaveDataC8(sfile,dat,n,nerr)
 END SUBROUTINE SaveDataC8
 !**********************************************************************!
 
+  
+  !**********************************************************************!
+!**********************************************************************!
+SUBROUTINE AppendDataC(sfile,dat,n,nerr)
+! function: appands complex data array to file
+! -------------------------------------------------------------------- !
+! parameter: 
+! -------------------------------------------------------------------- !
+
+  use precision
+
+  implicit none
+
+! ------------
+! DECLARATION
+  character(len=*), intent(in) :: sfile
+  integer*4, intent(in) :: n
+  complex(fpp), intent(in) :: dat(n)
+  integer*4, intent(inout) :: nerr
+  
+  integer*4 :: lu
+  external :: GETFreeLFU
+  external :: createfilefolder
+! ------------
+
+  nerr = 0
+  call GetFreeLFU(lu,20,99)
+  !
+  ! open file, connect to lun
+  !
+  call createfilefolder(trim(sfile),nerr)
+  open(unit=lu, file=trim(sfile), iostat=nerr, &
+     & form='binary', action='write', status='unknown', position='append')
+  if (nerr/=0) then
+    call CriticalError("AppendDataC: Failed to open file ["//trim(sfile)//"].")
+  end if
+  !
+  ! write data to file, sequential binary
+  !
+  write(unit=lu,iostat=nerr) dat
+  if (nerr/=0) then
+    call CriticalError("AppendDataC: Failed to write data to file ["//trim(sfile)//"].")
+  end if
+  !
+  ! close and disconnect
+  !
+  close(unit=lu)
+  return
+
+END SUBROUTINE AppendDataC
+!**********************************************************************!
 
 !**********************************************************************!
 !**********************************************************************!
@@ -935,9 +1039,68 @@ SUBROUTINE AppendDataC8(sfile,dat,n,nerr)
 !  write(unit=*,fmt=*) " > AppendDataC8: EXIT."
   return
 
-END SUBROUTINE AppendDataC8
+  END SUBROUTINE AppendDataC8
 !**********************************************************************!
 
+  
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE CreateDataR(sfile,n,nerr)
+! function: creates a file with n float zeros
+! -------------------------------------------------------------------- !
+! parameter: 
+! -------------------------------------------------------------------- !
+  use precision
+  implicit none
+
+! ------------
+! DECLARATION
+  character(len=*), intent(in) :: sfile
+  integer*4, intent(in) :: n
+  integer*4, intent(inout) :: nerr
+  
+  integer*4 :: lu, nalloc
+  external :: GetFreeLFU
+  external :: createfilefolder
+  real(fpp), allocatable :: fa(:)
+! ------------
+
+  nerr = 0
+  nalloc = 0
+  allocate(fa(n),stat=nalloc)
+  if (nalloc/=0) then
+    call CriticalError("CreateDataR: Failed to allocate memory.")
+  end if
+  fa = 0.
+  call GetFreeLFU(lu,20,99)
+  !
+  ! open file, connect to lun
+  !
+  call createfilefolder(trim(sfile),nerr)
+  open(unit=lu,file=trim(sfile),iostat=nerr,&
+     & form='binary',action='write',status='replace')
+  if (nerr/=0) then
+    call CriticalError("CreateDataR: Failed to create file ["//trim(sfile)//"].")
+  end if
+  !
+  ! write data to file, sequential binary
+  !
+  write(unit=lu,iostat=nerr) fa
+  if (nerr/=0) then
+    call CriticalError("CreateDataR: Failed to initialize file.")
+  end if
+  !
+  ! close and disconnect
+  !
+  close(unit=lu)
+  !
+  ! done
+  !
+  deallocate(fa,stat=nalloc)
+  return
+
+END SUBROUTINE CreateDataR
+!**********************************************************************!
   
 !**********************************************************************!
 !**********************************************************************!
@@ -1009,118 +1172,167 @@ END SUBROUTINE CreateDataR4
 !**********************************************************************!
   
   
+!!**********************************************************************!
+!!**********************************************************************!
+!SUBROUTINE AddDataR4(sfile,dat,n,np,nerr)
+!! function: adss real*4 data array to file at location np
+!! -------------------------------------------------------------------- !
+!! parameter: 
+!! -------------------------------------------------------------------- !
+!
+!  use IFPORT
+!  
+!  implicit none
+!
+!! ------------
+!! DECLARATION
+!  integer*4, parameter :: nbuf = 1024 ! use a fix size write buffer
+!  
+!  character(len=*), intent(in) :: sfile
+!  integer*4, intent(in) :: n, np
+!  real*4, intent(in) :: dat(n)
+!  integer*4, intent(inout) :: nerr
+!  
+!  integer*4 :: lu, nalloc, npos, nposn, nrem, nnow
+!  external :: GETFreeLFU
+!  real*4 :: buf(nbuf)
+!! ------------
+!
+!! ------------
+!! INIT
+!!  write(unit=*,fmt=*) " > AddDataR4: INIT."
+!  nerr = 0
+!  nalloc = 0
+!  buf = 0.
+!  call GetFreeLFU(lu,20,99)
+!! ------------
+!
+!! ------------
+!  !
+!  ! open file, connect to lun, using shared access
+!  ! Warning: This can cause trouble on multi-process calls
+!  !          To avoid or at least keep chances low for simultaneous access:
+!  !          - keep nbuf low 
+!  !          - call only once per process and file
+!  !
+!  open(unit=lu, file=trim(sfile), iostat=nerr, &
+!     & form='binary', action='write', status='old', share='DENYNONE')
+!  if (nerr/=0) goto 100
+!  !
+!  !
+!  nrem = n
+!  npos = np
+!  nposn = 1
+!  !
+!  ! while items remain to be written
+!  do while (nrem>0)
+!    !
+!    ! determine number of bytes for next block
+!    nnow = min(nrem,nbuf)
+!    !
+!    ! go to requested position in file
+!    nerr = FSEEK(lu, npos, 0)
+!    if (nerr/=0) goto 103
+!    !
+!    ! read to buffer
+!    read(unit=lu,iostat=nerr) buf(1:nnow)
+!    if (nerr/=0) goto 101
+!    !
+!    ! add from input
+!    buf(1:nnow) = buf(1:nnow) + dat(nposn:nposn+nnow-1)
+!    !
+!    ! go back to requested position in file
+!    nerr = FSEEK(lu, npos, 0)
+!    if (nerr/=0) goto 103
+!    !
+!    ! write data to file, sequential binary
+!    write(unit=lu,iostat=nerr) buf(1:nnow)
+!    if (nerr/=0) goto 102
+!    !
+!    nrem = nrem - nnow
+!    npos = npos + nnow
+!    nposn = nposn + nnow
+!    !
+!  end do
+!  !
+!  ! close and disconnect
+!  !
+!  close(unit=lu)
+!  !
+!  ! done
+!  !
+!! ------------
+!
+!! ------------
+!!  write(unit=*,fmt=*) " > AddDataR4: EXIT."
+!  return
+!  
+!100 continue
+!  call CriticalError("AddDataR4: Failed to open file ["//trim(sfile)//"].")
+!  return
+!101 continue
+!  call CriticalError("AddDataR4: Failed to read data from file ["//trim(sfile)//"].")
+!  return
+!102 continue
+!  call CriticalError("AddDataR4: Failed to write data to file ["//trim(sfile)//"].")
+!  return
+!103 continue
+!  call CriticalError("AddDataR4: Failed to position in file ["//trim(sfile)//"].")
+!  return
+!
+!END SUBROUTINE AddDataR4
+!!**********************************************************************!
+  
+
 !**********************************************************************!
 !**********************************************************************!
-SUBROUTINE AddDataR4(sfile,dat,n,np,nerr)
-! function: adss real*4 data array to file at location np
+SUBROUTINE SaveDataR(sfile,dat,n,nerr)
+! function: saves real*4 data array to file
 ! -------------------------------------------------------------------- !
 ! parameter: 
 ! -------------------------------------------------------------------- !
-
-  use IFPORT
-  
+  use precision
   implicit none
 
 ! ------------
 ! DECLARATION
-  integer*4, parameter :: nbuf = 1024 ! use a fix size write buffer
-  
   character(len=*), intent(in) :: sfile
-  integer*4, intent(in) :: n, np
-  real*4, intent(in) :: dat(n)
+  integer*4, intent(in) :: n
+  real(fpp), intent(in) :: dat(n)
   integer*4, intent(inout) :: nerr
   
-  integer*4 :: lu, nalloc, npos, nposn, nrem, nnow
-  external :: GETFreeLFU
-  real*4 :: buf(nbuf)
+  integer*4 :: lu
+  external :: GetFreeLFU
+  external :: createfilefolder
 ! ------------
 
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > AddDataR4: INIT."
   nerr = 0
-  nalloc = 0
-  buf = 0.
   call GetFreeLFU(lu,20,99)
-! ------------
-
-! ------------
   !
-  ! open file, connect to lun, using shared access
-  ! Warning: This can cause trouble on multi-process calls
-  !          To avoid or at least keep chances low for simultaneous access:
-  !          - keep nbuf low 
-  !          - call only once per process and file
+  ! open file, connect to lun
   !
-  open(unit=lu, file=trim(sfile), iostat=nerr, &
-     & form='binary', action='write', status='old', share='DENYNONE')
-  if (nerr/=0) goto 100
+  call createfilefolder(trim(sfile),nerr)
+  open(unit=lu,file=trim(sfile),iostat=nerr,&
+     & form='binary',action='write',status='replace')
+  if (nerr/=0) then
+    call CriticalError("SaveDataR: Failed to open file.")
+  end if
   !
+  ! write data to file, sequential binary
   !
-  nrem = n
-  npos = np
-  nposn = 1
-  !
-  ! while items remain to be written
-  do while (nrem>0)
-    !
-    ! determine number of bytes for next block
-    nnow = min(nrem,nbuf)
-    !
-    ! go to requested position in file
-    nerr = FSEEK(lu, npos, 0)
-    if (nerr/=0) goto 103
-    !
-    ! read to buffer
-    read(unit=lu,iostat=nerr) buf(1:nnow)
-    if (nerr/=0) goto 101
-    !
-    ! add from input
-    buf(1:nnow) = buf(1:nnow) + dat(nposn:nposn+nnow-1)
-    !
-    ! go back to requested position in file
-    nerr = FSEEK(lu, npos, 0)
-    if (nerr/=0) goto 103
-    !
-    ! write data to file, sequential binary
-    write(unit=lu,iostat=nerr) buf(1:nnow)
-    if (nerr/=0) goto 102
-    !
-    nrem = nrem - nnow
-    npos = npos + nnow
-    nposn = nposn + nnow
-    !
-  end do
+  write(unit=lu,iostat=nerr) dat
+  if (nerr/=0) then
+    call CriticalError("SaveDataR: Failed to write data to file.")
+  end if
   !
   ! close and disconnect
   !
   close(unit=lu)
-  !
-  ! done
-  !
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > AddDataR4: EXIT."
-  return
-  
-100 continue
-  call CriticalError("AddDataR4: Failed to open file ["//trim(sfile)//"].")
-  return
-101 continue
-  call CriticalError("AddDataR4: Failed to read data from file ["//trim(sfile)//"].")
-  return
-102 continue
-  call CriticalError("AddDataR4: Failed to write data to file ["//trim(sfile)//"].")
-  return
-103 continue
-  call CriticalError("AddDataR4: Failed to position in file ["//trim(sfile)//"].")
   return
 
-END SUBROUTINE AddDataR4
+END SUBROUTINE SaveDataR
 !**********************************************************************!
   
-
 !**********************************************************************!
 !**********************************************************************!
 SUBROUTINE SaveDataR4(sfile,dat,n,nerr)
@@ -1183,7 +1395,58 @@ SUBROUTINE SaveDataR4(sfile,dat,n,nerr)
 END SUBROUTINE SaveDataR4
 !**********************************************************************!
   
+!**********************************************************************!
+!**********************************************************************!
+SUBROUTINE AppendDataR(sfile,dat,n,nerr)
+! function: appends real(fpp) data array to file
+! -------------------------------------------------------------------- !
+! parameter: 
+! -------------------------------------------------------------------- !
+  use precision
+  implicit none
+
+! ------------
+! DECLARATION
+  character(len=*), intent(in) :: sfile
+  integer*4, intent(in) :: n
+  real(fpp), intent(in) :: dat(n)
+  integer*4, intent(inout) :: nerr
   
+  integer*4 :: lu
+  external :: GETFreeLFU
+  external :: createfilefolder
+! ------------
+
+  nerr = 0
+  call GetFreeLFU(lu,20,99)
+  !
+  ! open file, connect to lun
+  !
+  call createfilefolder(trim(sfile),nerr)
+  open(unit=lu, file=trim(sfile), iostat=nerr, &
+     & form='binary', action='write', status='unknown', position='append')
+  if (nerr/=0) then
+    call CriticalError("AppendDataR: Failed to open file ["//trim(sfile)//"].")
+  end if
+  !
+  ! write data to file, sequential binary
+  !
+  write(unit=lu,iostat=nerr) dat
+  if (nerr/=0) then
+    call CriticalError("AppendDataR: Failed to write data to file ["//trim(sfile)//"].")
+  end if
+  !
+  ! close and disconnect
+  !
+  close(unit=lu)
+  !
+  ! done
+  !
+  return
+
+END SUBROUTINE AppendDataR
+!**********************************************************************!
+
 !**********************************************************************!
 !**********************************************************************!
 SUBROUTINE AppendDataR4(sfile,dat,n,nerr)
@@ -1206,14 +1469,8 @@ SUBROUTINE AppendDataR4(sfile,dat,n,nerr)
   external :: createfilefolder
 ! ------------
 
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > AppendDataR4: INIT."
   nerr = 0
   call GetFreeLFU(lu,20,99)
-! ------------
-
-! ------------
   !
   ! open file, connect to lun
   !
@@ -1234,171 +1491,163 @@ SUBROUTINE AppendDataR4(sfile,dat,n,nerr)
   ! close and disconnect
   !
   close(unit=lu)
-  !
-  ! done
-  !
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > AppendDataR4: EXIT."
   return
 
 END SUBROUTINE AppendDataR4
 !**********************************************************************!
 
-
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE LoadDataR4(sfile,dat,n,nerr)
-! function: loads real*4 data array from file
-! -------------------------------------------------------------------- !
-! parameter: 
-! -------------------------------------------------------------------- !
-
-  implicit none
-
-! ------------
-! DECLARATION
-  character(len=*), intent(in) :: sfile
-  integer*4, intent(in) :: n
-  real*4, intent(inout) :: dat(n)
-  integer*4, intent(inout) :: nerr
-  
-  integer*4 :: lu, i
-  character(len=1000) :: stmp1, stmp2
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > LoadDataR4: INIT."
-  nerr = 0
-  call GetFreeLFU(lu,20,99)
-! ------------
-
-! ------------
-  !
-  ! open file, connect to lun
-  !
-  open(unit=lu,file=trim(sfile),iostat=nerr,&
-     & form='binary',action='read',status='old')
-  if (nerr/=0) then
-    call PostWarning("LoadDataR4: Failed to open file ["// &
-      & trim(sfile)//"].")
-    nerr = 1
-    return
-  end if
-  !
-  ! write data to file, sequential binary
-  !
-  read(unit=lu,iostat=nerr) dat
-  if (nerr/=0) then
-    i = nint(real(n*4)/1024.0)
-    write(unit=stmp1,fmt='(I)') n
-    write(unit=stmp2,fmt='(I)') i
-    call PostWarning("LoadDataR4: Failed to read "// &
-      & trim(adjustl(stmp1))//" 32-bit floats ("// &
-      & trim(adjustl(stmp2))//" kB) from file ["// &
-      & trim(sfile)//"].")
-    return
-  end if
-  !
-  ! close and disconnect
-  !
-  close(unit=lu)
-  !
-  ! done
-  !
-! ------------
-
-! ------------
-!  write(unit=*,fmt=*) " > LoadDataR4: EXIT."
-  return
-
-END SUBROUTINE LoadDataR4
-!**********************************************************************!
-
+!!**********************************************************************!
+!!**********************************************************************!
+!SUBROUTINE LoadDataR4(sfile,dat,n,nerr)
+!! function: loads real*4 data array from file
+!! -------------------------------------------------------------------- !
+!! parameter: 
+!! -------------------------------------------------------------------- !
+!
+!  implicit none
+!
+!! ------------
+!! DECLARATION
+!  character(len=*), intent(in) :: sfile
+!  integer*4, intent(in) :: n
+!  real*4, intent(inout) :: dat(n)
+!  integer*4, intent(inout) :: nerr
+!  
+!  integer*4 :: lu, i
+!  character(len=1000) :: stmp1, stmp2
+!! ------------
+!
+!! ------------
+!! INIT
+!!  write(unit=*,fmt=*) " > LoadDataR4: INIT."
+!  nerr = 0
+!  call GetFreeLFU(lu,20,99)
+!! ------------
+!
+!! ------------
+!  !
+!  ! open file, connect to lun
+!  !
+!  open(unit=lu,file=trim(sfile),iostat=nerr,&
+!     & form='binary',action='read',status='old')
+!  if (nerr/=0) then
+!    call PostWarning("LoadDataR4: Failed to open file ["// &
+!      & trim(sfile)//"].")
+!    nerr = 1
+!    return
+!  end if
+!  !
+!  ! write data to file, sequential binary
+!  !
+!  read(unit=lu,iostat=nerr) dat
+!  if (nerr/=0) then
+!    i = nint(real(n*4)/1024.0)
+!    write(unit=stmp1,fmt='(I)') n
+!    write(unit=stmp2,fmt='(I)') i
+!    call PostWarning("LoadDataR4: Failed to read "// &
+!      & trim(adjustl(stmp1))//" 32-bit floats ("// &
+!      & trim(adjustl(stmp2))//" kB) from file ["// &
+!      & trim(sfile)//"].")
+!    return
+!  end if
+!  !
+!  ! close and disconnect
+!  !
+!  close(unit=lu)
+!  !
+!  ! done
+!  !
+!! ------------
+!
+!! ------------
+!!  write(unit=*,fmt=*) " > LoadDataR4: EXIT."
+!  return
+!
+!END SUBROUTINE LoadDataR4
+!!**********************************************************************!
 
 
 
 
-!**********************************************************************!
-!**********************************************************************!
-SUBROUTINE RepeatDataComplex(cin, cout, nix, nrepx, nox, &
-     &  niy, nrepy, noy, nerr)
-! function: repeats complex data cin nrepx times along dimension 1
-!           and nrepy times along dimension 2 and writes result to
-!           array cout
-! -------------------------------------------------------------------- !
-! parameter: all treated as INOUT
-!   IN/OUTPUT:
-!     complex*8 :: cin(nix,niy)     = input data array
-!     complex*8 :: cout(nox,noy)    = output data array
-!     integer*4 :: nix, niy         = size of input array
-!     integer*4 :: nox, noy         = size of output array
-!     integer*4 :: nrepx, nrepy     = repetition rate of dimension 1 & 2
-!     integer*4 :: nerr             = error code, success = 0
-!   REMARK:
-!     MUST BE: nox = nix*nrepx AND noy = niy*nrepy
-!              cin, cout allocated
-!              none of nix, niy, nox, noy, nrepx, nrepy has value 0
-! -------------------------------------------------------------------- !
 
-  implicit none
-
-! ------------
-! DECLARATION
-  complex*8, intent(inout) :: cin(nix,niy)
-  complex*8, intent(inout) :: cout(nox,noy)
-  integer*4, intent(inout) :: nix, niy, nox, noy, nrepx, nrepy, nerr
-  
-  integer*4 :: j, k, i1, i2
-! ------------
-
-! ------------
-! INIT
-!  write(unit=*,fmt=*) " > RepeatDataComplex: INIT."
-  nerr = 0
-! ------------
-
-! ------------
-! initial checks of input parameters
-  if ((nix*nrepx/=nox).or.(niy*nrepy/=noy)) then
-    nerr = 1
-    return
-  end if
-  if ((nix*niy<=0).or.(nrepx*nrepy<=0).or.(nox*noy<=0)) then
-    nerr = 1
-    return
-  end if
-! ------------
-
-
-! ------------
-  do j = 1, niy ! loop through all rows of input data
-    ! repeat row in x
-    do k = 1, nrepx
-      i1 = 1+nix*(k-1)
-      i2 = nix*k
-      cout(i1:i2,j) = cin(1:nix,j)
-    end do
-    ! repeat row in y
-    if (nrepy>1) then
-      do k = 2, nrepy
-        i2 = j+niy*(k-1)
-        cout(1:nox,i2) = cout(1:nox,j)
-      end do
-    end if
-    ! next row
-  end do
-! ------------
-
-
-! ------------
-!  write(unit=*,fmt=*) " > RepeatDataComplex: EXIT."
-  return
-
-END SUBROUTINE RepeatDataComplex
-!**********************************************************************!
+!!**********************************************************************!
+!!**********************************************************************!
+!SUBROUTINE RepeatDataComplex(cin, cout, nix, nrepx, nox, &
+!     &  niy, nrepy, noy, nerr)
+!! function: repeats complex data cin nrepx times along dimension 1
+!!           and nrepy times along dimension 2 and writes result to
+!!           array cout
+!! -------------------------------------------------------------------- !
+!! parameter: all treated as INOUT
+!!   IN/OUTPUT:
+!!     complex*8 :: cin(nix,niy)     = input data array
+!!     complex*8 :: cout(nox,noy)    = output data array
+!!     integer*4 :: nix, niy         = size of input array
+!!     integer*4 :: nox, noy         = size of output array
+!!     integer*4 :: nrepx, nrepy     = repetition rate of dimension 1 & 2
+!!     integer*4 :: nerr             = error code, success = 0
+!!   REMARK:
+!!     MUST BE: nox = nix*nrepx AND noy = niy*nrepy
+!!              cin, cout allocated
+!!              none of nix, niy, nox, noy, nrepx, nrepy has value 0
+!! -------------------------------------------------------------------- !
+!
+!  implicit none
+!
+!! ------------
+!! DECLARATION
+!  complex*8, intent(inout) :: cin(nix,niy)
+!  complex*8, intent(inout) :: cout(nox,noy)
+!  integer*4, intent(inout) :: nix, niy, nox, noy, nrepx, nrepy, nerr
+!  
+!  integer*4 :: j, k, i1, i2
+!! ------------
+!
+!! ------------
+!! INIT
+!!  write(unit=*,fmt=*) " > RepeatDataComplex: INIT."
+!  nerr = 0
+!! ------------
+!
+!! ------------
+!! initial checks of input parameters
+!  if ((nix*nrepx/=nox).or.(niy*nrepy/=noy)) then
+!    nerr = 1
+!    return
+!  end if
+!  if ((nix*niy<=0).or.(nrepx*nrepy<=0).or.(nox*noy<=0)) then
+!    nerr = 1
+!    return
+!  end if
+!! ------------
+!
+!
+!! ------------
+!  do j = 1, niy ! loop through all rows of input data
+!    ! repeat row in x
+!    do k = 1, nrepx
+!      i1 = 1+nix*(k-1)
+!      i2 = nix*k
+!      cout(i1:i2,j) = cin(1:nix,j)
+!    end do
+!    ! repeat row in y
+!    if (nrepy>1) then
+!      do k = 2, nrepy
+!        i2 = j+niy*(k-1)
+!        cout(1:nox,i2) = cout(1:nox,j)
+!      end do
+!    end if
+!    ! next row
+!  end do
+!! ------------
+!
+!
+!! ------------
+!!  write(unit=*,fmt=*) " > RepeatDataComplex: EXIT."
+!  return
+!
+!END SUBROUTINE RepeatDataComplex
+!!**********************************************************************!
 
 
 
@@ -2790,6 +3039,7 @@ SUBROUTINE PrepareSupercells()
 ! DECLARATION
   integer*4 :: i, j, nerr, nv, ni1, ni2, nx, ny
   real*4 :: szz
+  real(fpp) :: ht, dz, fabs, buni
   character(len=MSP_ll) :: sfilename
 ! ------------
 
@@ -2922,8 +3172,12 @@ SUBROUTINE PrepareSupercells()
       nv = MSP_SLC_setup(0,i) ! number of variants present for this slice
       ni1 = MSP_GetPGRIndex(1,i,nerr) ! get index of the first variant
       ni2 = MSP_GetPGRIndex(nv,i,nerr) ! get index of the last variant
-      call MS_SlicePot2Pgr( EMS_SLI_data_ht, MSP_SLC_fprm(1,i), MSP_nabf, MSP_Absorption, &
-                          & MSP_nbuni, MSP_Buni, &
+      ht = real(EMS_SLI_data_ht, kind=fpp)
+      dz = real(MSP_SLC_fprm(1,i), kind=fpp)
+      fabs = real(MSP_Absorption, kind=fpp)
+      buni = real(MSP_Buni, kind=fpp)
+      call MS_SlicePot2Pgr( ht, dz, MSP_nabf, fabs, &
+                          & MSP_nbuni, buni, &
                           & nx, ny, ni2-ni1+1, &
                           & MSP_phasegrt(1:nx ,1:ny ,ni1:ni2), nerr )
       if (nerr/=0) then
@@ -2975,7 +3229,7 @@ SUBROUTINE PrepareWavefunction()
 ! ------------
 ! DECLARATION
   integer*4 :: nerr, nalloc
-  complex*8, allocatable :: cdata(:,:)
+  complex(fpp), allocatable :: cdata(:,:)
 ! ------------
 
 ! ------------
@@ -3059,8 +3313,8 @@ SUBROUTINE InsertExternalWavefunction()
 ! ------------
 ! DECLARATION
   integer*4 :: nerr, nx, ny, nlfu, nalloc
-  complex*8, allocatable :: cdata(:,:)
-  real*4 :: rsca
+  complex(fpp), allocatable :: cdata(:,:)
+  real(fpp) :: rsca
 ! ------------
 
 ! ------------
@@ -3073,8 +3327,8 @@ SUBROUTINE InsertExternalWavefunction()
 ! allocate memory for loading the wave function
   allocate( cdata(nx,ny), stat=nalloc)
   if (nalloc/=0) goto 102
-  cdata = cmplx(0.0,0.0)
-  rsca = 1.0 / sqrt(real(nx*ny))
+  cdata = cmplx(0.0,0.0,kind=fpp)
+  rsca = 1.0 / sqrt(real(nx*ny,kind=fpp))
 ! ------------
 
 
@@ -3196,6 +3450,30 @@ SUBROUTINE DSTRSUM(a, n, s)
   s = real(stmp, kind=4)
   return
 END SUBROUTINE DSTRSUM
+  
+!**********************************************************************!
+! summation on program precision i/o with double precision accumulator
+!**********************************************************************!
+SUBROUTINE FPPSTRSUM(a, n, s)
+  use precision
+  IMPLICIT NONE
+  ! interface
+  real(fpp), intent(inout) :: a(n) ! reference to data array 
+  integer*4, intent(in) :: n ! number of items (32 bit should be sufficient)
+  real(fpp), intent(out) :: s ! result of summation
+  ! locals
+  integer*4 :: i
+  real*8 :: stmp
+  ! init
+  stmp = 0.0
+  ! summation with type cast
+  do i=1, n
+    stmp = stmp + real(a(i),kind=8)
+  end do
+  ! copy result with type cast
+  s = real(stmp, kind=fpp)
+  return
+END SUBROUTINE FPPSTRSUM
   
 
 !**********************************************************************!
@@ -3665,8 +3943,8 @@ SUBROUTINE ApplySpatialCoherence()
 ! ------------
 ! DECLARATION
   integer*4 :: nlfu, mlfu, nerr, nalloc, npln, ioerr
-  real*4 :: sx, sy
-  real*4, allocatable :: rdata(:,:)
+  real(fpp) :: sx, sy
+  real(fpp), allocatable :: rdata(:,:)
   external :: createfilefolder
 ! ------------
 
@@ -3683,8 +3961,8 @@ SUBROUTINE ApplySpatialCoherence()
     return
   end if
   ! calculate sampling of multislice image
-  sx = MSP_SF_sizex/real(MSP_SF_ndimx)
-  sy = MSP_SF_sizey/real(MSP_SF_ndimy)
+  sx = real(MSP_SF_sizex/MSP_SF_ndimx,kind=fpp)
+  sy = real(MSP_SF_sizey/MSP_SF_ndimy,kind=fpp)
   ! allocate data array for loading images
   allocate(rdata(MSP_SF_ndimx,MSP_SF_ndimy), stat=nalloc)
   if (nalloc/=0) then
@@ -3884,13 +4162,14 @@ SUBROUTINE STEMMultiSlice()
   integer*4 :: nx, ny, nz, nerr, nznum, ndet, nkmom, ndat, nalloc, nslcidx
   integer*4 :: nv, nvc, nvar, nvarnum, nvartot, nvdigits
   integer*4 :: nslc, ncalcslc
-  real*4 :: scansampx, scansampy, scanposx, scanposy
-  real*4 :: dxcurr, dycurr, dzcurr
-  real*4 :: zstep, zoffset, zpow, zrescale, fafac, fascal, vrescale
-  real*4 :: ffac
-  real*4, allocatable :: rtmpresult(:)
+  real(fpp) :: scansampx, scansampy, scanposx, scanposy
+  real(fpp) :: dxcurr, dycurr, dzcurr
+  real(fpp) :: zstep, zoffset, zpow, zrescale, fafac, fascal, vrescale
+  real(fpp) :: ffac
+  real(fpp), allocatable :: rtmpresult(:)
   integer*4, allocatable :: lvar(:)
   character(len=1000) :: swavfile, stmp
+  real*4 :: ffs, fdz, fsc, fdx, fdy
   real*4, external :: UniRand
 ! ------------
 
@@ -3904,13 +4183,13 @@ SUBROUTINE STEMMultiSlice()
   if (MSP_Kmomout>0) nkmom = MSP_KmomNum
   ndat = ndet + nkmom
   allocate(rtmpresult(ndat), lvar(MS_stacksize),stat=nalloc)
-  scansampx = 0.0
+  scansampx = 0.0_fpp
   if (MSP_SF_sizex>0.0.and.MSP_SF_ndimx>1) then
-    scansampx = MSP_SF_sizex/real(MSP_SF_ndimx)
+    scansampx = MSP_SF_sizex/real(MSP_SF_ndimx,kind=fpp)
   end if
-  scansampy = 0.0
+  scansampy = 0.0_fpp
   if (MSP_SF_sizey>0.0.and.MSP_SF_ndimy>1) then
-    scansampy = MSP_SF_sizey/real(MSP_SF_ndimy)
+    scansampy = MSP_SF_sizey/real(MSP_SF_ndimy,kind=fpp)
   end if
   scanposx =   MSP_SF_offsetx &
      &       + MSP_SF_rotcos*MSP_ScanPixelX*scansampx &
@@ -3918,22 +4197,27 @@ SUBROUTINE STEMMultiSlice()
   scanposy =   MSP_SF_offsety &
      &       + MSP_SF_rotcos*MSP_ScanPixelY*scansampy &
      &       + MSP_SF_rotsin*MSP_ScanPixelX*scansampx
+  ffs = real(STF_Defocusspread, kind=4)
+  fsc = real(STF_srcradius, kind=4)
+  fdz = 0.0
+  fdx = 0.0
+  fdy = 0.0
 ! ------------
 
 ! ------------
 ! init explicit focal averaging
   nznum = 1
-  zstep = 0.0
-  zoffset = 0.0
-  zrescale = 1.0
-  zpow = 0.0
-  fafac = 0.0
-  fascal = 0.0
+  zstep = 0.0_fpp
+  zoffset = 0.0_fpp
+  zrescale = 1.0_fpp
+  zpow = 0.0_fpp
+  fafac = 0.0_fpp
+  fascal = 0.0_fpp
   if (MSP_PC_temporal/=0 .and. MSP_ExplicitPSC==0) then
     nznum = STF_DEFOCUS_KERNEL_STEPS
     zoffset = -STF_DEFOCUS_KERNEL_SPREAD*STF_defocusspread
-    zstep = -2.0*zoffset / real( nznum-1 )
-    fafac = -1.0/STF_defocusspread/STF_defocusspread
+    zstep = -2.0_fpp*zoffset / real( nznum-1 , kind=fpp)
+    fafac = -1.0_fpp/STF_defocusspread/STF_defocusspread
     write(unit=MSP_stmp,fmt=*) "Performing explicit focal averaging:"
     call PostMessage(trim(MSP_stmp))
     write(unit=MSP_stmp,fmt=*) "  focal range [nm]: +/-",STF_DEFOCUS_KERNEL_SPREAD*STF_defocusspread
@@ -3952,26 +4236,26 @@ SUBROUTINE STEMMultiSlice()
       call PostMessage("- source size")
     end if
     nznum = 1 ! no fix focus loop
-    zstep = 0.0
-    zoffset = 0.0
-    zrescale = 1.0
-    zpow = 0.0
-    fafac = 0.0
-    fascal = 0.0
+    zstep = 0.0_fpp
+    zoffset = 0.0_fpp
+    zrescale = 1.0_fpp
+    zpow = 0.0_fpp
+    fafac = 0.0_fpp
+    fascal = 0.0_fpp
   end if
 ! ------------
 
 
 ! ------------
 ! init multi-slice core
-  MSP_detresult = 0.0
-  MSP_Kmomresult = 0.0
-  rtmpresult = 0.0
-  MSP_TheResult = 0.0
+  MSP_detresult = 0.0_fpp
+  MSP_Kmomresult = 0.0_fpp
+  rtmpresult = 0.0_fpp
+  MSP_TheResult = 0.0_fpp
   nvarnum = max(1,ceiling(real(MSP_FL_varcalc)/real(nznum))) ! number of variant calculations per focus spread loop
   write(unit=stmp,fmt='(I)') nvarnum
   nvdigits = MAX( 3, LEN_TRIM(adjustl(stmp)) )
-  vrescale = 1.0/real(nvarnum)
+  vrescale = 1.0_fpp/real(nvarnum, kind=fpp)
   nvar = 0
   nvartot = nvarnum*nznum
   swavfile = trim(MS_wave_filenm) ! wave file name backup
@@ -3982,10 +4266,10 @@ SUBROUTINE STEMMultiSlice()
   do nz=1, nznum
     
     ! PROBE WAVEFUNCTION SHIFTS FOR PURE FOCAL KERNEL MODE
-    dzcurr = zoffset + zstep*real(nz-1)
+    dzcurr = zoffset + zstep*real(nz-1, kind=fpp)
     nerr = MS_err_num
     if (MSP_use_extinwave==1) then ! use external wavefunction
-      call MS_OffsetIncomingWave(0.0,0.0,0.0) ! the inserted wave is inside the crystal, no shift and focus is needed
+      call MS_OffsetIncomingWave(0.0_fpp,0.0_fpp,0.0_fpp) ! the inserted wave is inside the crystal, no shift and focus is needed
     else
       if (MSP_ExplicitPSC==0) then ! explicit focal kernel is used
         call MS_OffsetIncomingWave(scanposx, scanposy, dzcurr)
@@ -4012,14 +4296,17 @@ SUBROUTINE STEMMultiSlice()
       if (MSP_use_extinwave==0 .and. MSP_ExplicitPSC==1) then
         ! PROBE WAVEFUNCTION SHIFTS FOR EXPLICIT PARTIAL COHERENCE MODE
         nerr = MS_err_num
-        dzcurr = 0.0
+        dzcurr = 0.0_fpp
         if (MSP_PC_temporal/=0) then
-          call MSP_GetRandomProbeDefocus(STF_defocusspread, dzcurr)
+          call MSP_GetRandomProbeDefocus(ffs, fdz)
+          dzcurr = real(fdz, kind=fpp)
         end if
-        dxcurr = 0.0
-        dycurr = 0.0
+        dxcurr = 0.0_fpp
+        dycurr = 0.0_fpp
         if (MSP_PC_spatial/=0) then
-          call MSP_GetRandomProbeShift(STF_srcradius, dxcurr, dycurr)
+          call MSP_GetRandomProbeShift(fsc, fdx, fdy)
+          dxcurr = real(fdx, kind=fpp)
+          dycurr = real(fdy, kind=fpp)
         end if
         call MS_OffsetIncomingWave(scanposx+dxcurr,scanposy+dycurr,dzcurr)
         if (nerr/=MS_err_num) goto 11
@@ -4160,7 +4447,7 @@ SUBROUTINE STEMMultiSlice()
 
 ! ------------
 ! rescale result
-  zrescale = 1.0/fascal
+  zrescale = 1.0_fpp/fascal
   MSP_detresult = MSP_detresult * zrescale
   if (nkmom>0) then
     MSP_Kmomresult = MSP_Kmomresult * zrescale
@@ -4270,7 +4557,7 @@ SUBROUTINE CTEMMultiSlice()
   nvd = MSP_nvard
     
   ! OFFSET THE BACKUP WAVE AND GENERATE ACTIVE INCOMING WAVE
-  call MS_OffsetIncomingWave(0.0,0.0,0.0)
+  call MS_OffsetIncomingWave(0.0_fpp,0.0_fpp,0.0_fpp)
     
     
   do nv = 1, nvarnum ! variants loop per focus spread cycle
@@ -5230,12 +5517,12 @@ SUBROUTINE ExportProbeIntensity(sfile)
   integer*4 :: nintout, nwavavg, ntransform, nuidx
   integer*4 :: nx, ny, nerr, nalloc, i, j, k
   integer*4 :: islc, iout, nslc
-  real*4 :: rnorm, pint, rsca, rscas
-  real*4, dimension(:,:), allocatable :: pimg, pela, ptds
-  complex*8, dimension(:,:), allocatable :: wave !, work
-  external :: SaveDataC8, SaveDataR4 ! (sfile,dat,n,nerr) this file
-  external :: AppendDataC8, AppendDataR4 ! (sfile,dat,n,nerr) this file
-  external :: AddDataR4 ! (sfile,dat,n,nerr) this file
+  real(fpp) :: rnorm, pint, rsca, rscas
+  real(fpp), dimension(:,:), allocatable :: pimg, pela, ptds
+  complex(fpp), dimension(:,:), allocatable :: wave !, work
+  external :: SaveDataC, SaveDataR ! (sfile,dat,n,nerr) this file
+  external :: AppendDataC, AppendDataR ! (sfile,dat,n,nerr) this file
+  !external :: AddDataR4 ! (sfile,dat,n,nerr) this file
   external :: sinsertslcidx ! (idx,idxlen,sfnin,sfnadd,sfnext,sfnout) this file
 ! ------------
 
@@ -5251,8 +5538,8 @@ SUBROUTINE ExportProbeIntensity(sfile)
   if (MS_pint_export<=0) return ! no valid setup
   if (MSP_pdifmode>0 .or. MSP_padifmode>0) nintout = 1
   if (MSP_pimgmode>0) nintout = nintout + 2
-  rsca = 1.0 / real(nx*ny) ! for DFT renormalizations
-  rscas = 1.0 / real(MSP_SF_ndimx*MSP_SF_ndimy) ! for average diffraction pattern normalization
+  rsca = 1.0_fpp / real(nx*ny,kind=fpp) ! for DFT renormalizations
+  rscas = 1.0_fpp / real(MSP_SF_ndimx*MSP_SF_ndimy, kind=fpp) ! for average diffraction pattern normalization
   !
   ! Handle the case of present average wave function data.
   ! In this case, we want to export the elastic images as well as 
@@ -5294,33 +5581,33 @@ SUBROUTINE ExportProbeIntensity(sfile)
       if (k < 0) cycle ! nothing stored for islc
       ! normalize (we assume that wave and images have the same number of contributions)
       if (MSP_pint_nac(k,0)>0) then
-        rnorm = 1.0/real(MSP_pint_nac(k,0))
+        rnorm = 1.0_fpp/real(MSP_pint_nac(k,0),kind=fpp)
       else
-        rnorm = 1.0
+        rnorm = 1.0_fpp
       end if
       !
       ! get total intensity
-      pimg(1:nx,1:ny) = real(MSP_pimg(1:nx,1:ny,k), kind=4) * rnorm
+      pimg(1:nx,1:ny) = real(MSP_pimg(1:nx,1:ny,k), kind=fpp) * rnorm
       ! prepare file names
       call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pimg_tot",".dat",sexpfile(1))
       call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pimg_ela",".dat",sexpfile(2))
       call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pimg_tds",".dat",sexpfile(3))
       if (MSP_3dout > 0 .and. iout > 0) then ! /3dout append
-        call AppendDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! append tot
+        call AppendDataR(trim(sexpfile(1)), pimg, nx*ny, nerr) ! append tot
       else ! writing to new new file 
         call PostMessage("  Writing probe image total intensity to file ["//trim(sexpfile(1))//"].")
-        call SaveDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! save tot
+        call SaveDataR(trim(sexpfile(1)), pimg, nx*ny, nerr) ! save tot
       end if
       ! 
       if (nwavavg>0) then
         ! get elastic and tds images
         if (nwavavg==1) then ! wave data is in Fourier space, need to transform
-          MS_work(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny,k), kind=4) * rnorm
+          MS_work(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny,k), kind=fpp) * rnorm
           ! call MS_FFT(work,MS_dimx,MS_dimy,'backwards')
           call MS_FFT_WORK(-1)
           wave(1:nx,1:ny) = MS_work(1:nx,1:ny) * sqrt(rsca) ! renormalize after iDFT
         else ! wave data is in real space, just copy
-          wave(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny,k), kind=4) * rnorm
+          wave(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny,k), kind=fpp) * rnorm
         end if
         ! calculate elastic image
         do j=1, ny
@@ -5331,13 +5618,13 @@ SUBROUTINE ExportProbeIntensity(sfile)
         end do
         ptds = pimg - pela
         if (MSP_3dout > 0 .and. iout > 0) then ! /3dout -> single files append
-          call AppendDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! append ela
-          call AppendDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! append tds
+          call AppendDataR(trim(sexpfile(2)), pela, nx*ny, nerr) ! append ela
+          call AppendDataR(trim(sexpfile(3)), ptds, nx*ny, nerr) ! append tds
         else ! individual files per plane
           call PostMessage("  Writing probe image elastic intensity to file ["//trim(sexpfile(2))//"].")
-          call SaveDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! save ela
+          call SaveDataR(trim(sexpfile(2)), pela, nx*ny, nerr) ! save ela
           call PostMessage("  Writing probe image TDS intensity to file ["//trim(sexpfile(3))//"].")
-          call SaveDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! save tds
+          call SaveDataR(trim(sexpfile(3)), ptds, nx*ny, nerr) ! save tds
         end if
       end if
       !
@@ -5371,13 +5658,13 @@ SUBROUTINE ExportProbeIntensity(sfile)
       if (k < 0) cycle ! nothing stored for islc
       ! normalize (we assume that wave and images have the same number of contributions)
       if (MSP_pint_nac(k,0)>0) then
-        rnorm = 1.0/real(MSP_pint_nac(k,0))
+        rnorm = 1.0_fpp/real(MSP_pint_nac(k,0),kind=fpp)
       else
-        rnorm = 1.0
+        rnorm = 1.0_fpp
       end if
       !
       ! get total intensity
-      pimg(1:nx,1:ny) = real(MSP_pdif(1:nx,1:ny,k), kind=4) * rnorm
+      pimg(1:nx,1:ny) = real(MSP_pdif(1:nx,1:ny,k), kind=fpp) * rnorm
       !
       if (MSP_padifmode==1) then ! add to average diffraction pattern
         MSP_padif(1:nx,1:ny,k) = MSP_padif(1:nx,1:ny,k) + MSP_pdif(1:nx,1:ny,k)*rscas ! ... normalized to number of scan points
@@ -5388,22 +5675,22 @@ SUBROUTINE ExportProbeIntensity(sfile)
         call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pdif_ela",".dat",sexpfile(2))
         call sinsertslcidx(nuidx*islc,nuidx*MS_nslid,trim(isfile),"_pdif_tds",".dat",sexpfile(3))
         if (MSP_3dout > 0 .and. iout >0) then ! /3dout append
-          call AppendDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! append to old file
+          call AppendDataR(trim(sexpfile(1)), pimg, nx*ny, nerr) ! append to old file
         else ! single file per plane
           call PostMessage("  Writing probe diffraction total intensity to file ["//trim(sexpfile(1))//"].")
-          call SaveDataR4(trim(sexpfile(1)), pimg, nx*ny, nerr) ! save to new file
+          call SaveDataR(trim(sexpfile(1)), pimg, nx*ny, nerr) ! save to new file
         end if
       end if
       ! 
       if (nwavavg>0) then
         ! get elastic and tds images
         if (nwavavg==2) then ! wave data is in real space, need to transform
-          MS_work(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny,k), kind=4) * rnorm
+          MS_work(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny,k), kind=fpp) * rnorm
           ! call MS_FFT(work,MS_dimx,MS_dimy,'forwards')
           call MS_FFT_WORK(1)
           wave(1:nx,1:ny) = MS_work(1:nx,1:ny) * sqrt(rsca) ! renormalize after DFT
         else ! wave data is in Fourier space, just copy
-          wave(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny,k), kind=4) * rnorm
+          wave(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny,k), kind=fpp) * rnorm
         end if
         ! calculate elastic image
         do j=1, ny
@@ -5418,13 +5705,13 @@ SUBROUTINE ExportProbeIntensity(sfile)
         end if
         if (MSP_pdifmode==1) then ! output of elastic diffraction pattern per scan position
           if (MSP_3dout > 0 .and. iout > 0) then ! /3dout -> single files append
-            call AppendDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! append ela
-            call AppendDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! append tds
+            call AppendDataR(trim(sexpfile(2)), pela, nx*ny, nerr) ! append ela
+            call AppendDataR(trim(sexpfile(3)), ptds, nx*ny, nerr) ! append tds
           else ! individual files per plane
             call PostMessage("  Writing probe diffraction elastic intensity to file ["//trim(sexpfile(2))//"].")
-            call SaveDataR4(trim(sexpfile(2)), pela, nx*ny, nerr) ! save ela
+            call SaveDataR(trim(sexpfile(2)), pela, nx*ny, nerr) ! save ela
             call PostMessage("  Writing probe diffraction TDS intensity to file ["//trim(sexpfile(3))//"].")
-            call SaveDataR4(trim(sexpfile(3)), ptds, nx*ny, nerr) ! save tds
+            call SaveDataR(trim(sexpfile(3)), ptds, nx*ny, nerr) ! save tds
           end if
         end if
       end if
@@ -5502,7 +5789,7 @@ SUBROUTINE InitWaveAvg()
   end if
   MS_wave_avg_num = nepw ! store the number of exit-planes
 ! reset the wavefunctions
-  MS_wave_avg = cmplx(0.,0.)
+  MS_wave_avg = cmplx(0.,0.,kind=fpp_ac)
   MS_wave_avg_nac = 0
 ! ------------
 
@@ -5641,10 +5928,10 @@ SUBROUTINE ExportWaveAvg(sfile)
   character(len=MSP_ll) :: isfile, sexpfile
   integer*4 :: nerr, k, nx, ny, nuidx
   integer*4 :: nslc, islc, iout
-  real*4 :: rnorm
-  complex*8, dimension(:,:), allocatable :: wave
-  external :: SaveDataC8
-  !external :: AppendDataC8
+  real(fpp) :: rnorm
+  complex(fpp), dimension(:,:), allocatable :: wave
+  external :: SaveDataC
+  !external :: AppendDataC
   external :: sinsertslcidx ! (idx,idxlen,sfnin,sfnadd,sfnext,sfnout)
 ! ------------
 
@@ -5684,18 +5971,18 @@ SUBROUTINE ExportWaveAvg(sfile)
     if (k < 0) cycle ! skip, nothing stored for islc
     ! normalization factor
     if (MS_wave_avg_nac(k)>0) then
-      rnorm = 1.0/real(MS_wave_avg_nac(k))
+      rnorm = 1.0_fpp/real(MS_wave_avg_nac(k), kind=fpp)
     else
-      rnorm = 1.0
+      rnorm = 1.0_fpp
     end if
-    wave(1:nx, 1:ny) = cmplx(MS_wave_avg(1:nx, 1:ny, k), kind=4) * rnorm
+    wave(1:nx, 1:ny) = cmplx(MS_wave_avg(1:nx, 1:ny, k), kind=fpp) * rnorm
     call sinsertslcidx(islc*nuidx,MS_nslid*nuidx,trim(isfile),"_avg",".wav",sexpfile)
     ! export to file
     if (MSP_3dout>0 .and. iout >0) then ! /3dout append
-      call AppendDataC8(trim(sexpfile), wave, nx*ny, nerr) ! append
+      call AppendDataC(trim(sexpfile), wave, nx*ny, nerr) ! append
     else ! first or single slice plane output
       call PostMessage("  Writing average wave function to file ["//trim(sexpfile)//"].")
-      call SaveDataC8(trim(sexpfile), wave, nx*ny, nerr) ! save
+      call SaveDataC(trim(sexpfile), wave, nx*ny, nerr) ! save
     end if
     iout = iout + 1
     ! ...
@@ -5739,11 +6026,11 @@ SUBROUTINE ExportWave(sfile, islice)
   character(len=*), intent(in) :: sfile
   integer*4, intent(in) :: islice
   integer*4 :: nerr, i, j, nx, ny, nwavrs, nuidx, iwav, iimg
-  real*4 :: pint, rsca
-  complex*8, allocatable :: wave(:,:) !(MS_dimx,MS_dimy)
+  real(fpp) :: pint, rsca
+  complex(fpp), allocatable :: wave(:,:) !(MS_dimx,MS_dimy)
   character(len=1024) :: sexpfile
   external :: sinsertslcidx
-  external :: SaveDataC8, AppendDataC8
+  external :: SaveDataC, AppendDataC
 ! ------------
 
 ! ------------
@@ -5753,7 +6040,7 @@ SUBROUTINE ExportWave(sfile, islice)
   nwavrs = 0
   nx = MS_dimx
   ny = MS_dimy
-  rsca = 1.0 / real(nx*ny) ! /!\ we do not check for nx*ny > 0
+  rsca = 1.0_fpp / real(nx*ny, kind=fpp) ! /!\ we do not check for nx*ny > 0
   allocate(wave(nx,ny), stat=nerr)
   if (nerr/=0) then
     call CriticalError("ExportWave: Failed to allocate memory.")
@@ -5792,11 +6079,11 @@ SUBROUTINE ExportWave(sfile, islice)
     if (MS_wave_export>0) then ! individual wave export to disk
       
       if (MSP_3dout > 0 .and. iwav > 0) then ! 3d and not the first slot
-        call AppendDataC8(trim(sexpfile), wave, nx*ny, nerr) ! append file
+        call AppendDataC(trim(sexpfile), wave, nx*ny, nerr) ! append file
       else ! 2d or first 3d slot
         call PostMessage("  Writing wave function to file ["// &
           &  trim(sexpfile)//"].")
-        call SaveDataC8(trim(sexpfile), wave, nx*ny, nerr) ! store new file
+        call SaveDataC(trim(sexpfile), wave, nx*ny, nerr) ! store new file
       end if
     end if
     if (MS_wave_avg_export>0) then ! accumulation of the elastic wave

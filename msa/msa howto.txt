@@ -5,7 +5,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2022-11-14                                                          #
+#   Date: 2022-11-18                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -738,9 +738,17 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 6) History of changes
 
-221114: JB: Version 1.1.0
+221118: JB: Version 1.1.0
 - Changed the floating point precision of the phonon Monte-Carlo array
   accumulators for options /pdif, /pimg, and average wave functions.
+- Source code may be compiled with the compiler option
+  -Ddouble_precision to activate double precision calculation. Leaving
+  this option, will default to single precision calculation. Note that
+  double precision calculations use double memory. This does, however
+  not apply to the input phase grating. They can remain on single
+  precision. Also, all output will have double precision data format,
+  which is then 64-bit float instead of 32-bit float and 128-bit
+  complex instead of 64-bit complex.
 
 220413: JB: Version 1.0.9
 - Inverted the effect of beam tilt for STEM probes. It is now identical

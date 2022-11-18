@@ -7,7 +7,7 @@
 !
 !**********************************************************************
 !                                                                      
-!   Date: 2022-11-10
+!   Date: 2022-11-18
 !                                                                      
 !   Author: Juri Barthel                                               
 !           Ernst Ruska-Centre                                         
@@ -62,6 +62,7 @@ program msa
   use STEMfunctions
   use MultiSlice
   use Plasmon
+  use precision
     
   implicit none
   
@@ -81,7 +82,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "1.1.0 64-bit  -  2022 Nov  10  -"
+  MSP_verApp  =                   "1.1.0 64-bit  -  2022 Nov  18  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -97,17 +98,19 @@ program msa
 ! ------------
 
 ! ------------  
+  call PostSureMessage("")
+  call PostMessage( " +---------------------------------------------------+" )
   if (MSP_ctemmode==1) then
-    call PostSureMessage("")
-    call PostMessage( " +---------------------------------------------------+" )
-    call PostMessage( " | Running in ctem mode.                             |" )
-    call PostMessage( " +---------------------------------------------------+" )
+    call PostMessage( " | Running in plane wave CTEM mode.                  |" )
   else
-    call PostSureMessage("")
-    call PostMessage( " +---------------------------------------------------+" )
-    call PostMessage( " | Running in stem mode.                             |" )
-    call PostMessage( " +---------------------------------------------------+" )
+    call PostMessage( " | Running in convergent probe STEM mode.            |" )
   end if
+  if (fpp==4) then
+    call PostMessage( " | This is a single precision compile.               |" )
+  else
+    call PostMessage( " | This is a double precision compile.               |" )
+  end if
+  call PostMessage( " +---------------------------------------------------+" )
   call PostMessage( "" )
 ! ------------
 
@@ -236,14 +239,14 @@ program msa
 ! HANDLE COMMAND-LINE PARAMETER OVERRIDES
   MS_nslid = MSP_nslid
   if (MSP_use_extdefocus/=0) then ! update the defocus using the external command line parameter
-    call STF_SetAberration(2,MSP_extdefocus,0.0)
+    call STF_SetAberration(2,1._fpp * MSP_extdefocus,0.0_fpp)
     write(unit=MSP_stmp,fmt=*) MSP_extdefocus
     call PostMessage("- overriding defocus by command-line parameter: "// &
        & trim(adjustl(MSP_stmp))//" nm.")
   end if
   if (MSP_use_extot/=0) then ! update object tilt parameters from command line input
-    MS_objtiltx = MSP_OTExX
-    MS_objtilty = MSP_OTExY
+    MS_objtiltx = real(MSP_OTExX, kind=fpp)
+    MS_objtilty = real(MSP_OTExY, kind=fpp)
     write(unit=MSP_stmp,fmt=*) MSP_OTExX
     write(unit=MSP_stmp2,fmt=*) MSP_OTExY
     call PostMessage("- overriding object tilt by command-line parameter: otx="// &
@@ -300,7 +303,7 @@ program msa
     PL_tmax = 0.0 ! init max sample thickness
     do i=1, MS_stacksize ! calculate max. sample tickness
       j = MS_slicestack(i)
-      PL_tmax = PL_tmax + MS_slicethick(j+1)
+      PL_tmax = PL_tmax + real(MS_slicethick(j+1),kind=4)
     end do
     if (MSP_do_plasm == 1) then ! bulk plasmon init
       call PL_init(nerr)

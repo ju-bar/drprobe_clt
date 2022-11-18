@@ -25,7 +25,7 @@
 				<Tool Name="VFPostBuildEventTool"/>
 				<Tool Name="VFManifestTool" SuppressStartupBanner="true"/></Configuration>
 		<Configuration Name="Debug|x64" TargetName="$(ProjectName)_d" DeleteExtensionsOnClean="*.obj;*.mod;*.pdb;*.asm;*.map;*.dyn;*.dpi;*.tmp;*.log;*.ilk;*.exe;$(TargetPath)">
-				<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" DebugInformationFormat="debugEnabled" Optimization="optimizeDisabled" AdditionalIncludeDirectories="..\common" EnableRecursion="true" FixedFormLineLength="fixedLength132" ByteRECL="true" Traceback="true" RuntimeLibrary="rtMultiThreadedDebug" UsePortlib="true" UseMkl="mklSequential"/>
+				<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" DebugInformationFormat="debugEnabled" Optimization="optimizeDisabled" Preprocess="preprocessYes" AdditionalIncludeDirectories="..\common" EnableRecursion="true" FixedFormLineLength="fixedLength132" ByteRECL="true" Traceback="true" RuntimeLibrary="rtMultiThreadedDebug" UsePortlib="true" UseMkl="mklSequential"/>
 				<Tool Name="VFLinkerTool" LinkIncremental="linkIncrementalYes" SuppressStartupBanner="true" GenerateDebugInformation="true" SubSystem="subSystemConsole"/>
 				<Tool Name="VFResourceCompilerTool"/>
 				<Tool Name="VFMidlTool" SuppressStartupBanner="true" TargetEnvironment="midlTargetAMD64" HeaderFileName="$(InputName).h" TypeLibraryName="$(IntDir)/$(InputName).tlb"/>
@@ -35,7 +35,7 @@
 				<Tool Name="VFPostBuildEventTool"/>
 				<Tool Name="VFManifestTool" SuppressStartupBanner="true"/></Configuration>
 		<Configuration Name="Release|x64" DeleteExtensionsOnClean="*.obj;*.mod;*.pdb;*.asm;*.map;*.dyn;*.dpi;*.tmp;*.log;*.ilk;*.exe;$(TargetPath)">
-				<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" Optimization="optimizeFull" AdditionalIncludeDirectories="..\common" EnableRecursion="true" FixedFormLineLength="fixedLength132" WarnUnusedVariables="true" WarnTruncateSource="true" WarnUncalled="true" ByteRECL="true" LocalSavedScalarsZero="true" ModulePath="$(INTDIR)/" ObjectFile="$(INTDIR)/" UsePortlib="true" UseMkl="mklSequential" RequireProcessorExtensions="codeExclusivelyPentium4"/>
+				<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" Optimization="optimizeFull" Preprocess="preprocessYes" AdditionalIncludeDirectories="..\common" EnableRecursion="true" FixedFormLineLength="fixedLength132" WarnUnusedVariables="true" WarnTruncateSource="true" WarnUncalled="true" ByteRECL="true" LocalSavedScalarsZero="true" ModulePath="$(INTDIR)/" ObjectFile="$(INTDIR)/" UsePortlib="true" UseMkl="mklSequential" RequireProcessorExtensions="codeExclusivelyPentium4"/>
 				<Tool Name="VFLinkerTool" LinkIncremental="linkIncrementalNo" SuppressStartupBanner="true" SubSystem="subSystemConsole" ImportLibrary=""/>
 				<Tool Name="VFResourceCompilerTool"/>
 				<Tool Name="VFMidlTool" SuppressStartupBanner="true" TargetEnvironment="midlTargetAMD64" HeaderFileName="$(InputName).h" TypeLibraryName="$(IntDir)/$(InputName).tlb"/>
