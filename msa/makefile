@@ -18,8 +18,12 @@ lpar = -Wl,--start-group $(mklpath)/lib/intel64/libmkl_intel_lp64.a $(mklpath)/l
 # removed switches
 #	 -libs:static ???
 # Start of the makefile
-msa: emsdata.o MultiSlice.o STEMfunctions.o msaparams.o msasub.o plasmon.o random.o msa.o
-	$(f90c) -o msa -nologo emsdata.o MultiSlice.o STEMfunctions.o msaparams.o msasub.o plasmon.o random.o msa.o $(lpar)
+msa: precision.o emsdata.o MultiSlice.o STEMfunctions.o msaparams.o msasub.o plasmon.o random.o msa.o
+	$(f90c) -o msa -nologo precision.o emsdata.o MultiSlice.o STEMfunctions.o msaparams.o msasub.o plasmon.o random.o msa.o $(lpar)
+precision.mod: precision.o ../common/precision.f90
+	$(f90c) -c $(cpar) ../common/precision.f90
+precision.o: ../common/precision.f90
+	$(f90c) -c $(cpar) ../common/precision.f90
 emsdata.mod: emsdata.o ../common/emsdata.f90
 	$(f90c) -c $(cpar) ../common/emsdata.f90
 emsdata.o: ../common/emsdata.f90
