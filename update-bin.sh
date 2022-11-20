@@ -1,4 +1,5 @@
 echo "Updating the bin folder from the Linux source tree"
+mkdir -p "bin"
 cp "LICENSE" "bin"
 cp "celslc/celslc" "bin"
 cp "celslc/celslc howto.txt" "bin"
