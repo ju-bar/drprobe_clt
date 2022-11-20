@@ -259,6 +259,8 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc
+
+# Some files of test output
 /test/sto_001_4x4_300keV_fl50_002.sli
 /test/sto_001_4x4_300keV_fl50_001.sli
 /test/sto_001_4x4_300keV_fl50.prm
@@ -269,3 +271,15 @@ __pycache__/
 /test/img_ABF_psc.dat
 /test/img_ABF.dat
 /CELSLC_used.cif
+
+
+# Some Fortran Linux object files
+*.o
+*.mod
+
+
+# Executable Files
+celslc/celslc
+msa/msa
+wavimg/wavimg
+

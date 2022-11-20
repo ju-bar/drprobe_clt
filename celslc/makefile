@@ -6,7 +6,11 @@ switch2 = -nologo -O2 -recursive -132 -assume byterecl -threads -static-intel
 switch1 = -nologo -O1 -recursive -132 -assume byterecl -threads -static-intel
 switch0 = -nologo -O0 -recursive -132 -assume byterecl -threads -static-intel
 # mkl path must be adjusted to the local mkl installation
-mklpath = /usr/local/intel/mkl
+ifneq ("$(wildcard ${MKLROOT})", "")
+    mklpath = ${MKLROOT}
+else
+    mklpath = /usr/local/intel/mkl
+endif
 mklpar = -I$(mklpath)/include
 # mkl lib linking must be adjusted to the local mkl installation
 # - when linking 64-bit MKL with ifort on OSX:
