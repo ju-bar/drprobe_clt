@@ -6,7 +6,7 @@
    Juri Barthel, 
    Forschungszentrum Jülich GmbH, 52425 Jülich, Germany
 
-   Copyright (c) 2008 - 2021 - Forschungszentrum Jülich GmbH
+   Copyright (c) 2008 - 2022 - Forschungszentrum Jülich GmbH
    
    Published under the GNU General Public License, version 3,
    see <http://www.gnu.org/licenses/> and LICENSE!
@@ -97,7 +97,7 @@ and MSA are linked against the Intel Math Kernel Libraries (MKL).
 
 Current versions:
 * CELSLC: 1.1
-* MSA: 1.0
+* MSA: 1.1
 * WAVIMG: 1.0
 
 ### TODOs
