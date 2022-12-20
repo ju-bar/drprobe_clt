@@ -5409,7 +5409,7 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
         cstrfe = cstrfe + dcmplx(csf)*ctr       ! sum up to the screened potential structure factor
         if (crgio/=0.0) then                    ! sum up to the ionic structure factor
           dwf = 1.0
-          if (infl==0) dwf = scamptmp(3,jptr)   ! get the DWF for the ionic contribution (only for non-fl calculatins)
+          if (dwflg) dwf = scamptmp(3,jptr)     ! get the DWF for the ionic contribution
           cstrfi = cstrfi + pocc*crgio*dble(dwf)*ctr ! add to the ionic structure factor occ*charge*DWF*(translation term)
         end if
         !

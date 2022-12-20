@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementations for image simulations
 !
-! VERSION: 1.0.2, J.B., 15.10.2020
+! VERSION: 1.0.3, J.B., 20.12.2022
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -34,7 +34,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program: [wavimg]                                 |")
-  call PostMessage(" | Version: 1.0.2 64-bit  -  2020 Oct  15  -         |")
+  call PostMessage(" | Version: 1.0.3 64-bit  -  2022 Dec  20  -         |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -1534,8 +1534,8 @@ subroutine loadmtf
   !
   ! calculate the ntf
   do i=1, ntfmax
-    ntfdata(i) = exp( ntfoff ) * ( exp( ntfprm * real(i-1) ) - 1.0 ) + 1.0
-    ! ntfdata(i) = exp( ntfprm * real(i-1) )
+    !ntfdata(i) = exp( ntfoff ) * ( exp( ntfprm * real(i-1) ) - 1.0 ) + 1.0
+    ntfdata(i) = exp( ntfprm * real(i-1) )
   end do
   !
   

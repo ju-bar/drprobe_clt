@@ -35,7 +35,7 @@
 				<Tool Name="VFPostBuildEventTool"/>
 				<Tool Name="VFManifestTool" SuppressStartupBanner="true"/></Configuration>
 		<Configuration Name="Release|x64" DeleteExtensionsOnClean="*.obj;*.mod;*.pdb;*.asm;*.map;*.dyn;*.dpi;*.tmp;*.log;*.ilk;*.exe;$(TargetPath)">
-				<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" Optimization="optimizeFull" Preprocess="preprocessYes" AdditionalIncludeDirectories="..\common" PreprocessorDefinitions="double_precision" EnableRecursion="true" FixedFormLineLength="fixedLength132" WarnUnusedVariables="true" WarnTruncateSource="true" WarnUncalled="true" ByteRECL="true" LocalSavedScalarsZero="true" ModulePath="$(INTDIR)/" ObjectFile="$(INTDIR)/" UsePortlib="true" UseMkl="mklSequential" RequireProcessorExtensions="codeExclusivelyPentium4"/>
+				<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" Optimization="optimizeFull" Preprocess="preprocessYes" AdditionalIncludeDirectories="..\common" PreprocessorDefinitions="single_precision" EnableRecursion="true" FixedFormLineLength="fixedLength132" WarnUnusedVariables="true" WarnTruncateSource="true" WarnUncalled="true" ByteRECL="true" LocalSavedScalarsZero="true" ModulePath="$(INTDIR)/" ObjectFile="$(INTDIR)/" UsePortlib="true" UseMkl="mklSequential" RequireProcessorExtensions="codeExclusivelyPentium4"/>
 				<Tool Name="VFLinkerTool" LinkIncremental="linkIncrementalNo" SuppressStartupBanner="true" SubSystem="subSystemConsole" ImportLibrary=""/>
 				<Tool Name="VFResourceCompilerTool"/>
 				<Tool Name="VFMidlTool" SuppressStartupBanner="true" TargetEnvironment="midlTargetAMD64" HeaderFileName="$(InputName).h" TypeLibraryName="$(IntDir)/$(InputName).tlb"/>

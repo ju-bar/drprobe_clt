@@ -1,10 +1,10 @@
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program WAVIMG, Version 1.0.2                               #
+#   HOWTO use the program WAVIMG, Version 1.0.3                               #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2020-10-15                                                          #
+#   Date: 2022-12-20                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -320,6 +320,9 @@ Here is an example, which defines a combined defocus and CS variation:
 
 7) History of changes
 
+221220: JB: Version 1.0.3
+- Changed noise transfer function estimation. Only the exponential slope
+  parameter as determined from the central part of the MTF will be used.
 201015: JB: Version 1.0.2
 - Fixed focus spread resonance options so that the focus spread will no
   longer become ineffective on low resolution calculations. The focal
