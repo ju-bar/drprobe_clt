@@ -2221,7 +2221,7 @@ SUBROUTINE CIF_WRITE(sfile, nchk)
   ! <<< Write Symmetry operation table >>>
   !
   !
-  sline = "# symmetry_equiv_pos"
+  sline = "# table symmetry_equiv_pos"
   write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
   sline = "loop_"
   write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
@@ -2247,7 +2247,7 @@ SUBROUTINE CIF_WRITE(sfile, nchk)
     !
     ! <<< Write the atom type table >>>
     !
-    sline = "# atom_type"
+    sline = "# table atom_type"
     write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
     sline = "loop_"
     write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
@@ -2275,7 +2275,7 @@ SUBROUTINE CIF_WRITE(sfile, nchk)
     !
     ! <<< Write the atomic site table >>>
     !
-    sline = "# atom_site"
+    sline = "# table atom_site"
     write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
     sline = "loop_"
     write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
