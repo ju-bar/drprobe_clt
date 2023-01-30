@@ -4,7 +4,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2022-11-07                                                          #
+#   Date: 2023-01-30                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -673,6 +673,9 @@ Example cel files:
 
 
 7) History of changes:
+
+- 230130. JB: Version 1.1.4
+              Corrected wrong column label in the atom_type list of CIF output.
 
 - 221114. JB: Version 1.1.3
               Added anisotropy of thermal displacements in 2d QEP calculations.

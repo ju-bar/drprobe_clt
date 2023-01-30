@@ -82,7 +82,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "1.1.0 64-bit  -  2022 Nov  18  -"
+  MSP_verApp  =                   "1.1.1 64-bit  -  2023 Jan  26  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -243,6 +243,13 @@ program msa
     write(unit=MSP_stmp,fmt=*) MSP_extdefocus
     call PostMessage("- overriding defocus by command-line parameter: "// &
        & trim(adjustl(MSP_stmp))//" nm.")
+  end if
+  if (MSP_use_extbsh/=0) then ! update the beam shift using the external command line parameter
+    call STF_SetAberration(1,1._fpp * MSP_ext_bsx,1.0_fpp * MSP_ext_bsy)
+    write(unit=MSP_stmp,fmt=*) MSP_ext_bsx
+    write(unit=MSP_stmp2,fmt=*) MSP_ext_bsy
+    call PostMessage("- overriding probe offset by command-line parameter: bsx="// &
+       & trim(adjustl(MSP_stmp))//", bsy="//trim(adjustl(MSP_stmp2))//" deg.")
   end if
   if (MSP_use_extot/=0) then ! update object tilt parameters from command line input
     MS_objtiltx = real(MSP_OTExX, kind=fpp)

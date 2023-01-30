@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 1.1.0                                  #
+#   HOWTO use the program MSA, Version 1.1.1                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2022-11-18                                                          #
+#   Date: 2023-01-26                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -100,10 +100,9 @@ Command-line calling options for the program msa.exe:
 >     [-lx <last horiz. scan pixel>]
 >     [-ly <last vert. scan pixel>]
 >     [-foc <defocus value in nm>]
->     [-tx <x beam tilt in mrad>]
->     [-ty <y beam tilt in mrad>]
->     [-otx <x object tilt in mrad>]
->     [-oty <y object tilt in mrad>]
+>     [-bsx / -bsy <x/y probe shift in nm>]
+>     [-tx / -ty <x/y beam tilt in mrad>]
+>     [-otx / -oty <x/y object tilt in mrad>]
 >     [-sr <effective source radius in nm>]
 >     [-abf <factor> apply absorption (potentials only)]
 >     [-buni <Biso in nm^2> apply DWF (potentials only)]
@@ -228,6 +227,18 @@ Command-line calling options for the program msa.exe:
 
 
 -oty (float value) [optional]
+
+	Defines the y component of object tilt in mrad. Overrides the value
+	set in the parameter file.
+
+
+-bsx (float value) [optional]
+
+	Defines the x component of object tilt in mrad. Overrides the value
+	set in the parameter file.
+
+
+-bsy (float value) [optional]
 
 	Defines the y component of object tilt in mrad. Overrides the value
 	set in the parameter file.
@@ -737,6 +748,11 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 
 6) History of changes
+
+230126: JB: Version 1.1.1
+- Added command-line options -bsx <value> and -bsy <value> to allow
+  external control of probe shifts. The values passed override the
+  values (not add to) set for the probe shift aberration.
 
 221118: JB: Version 1.1.0
 - Changed the floating point precision of the phonon Monte-Carlo array

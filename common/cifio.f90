@@ -8,7 +8,7 @@
 !         Jülich, Germany
 !         ju.barthel@fz-juelich.de
 !         first version: 05.01.2016
-!         last version: 08.02.2022
+!         last version: 30.01.2023
 !
 ! Purpose: Input and output of structure data from CIF files.
 !          The most recently loaded data is stored in module variables.
@@ -2173,7 +2173,7 @@ SUBROUTINE CIF_WRITE(sfile, nchk)
   !
   ! <<< Write the Crystal data >>>
   !
-  sline = "# Crystal data"
+  sline = "# crystal data"
   write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
   !
   sline = "_pd_phase_name                         'Super Cell'"
@@ -2221,7 +2221,7 @@ SUBROUTINE CIF_WRITE(sfile, nchk)
   ! <<< Write Symmetry operation table >>>
   !
   !
-  sline = "# Symmetry operations"
+  sline = "# symmetry_equiv_pos"
   write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
   sline = "loop_"
   write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
@@ -2247,11 +2247,11 @@ SUBROUTINE CIF_WRITE(sfile, nchk)
     !
     ! <<< Write the atom type table >>>
     !
-    sline = "# Atomic types"
+    sline = "# atom_type"
     write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
     sline = "loop_"
     write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
-    sline = "    _atom_site_type_symbol"
+    sline = "    _atom_type_symbol"
     write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
     sline = "    _atom_type_oxidation_number"
     write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
@@ -2275,7 +2275,7 @@ SUBROUTINE CIF_WRITE(sfile, nchk)
     !
     ! <<< Write the atomic site table >>>
     !
-    sline = "# Atomic sites"
+    sline = "# atom_site"
     write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)
     sline = "loop_"
     write (unit=ilun, fmt='(A)', iostat=ioerr, err=104) trim(sline)

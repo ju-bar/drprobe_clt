@@ -3,7 +3,7 @@
 !                                                                      !
 !    File     :  msaparams.f90                                         !
 !                                                                      !
-!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2019   !
+!    Copyright:  (C) J. Barthel (ju.barthel@fz-juelich.de) 2009-2023   !
 !                                                                      !
 !**********************************************************************!
 !                                                                      !
@@ -12,7 +12,7 @@
 !                                                                      !
 !    Purpose  : parameters, parameter I/O and memory management for    !
 !               the program MSA (see msa.f90)                          !
-!    Version  : 1.4.0, Nov 10, 2022                                    !
+!    Version  : 1.4.1, Jan 26, 2023                                    !
 !    To Link  : MultiSlice.f90                                         !
 !               STEMfunctions.f90                                      !
 !                                                                      !
@@ -278,12 +278,19 @@ MODULE MSAparams
   ! SWITCH between large angle propagators (0: default) or Fresnel propagators (1)
   integer*4, public :: MSP_use_fre
   DATA MSP_use_fre /1/ ! on by default
-  !
+  
   ! external override defocus parameters
   integer*4, public :: MSP_use_extdefocus
   real*4, public :: MSP_extdefocus
   DATA MSP_use_extdefocus /0/
   DATA MSP_extdefocus /0.0/
+  
+  ! external override beam shift parameters (scan offset)
+  integer*4, public :: MSP_use_extbsh
+  real*4, public :: MSP_ext_bsx, MSP_ext_bsy
+  DATA MSP_use_extbsh /0/
+  DATA MSP_ext_bsx /0.0/
+  DATA MSP_ext_bsy /0.0/
   
   ! external override object tilt parameters
   integer*4, public :: MSP_use_extot
