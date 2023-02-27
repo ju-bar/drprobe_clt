@@ -2593,7 +2593,7 @@ SUBROUTINE LoadParameters(sprmfile)
     if (nalloc/=0) then
       call CriticalError("Failed to allocate memory for new detector definitions.")
     end if
-    MSP_detdef(:,:) = 0.0
+    MSP_detdef(:,:) = 0.0_fpp
     if (allocated(MSP_detname)) then
       deallocate(MSP_detname,stat=nalloc)
       if (nalloc/=0) then
@@ -2626,9 +2626,9 @@ SUBROUTINE LoadParameters(sprmfile)
     if (nalloc/=0) then
       call CriticalError("Failed to allocate memory for new detector detector sensitivity profile headers.")
     end if
-    MSP_detrsphdr = 0.0
+    MSP_detrsphdr = 0.0_fpp
     
-    MSP_detdef(0,1) = 1.0
+    MSP_detdef(0,1) = 1.0_fpp
     MSP_detdef(1,1) = MS_detminang
     MSP_detdef(2,1) = MS_detmaxang
     MSP_detname(1) = "StdDet"
@@ -2642,13 +2642,13 @@ SUBROUTINE LoadParameters(sprmfile)
   if (nalloc/=0) then
     call CriticalError("Failed to allocate detector array.")
   end if
-  MSP_detresult = 0.0
+  MSP_detresult = 0.0_fpp
   if (MS_wave_avg_export>0) then
     allocate(MSP_detresult_ela(MSP_detnum,0:MS_stacksize), stat=nalloc)
     if (nalloc/=0) then
       call CriticalError("Failed to allocate detector array for elastic channel.")
     end if
-    MSP_detresult_ela = 0.0
+    MSP_detresult_ela = 0.0_fpp
   end if
   
   ! allocate the k-momentum result array
@@ -2657,13 +2657,13 @@ SUBROUTINE LoadParameters(sprmfile)
   if (nalloc/=0) then
     call CriticalError("Failed to allocate k-moment array.")
   end if
-  MSP_Kmomresult = 0.0
+  MSP_Kmomresult = 0.0_fpp
   if (MS_wave_avg_export>0) then
     allocate(MSP_Kmomresult_ela(MSP_KmomNum,0:MS_stacksize), stat=nalloc)
     if (nalloc/=0) then
       call CriticalError("Failed to allocate k-moment array for elastic channel.")
     end if
-    MSP_Kmomresult_ela = 0.0
+    MSP_Kmomresult_ela = 0.0_fpp
   end if
 ! ------------
 
@@ -3641,11 +3641,11 @@ SUBROUTINE DetectorReadout(rdata, ndat, nret)
 
 ! ------------
 ! DECLARATION
-  real*4, intent(out) :: rdata(1:ndat)
+  real(fpp), intent(out) :: rdata(1:ndat)
   integer*4, intent(in) :: ndat
   integer*4, intent(out) :: nret
   integer*4 :: ndet, nkmom, nx, ny, i, j, k, l, m, nmlen, idy, idx, nalloc
-  real*4 :: rval, gxk, gyl
+  real(fpp) :: rval, gxk, gyl
 ! ------------
 
 ! ------------
@@ -3697,11 +3697,11 @@ SUBROUTINE DetectorReadout(rdata, ndat, nret)
     idy = (j-1)*nx
     do i=1, nx
       idx = i + idy
-      MSP_pdiftmp(idx) = real(MS_wave(i,j)*conjg(MS_wave(i,j))) ! get power of wave function as stream of data
+      MSP_pdiftmp(idx) = real(MS_wave(i,j)*conjg(MS_wave(i,j)),kind=fpp) ! get power of wave function as stream of data
     end do
   end do
 ! reset output array
-  rdata(1:ndat) = 0.0
+  rdata(1:ndat) = 0.0_fpp
 ! default STEM detectors
   if (ndet>0) then
     ! readout all integrating detectors
@@ -3713,7 +3713,7 @@ SUBROUTINE DetectorReadout(rdata, ndat, nret)
         MSP_pdettmp(i) = MSP_pdiftmp(idx) * MSP_detarea(idx,k) ! store detected intensity
       end do
       !call FDNCS2M(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a 2-fold butterfly
-      call DSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
+      call FPPSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
       rdata(k) = rval 
     end do
   end if
@@ -3734,7 +3734,7 @@ SUBROUTINE DetectorReadout(rdata, ndat, nret)
           MSP_pdettmp(i) = gxk * gyl * MSP_pdiftmp(idx) * MSP_Kmomwgt(idx) ! store detected intensity
         end do
         !call FDNCS2M(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a 2-fold butterfly
-        call DSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
+        call FPPSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
         rdata(ndet+idy) = rval ! store result in the channels behind the default detectors
         if (m>0) then ! normalize by the 0-th moment rdata(ndet+1)
           rdata(ndet+idy) = rdata(ndet+idy) / rdata(ndet+1)
@@ -3770,8 +3770,7 @@ SUBROUTINE DetectorReadoutElastic(nerr)
 !             The readout is done here for all slices, assuming that
 !             the elastic wave functions exist in MS_wave_avg.
 ! -------------------------------------------------------------------- !
-! parameter:  rdata (real*4) expect one item per detector and k-moment
-!             component, output
+! parameter:  nerr, integer*4 = error code
 ! -------------------------------------------------------------------- !
 
   use MultiSlice
@@ -3784,8 +3783,8 @@ SUBROUTINE DetectorReadoutElastic(nerr)
   integer*4, intent(out) :: nerr
   integer*4 :: ncrit, ndet, nkmom, nx, ny, nalloc, nmlen, npln
   integer*4 :: i, j, k, l, m, ipln, islc, idy, idx
-  real*4 :: rval, gxk, gyl, rsca, renorm
-  complex*8, allocatable :: wave(:,:)
+  real(fpp) :: rval, rsca, renorm, gxk, gyl
+  complex(fpp), allocatable :: wave(:,:)
 ! ------------
 
 ! ------------
@@ -3834,8 +3833,8 @@ SUBROUTINE DetectorReadoutElastic(nerr)
     nerr = 3
     goto 200
   end if
-  wave = cmplx(0.,0.)
-  rsca = 1.0 / real(nx*ny) ! FFT transform rescale
+  wave = cmplx(0.,0.,kind=fpp)
+  rsca = 1.0_fpp / real(nx*ny,kind=fpp) ! FFT transform rescale
 ! ------------
   
   
@@ -3843,12 +3842,12 @@ SUBROUTINE DetectorReadoutElastic(nerr)
 ! loop over all detection planes for which we have averaged wave functions
   do ipln=0, MSP_detpln-1
     islc = MSP_hdetpln(ipln) ! slice index
-    if (ndet>0) MSP_detresult_ela(1:ndet, islc) = 0.0 ! clear data
-    if (nkmom>0) MSP_Kmomresult_ela(1:nkmom, islc) = 0.0
+    if (ndet>0) MSP_detresult_ela(1:ndet, islc) = 0.0_fpp ! clear data
+    if (nkmom>0) MSP_Kmomresult_ela(1:nkmom, islc) = 0.0_fpp
     if (MS_wave_avg_nac(ipln) > 0) then
-      renorm = 1.0 / real(MS_wave_avg_nac(ipln)) ! renormalization factor due to averaging
+      renorm = 1.0_fpp / real(MS_wave_avg_nac(ipln),kind=fpp) ! renormalization factor due to averaging
     else
-      renorm = 1.0
+      renorm = 1.0_fpp
     end if
     if (MS_wave_export_form==0) then ! real-space average -> need to transform
       ! real space export (inverse FT)
@@ -3858,21 +3857,21 @@ SUBROUTINE DetectorReadoutElastic(nerr)
       !   Though, the explicit assignement below element by element works.
       do j=1, ny
         do i=1, nx
-          MS_work(i,j) = cmplx(MS_wave_avg(i,j, ipln), kind=4)
+          MS_work(i,j) = MS_wave_avg(i,j, ipln)
         end do
       end do
       ! call MS_FFT(work,MS_dimx,MS_dimy,'forwards') ! RS -> FS
       call MS_FFT_WORK(1)
       wave(1:nx,1:ny) = MS_work(1:nx,1:ny) * sqrt(rsca) * renorm ! renormalize after iDFT and averaging
     else ! Fourier-space averages, can take data as is, but renormalize
-      wave(1:nx,1:ny) = cmplx(MS_wave_avg(1:nx,1:ny, ipln), kind=4) * renorm
+      wave(1:nx,1:ny) = MS_wave_avg(1:nx,1:ny, ipln) * renorm
     end if
     ! calculate the diffraction data stream used by all detectors and integrators below
     do j=1, ny
       idy = (j-1)*nx
       do i=1, nx
         idx = i + idy
-        MSP_pdiftmp(idx) = real(wave(i,j)*conjg(wave(i,j))) ! get power of wave function as stream of data
+        MSP_pdiftmp(idx) = real(wave(i,j)*conjg(wave(i,j)),kind=fpp) ! get power of wave function as stream of data
       end do
     end do
     ! default STEM detectors
@@ -3886,7 +3885,7 @@ SUBROUTINE DetectorReadoutElastic(nerr)
           MSP_pdettmp(i) = MSP_pdiftmp(idx) * MSP_detarea(idx,k) ! store detected intensity
         end do
         !call FDNCS2M(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a 2-fold butterfly
-        call DSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
+        call FPPSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
         MSP_detresult_ela(k, islc) = rval ! store the elastic channel intensity
       end do
     end if
@@ -3907,7 +3906,7 @@ SUBROUTINE DetectorReadoutElastic(nerr)
             MSP_pdettmp(i) = gxk * gyl * MSP_pdiftmp(idx) * MSP_Kmomwgt(idx) ! store detected intensity
           end do
           !call FDNCS2M(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a 2-fold butterfly
-          call DSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
+          call FPPSTRSUM(MSP_pdettmp(1:nmlen), nmlen, rval) ! sum up the intensities with a double precision accumulator
           MSP_Kmomresult_ela(idy, islc) = rval ! store elastic channel result
           if (m>0) then ! normalize by the 0-th moment of the total (!) MSP_Kmomresult(1, islc)
             MSP_Kmomresult_ela(idy, islc) = MSP_Kmomresult_ela(idy, islc) / MSP_Kmomresult(1, islc)
@@ -4642,7 +4641,7 @@ SUBROUTINE CreateSTEMFile(sfile,ndata,nerr)
   integer*4, intent(in) :: ndata ! total number of 4-byte data items in the file
   integer*4, intent(inout) :: nerr ! error code
   integer*4 :: lfu, status
-  real*4, allocatable :: tmpdat(:)
+  real(fpp), allocatable :: tmpdat(:)
   
   ! init
   nerr = 0
@@ -4654,7 +4653,7 @@ SUBROUTINE CreateSTEMFile(sfile,ndata,nerr)
   call createfilefolder(trim(sfile),status)
   ! record length is equal to total data size of (4 byte)*datanum
   open (unit=lfu, file=trim(sfile), form="binary",iostat=status,&
-     &  access="direct", recl=4*ndata, status="replace", &
+     &  access="direct", recl=fpp*ndata, status="replace", &
      &  action="write", share='DENYRW')
   if (status/=0) then
     call CriticalError("Output file creation failed.")
@@ -4702,7 +4701,7 @@ SUBROUTINE ExportSTEMData(sfile)
   integer*4 :: nfil, lfu(3), nerr, i, j, k, l, l1, iff
   integer*4 :: datapos, ndet, ipos
   integer*4 :: ndatanum
-  real*4 :: rsignal(3)
+  real(fpp) :: rsignal(3)
   logical :: fex(3)
   character(len=12) :: snumk, snuml
   character(len=1024) :: stmp, ssufdet, ssufsep(3), spfile(3), sdfile(3)
@@ -4733,7 +4732,7 @@ SUBROUTINE ExportSTEMData(sfile)
     ssufsep(3) = "_tds"
   end if
   ssufdet = ""
-  rsignal = 0
+  rsignal = 0.0_fpp
 ! ------------
 
 
@@ -4768,7 +4767,7 @@ SUBROUTINE ExportSTEMData(sfile)
         call GetFreeLFU(lfu(iff),20,100)
         ! - open file shared access
         open (unit=lfu(iff), file=trim(sdfile(iff)), form="binary", access="direct", &
-            & iostat=nerr, status="old", action="write", recl=4, share='DENYNONE' )
+            & iostat=nerr, status="old", action="write", recl=fpp, share='DENYNONE' )
         if (nerr/=0) then
           call CriticalError("ExportSTEMData: Failed to open file ["//trim(sdfile(iff))//"].")
         end if
@@ -4826,7 +4825,7 @@ SUBROUTINE ExportSTEMData(sfile)
           call GetFreeLFU(lfu(iff),20,100)
           ! - open file shared access
           open (unit=lfu(iff), file=trim(spfile(iff)), form="binary", access="direct", &
-           &    iostat=nerr, status="old", action="write", recl=4, share='DENYNONE' )
+           &    iostat=nerr, status="old", action="write", recl=fpp, share='DENYNONE' )
           if (nerr/=0) then
             call CriticalError("ExportSTEMData: Failed to open file ["//trim(spfile(iff))//"].")
           end if
@@ -4893,7 +4892,7 @@ SUBROUTINE ExportSTEMData(sfile)
             ! - open file shared access
             open (unit=lfu(iff), file=trim(sdfile(iff)), form="binary", &
               &   access="direct", iostat=nerr, status="old", &
-              &   action="write", recl=4, share='DENYNONE' )
+              &   action="write", recl=fpp, share='DENYNONE' )
             if (nerr/=0) then
               call CriticalError("ExportSTEMData: Failed to open file [" &
                 &  //trim(sdfile(iff))//"].")
@@ -4956,7 +4955,7 @@ SUBROUTINE ExportSTEMData(sfile)
               ! - open file shared access
               open (unit=lfu(iff), file=trim(spfile(iff)), form="binary",&
                 &   access="direct", iostat=nerr, status="old", &
-                &   action="write", recl=4, share='DENYNONE' )
+                &   action="write", recl=fpp, share='DENYNONE' )
               if (nerr/=0) then
                 call CriticalError("ExportSTEMData: Failed to open file ["&
                   &  //trim(spfile(iff))//"].")

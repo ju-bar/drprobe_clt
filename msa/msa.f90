@@ -82,7 +82,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "1.1.1 64-bit  -  2023 Jan  26  -"
+  MSP_verApp  =                   "1.1.2 64-bit  -  2023 Feb  27  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()

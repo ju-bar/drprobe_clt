@@ -749,6 +749,11 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 6) History of changes
 
+230227: JB: Version 1.1.2
+- Fixed a bug in the STEM detector readout for double precision.
+  The STEM image output of the double precision compile is now 
+  also double precision. This change was missed in version 1.1.0.
+
 230126: JB: Version 1.1.1
 - Added command-line options -bsx <value> and -bsy <value> to allow
   external control of probe shifts. The values passed override the
