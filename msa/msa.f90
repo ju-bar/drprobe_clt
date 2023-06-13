@@ -82,7 +82,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "1.1.2 64-bit  -  2023 Feb  27  -"
+  MSP_verApp  =                   "1.1.3 64-bit  -  2023 Juni 13  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -238,6 +238,12 @@ program msa
 ! ------------
 ! HANDLE COMMAND-LINE PARAMETER OVERRIDES
   MS_nslid = MSP_nslid
+  if (MSP_use_extalpha/=0) then ! update the probe convergence using the external command line parameter
+    STF_caperture(1) = MSP_extalpha
+    write(unit=MSP_stmp,fmt=*) MSP_extalpha
+    call PostMessage("- overriding probe convergence by command-line parameter: "// &
+       & trim(adjustl(MSP_stmp))//" mrad.")
+  end if
   if (MSP_use_extdefocus/=0) then ! update the defocus using the external command line parameter
     call STF_SetAberration(2,1._fpp * MSP_extdefocus,0.0_fpp)
     write(unit=MSP_stmp,fmt=*) MSP_extdefocus
@@ -249,7 +255,7 @@ program msa
     write(unit=MSP_stmp,fmt=*) MSP_ext_bsx
     write(unit=MSP_stmp2,fmt=*) MSP_ext_bsy
     call PostMessage("- overriding probe offset by command-line parameter: bsx="// &
-       & trim(adjustl(MSP_stmp))//", bsy="//trim(adjustl(MSP_stmp2))//" deg.")
+       & trim(adjustl(MSP_stmp))//", bsy="//trim(adjustl(MSP_stmp2))//" nm.")
   end if
   if (MSP_use_extot/=0) then ! update object tilt parameters from command line input
     MS_objtiltx = real(MSP_OTExX, kind=fpp)

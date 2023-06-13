@@ -279,6 +279,12 @@ MODULE MSAparams
   integer*4, public :: MSP_use_fre
   DATA MSP_use_fre /1/ ! on by default
   
+  ! external override probe convergence (added with v1.1.3)
+  integer*4, public :: MSP_use_extalpha
+  real*4, public :: MSP_extalpha
+  DATA MSP_use_extalpha /0/
+  DATA MSP_extalpha /10.0/
+  
   ! external override defocus parameters
   integer*4, public :: MSP_use_extdefocus
   real*4, public :: MSP_extdefocus

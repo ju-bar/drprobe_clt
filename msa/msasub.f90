@@ -1697,6 +1697,7 @@ SUBROUTINE ExplainUsage()
   call PostSureMessage("    [-py <vertical scan-pixel number>]")
   call PostSureMessage("    [-lx <last horiz. scan pixel>]")
   call PostSureMessage("    [-ly <last vert. scan pixel]")
+  call PostSureMessage("    [-pcv <probe convergence semi angle in mrad>]")
   call PostSureMessage("    [-foc <defocus value in nm>]")
   call PostSureMessage("    [-tx <x beam tilt in mrad>]")
   call PostSureMessage("    [-ty <y beam tilt in mrad>]")
@@ -1783,6 +1784,8 @@ SUBROUTINE ParseCommandLine()
   MSP_LastScanPixelY = -1
   MSP_BeamTiltX = 0.0
   MSP_BeamTiltY = 0.0
+  MSP_use_extalpha = 0
+  MSP_extalpha = 0.0
   MSP_use_extdefocus = 0
   MSP_extdefocus = 0.0
   MSP_ext_bsx = 0.0
@@ -1987,6 +1990,21 @@ SUBROUTINE ParseCommandLine()
           & ": failed to read position index.")
         return
       end if
+      
+    ! AN OPTION FOR SETTING PROBE CONVERGENCE EXTERNALLY
+    case ("-pcv")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      read(unit=buffer,fmt=*,iostat=status) MSP_extalpha
+      if (status/=0) then
+        call CriticalError("Invalid data for "//cmd(1:clen)// &
+          & ": failed to read defocus value.")
+        return
+      end if
+      MSP_use_extalpha = 1
       
     ! AN OPTION FOR SETTING A FIX DEFOCUS EXTERNALLY
     case ("-foc")

@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 1.1.1                                  #
+#   HOWTO use the program MSA, Version 1.1.3                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2023-01-26                                                          #
+#   Date: 2023-06-13                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -99,6 +99,7 @@ Command-line calling options for the program msa.exe:
 >     [-py <vertical scan-pixel number>]
 >     [-lx <last horiz. scan pixel>]
 >     [-ly <last vert. scan pixel>]
+>     [-pcv <probe convergence semi angle in mrad>]
 >     [-foc <defocus value in nm>]
 >     [-bsx / -bsy <x/y probe shift in nm>]
 >     [-tx / -ty <x/y beam tilt in mrad>]
@@ -202,6 +203,12 @@ Command-line calling options for the program msa.exe:
 	first scan row to be calculated.
 
 
+-pcv (float value) [optional]
+
+	Defines the STEM probe convergence semi angle in mrad. Overrides the
+	value set in the parameter file.
+
+
 -foc (float value) [optional]
 
 	Defines the probe or image wave defocus in nanometers. Overrides the
@@ -234,13 +241,13 @@ Command-line calling options for the program msa.exe:
 
 -bsx (float value) [optional]
 
-	Defines the x component of object tilt in mrad. Overrides the value
+	Defines the x component of probe shift in nm. Overrides the value
 	set in the parameter file.
 
 
 -bsy (float value) [optional]
 
-	Defines the y component of object tilt in mrad. Overrides the value
+	Defines the y component of probe shift in nm. Overrides the value
 	set in the parameter file.
 
 
@@ -748,6 +755,11 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 
 6) History of changes
+
+230613: JB: Version 1.1.3
+- Added command-line option -pcv <value> to allow changing the
+  probe convergence semi angle in mrad. The value passed overrides
+  the value set in the parameter file, for STEM simulations only.
 
 230227: JB: Version 1.1.2
 - Fixed a bug in the STEM detector readout for double precision.
