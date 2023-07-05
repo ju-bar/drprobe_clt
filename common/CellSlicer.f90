@@ -8,7 +8,7 @@
 !         Jülich, Germany
 !         ju.barthel@fz-juelich.de
 !         first version: 13.12.2008
-!         last version: 07.11.2022
+!         last version: 05.07.2023
 !
 ! Purpose: Data and Methods to create Potential slices
 !          for TEM, from given atomic data in form of supercells
@@ -107,6 +107,9 @@ MODULE CellSlicer
   public :: CS_DICE_PARTIALOCC
   public :: CS_SUGGEST_NSLCEQUI
   public :: CS_SUGGEST_NSLCFOLZ
+  public :: CS_LOAD_ADT
+  public :: CS_GET_AD_ATY
+  public :: CS_GET_AD
 !
 !  private ::
   private :: CS_ERROR
@@ -492,6 +495,22 @@ MODULE CellSlicer
   ! potential backup data (last calculated potential)
   complex*8, allocatable, dimension(:,:), public :: CS_backup_pot 
 !
+!
+! atomic displacement data
+!
+!   number of atom types in the table
+  integer*4, public :: CS_adt_num_aty
+  DATA CS_adt_num_aty /0/
+!   length of the atomic displacements lists
+  integer*4, public :: CS_adt_len
+  DATA CS_adt_len /0/
+!   atom type identification number (atomic number)
+  integer*4, allocatable, dimension(:), public :: CS_adt_aty
+!   atomic displacement lists
+  real*4, allocatable, dimension(:,:), public :: CS_adt_data
+!   atomic displacement list running index
+  integer*4, allocatable, dimension(:), public :: CS_adt_idx
+!
 !**********************************************************************!
 
 
@@ -573,6 +592,17 @@ subroutine CS_UNINIT()
   if (allocated(CS_backup_pot)) then ! deallocate previous potential backup
     deallocate(CS_backup_pot,stat=nalloc)
   end if
+  if (allocated(CS_adt_aty)) then
+    deallocate(CS_adt_aty, stat=nalloc)
+  end if
+  if (allocated(CS_adt_data)) then
+    deallocate(CS_adt_data, stat=nalloc)
+  end if
+  if (allocated(CS_adt_idx)) then
+    deallocate(CS_adt_idx, stat=nalloc)
+  end if
+  CS_adt_num_aty = 0
+  CS_adt_len = 0
   
   CS_status = 0
   
@@ -4083,8 +4113,8 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
   integer*4, intent(inout) :: nerr
   complex*8, intent(inout) :: pot(nx,ny,nz)
   
-  integer*4 :: ncalc, ncalcmax, ncalcskip
-  integer*4 :: i, j, k, i1, j1, k1, ia, jptr ! iterators
+  integer*4 :: ncalc, ncalcmax, ncalcskip, ierr
+  integer*4 :: i, j, k, i1, j1, k1, ia, jptr, kptr ! iterators
   integer*4 :: npc, lndw
   integer*4 :: na ! atom count
   integer*4 :: lnze ! extended number of samples to include aliasing along z, local value
@@ -4256,17 +4286,24 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
   do ia=1, na ! loop ia over all atoms in cell
     ild(ia,1) = ia
     ild(ia,2) = CS_scampptr(ia)
+    call CS_GET_AD_ATY(CS_atnum(ia), kptr)  ! get atom type index in atomic displacement type
     fld(ia,1) = CS_atpos(1,ia)*CS_scsx              ! get atom x-position
     fld(ia,2) = CS_atpos(2,ia)*CS_scsy              ! get atom y-position
     fld(ia,3) = CS_atpos(3,ia)*CS_scsz              ! get atom z-position
     dwc = sqrt(CS_atdwf(1,ia))              ! get debye-waller parameter from (nm**2) to (nm), changed 22-Nov-07, no anisotropy supported in 3d
     if (infl==1) then                       ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ia)==0) then ! independent site
-        dx = CS_rr8p2*dwc*GaussRand()
+        if (kptr>0) then ! get displacement from table
+          call CS_GET_ADI(kptr, dx, ierr)
+          call CS_GET_ADI(kptr, dy, ierr)
+          call CS_GET_ADI(kptr, dz, ierr)
+        else ! calculate random displacement using a normal distribution and Biso
+          dx = CS_rr8p2*dwc*GaussRand()
+          dy = CS_rr8p2*dwc*GaussRand()
+          dz = CS_rr8p2*dwc*GaussRand()
+        end if
         fld(ia,1) = fld(ia,1) + dx            ! add random x displacement
-        dy = CS_rr8p2*dwc*GaussRand()
         fld(ia,2) = fld(ia,2) + dy            ! add random y displacement
-        dz = CS_rr8p2*dwc*GaussRand()
         fld(ia,3) = fld(ia,3) + dz            ! add random z displacement
       else ! dependent site (copy position from linked site)
         fld(ia,1) = fld(CS_atlnk(ia),1)
@@ -4482,8 +4519,8 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
   integer*4, intent(inout) :: nerr
   complex*8, intent(inout) :: pot(nx,ny,nz)
   
-  integer*4 :: ncalc, ncalcmax, ncalcskip
-  integer*4 :: i, j, k, i1, j1, k1, ia, jptr ! iterators
+  integer*4 :: ncalc, ncalcmax, ncalcskip, ierr
+  integer*4 :: i, j, k, i1, j1, k1, ia, jptr, kptr ! iterators
   integer*4 :: npc, lndw
   integer*4 :: na ! atom count
   integer*4 :: lnze ! extended number of samples to include aliasing along z
@@ -4626,17 +4663,24 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
   do ia=1, na ! loop ia over all atoms in cell
     ild(ia,1) = ia
     ild(ia,2) = CS_scampptr(ia)
+    call CS_GET_AD_ATY(CS_atnum(ia), kptr)  ! get atom type index in atomic displacement type
     fld(ia,1) = CS_atpos(1,ia)*CS_scsx              ! get atom x-position
     fld(ia,2) = CS_atpos(2,ia)*CS_scsy              ! get atom y-position
     fld(ia,3) = CS_atpos(3,ia)*CS_scsz              ! get atom z-position
     dwc = sqrt(CS_atdwf(1,ia))                ! get debye-waller parameter from (nm**2) to (nm) ! changed 22-Nov-07, no anisotropy supported in 3d
     if (infl==1) then                       ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ia)==0) then ! independent site
-        dx = CS_rr8p2*dwc*GaussRand()
+        if (kptr>0) then ! get displacement from table
+          call CS_GET_ADI(kptr, dx, ierr)
+          call CS_GET_ADI(kptr, dy, ierr)
+          call CS_GET_ADI(kptr, dz, ierr)
+        else ! calculate random displacement using a normal distribution and Biso
+          dx = CS_rr8p2*dwc*GaussRand()
+          dy = CS_rr8p2*dwc*GaussRand()
+          dz = CS_rr8p2*dwc*GaussRand()
+        end if
         fld(ia,1) = fld(ia,1) + dx            ! add random x displacement
-        dy = CS_rr8p2*dwc*GaussRand()
         fld(ia,2) = fld(ia,2) + dy            ! add random y displacement
-        dz = CS_rr8p2*dwc*GaussRand()
         fld(ia,3) = fld(ia,3) + dz            ! add random z displacement
       else ! dependent site (copy position from linked site)
         fld(ia,1) = fld(CS_atlnk(ia),1)
@@ -5133,7 +5177,8 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   integer*4, intent(inout) :: nerr
   complex*8, intent(inout) :: pot(nx*nrx,ny*nry)
   
-  integer*4 :: i, j, i1, j1, ia, ja, jptr ! iterators
+  integer*4 :: ierr
+  integer*4 :: i, j, i1, j1, ia, ja, jptr, kptr ! iterators
   integer*4 :: npc, lndw
   integer*4 :: na ! atom count
   integer*4 :: dimx, dimy, nyqx, nyqy!, nft ! sampling numbers
@@ -5309,6 +5354,7 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   scamptmp = 0.0 ! temporary copies of form factors
   do ia=1, na ! loop ia over all atoms in slice
     ja = CS_slcatacc(ia,nslc)               ! get atom index in super cell
+    call CS_GET_AD_ATY(CS_atnum(ja), kptr)  ! get atom type index in atomic displacement type
     jld(ja) = ia                            ! store atom slice ID
     ild(1,ia) = ja                          ! store atom cell ID
     ild(2,ia) = CS_scampptr(ja)             ! store form factor ID
@@ -5319,17 +5365,23 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
     dwc = sqrt(CS_atdwf(1,ja))                ! get debye-waller parameter from (nm**2) to (nm), changed 22-Nov-07
     if (infl==1) then                       ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ja)==0) then ! independent site
-        ! CS_rr8p2*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
-        px = CS_rr8p2*dwc*GaussRand()*CS_atdwf(2,ja) ! random anisotropic displacement precast x, added 22-Nov-07
-        py = CS_rr8p2*dwc*GaussRand()*CS_atdwf(3,ja) ! random anisotropic displacement precast y, added 22-Nov-07
-        ca = cos(CS_atdwf(4,ja))             ! rotation matrix elements ...
-        sa = sin(CS_atdwf(4,ja))             ! ...
-        dx = px * ca - py * sa               ! combined effective x displacement, added 22-Nov-07
+        if (kptr>0) then ! get displacement from table
+          call CS_GET_ADI(kptr, dx, ierr)
+          call CS_GET_ADI(kptr, dy, ierr)
+          !call CS_GET_ADI(kptr, dz, ierr)
+        else ! calculate random displacement using a normal distribution and Biso
+          ! CS_rr8p2*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
+          px = CS_rr8p2*dwc*GaussRand()*CS_atdwf(2,ja) ! random anisotropic displacement precast x, added 22-Nov-07
+          py = CS_rr8p2*dwc*GaussRand()*CS_atdwf(3,ja) ! random anisotropic displacement precast y, added 22-Nov-07
+          ca = cos(CS_atdwf(4,ja))             ! rotation matrix elements ...
+          sa = sin(CS_atdwf(4,ja))             ! ...
+          dx = px * ca - py * sa               ! combined effective x displacement, added 22-Nov-07
+          dy = px * sa + py * ca               ! combined effective y displacement, added 22-Nov-07
+          !dz = CS_rr8p2*dwc*GaussRand()
+        end if
         fld(1,ia) = fld(1,ia) + dx           ! add random x displacement
-        dy = px * sa + py * ca               ! combined effective y displacement, added 22-Nov-07
         fld(2,ia) = fld(2,ia) + dy           ! add random y displacement
-        dz = CS_rr8p2*dwc*GaussRand()
-        fld(3,ia) = dz + fld(3,ia)           ! random z displacments (! are ignored -> projected)
+        !fld(3,ia) = fld(3,ia) + dz          ! random z displacments (! are ignored -> projected)
       else ! dependent site (copy positions from linked site)
         fld(1:3,ia) = fld(1:3,jld(CS_atlnk(ja)))
       end if
@@ -5571,7 +5623,8 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   integer*4, intent(inout) :: nerr
   complex*8, intent(inout) :: pot(nx*nrx,ny*nry)
   
-  integer*4 :: i, j, i1, j1, ia, ia2, ja, jptr ! iterators
+  integer*4 :: ierr
+  integer*4 :: i, j, i1, j1, ia, ia2, ja, jptr, kptr ! iterators
   integer*4 :: lndw
   integer*4 :: na ! atom count
   integer*4 :: dimx, dimy, nyqx, nyqy ! sampling numbers
@@ -5715,6 +5768,7 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
     ja = CS_slcatacc(ia,nslc)               ! get atom index in super cell
     jld(ja) = ia                            ! store slice ID in list of cell IDs
     jptr = CS_scampptr(ja)                  ! get atom type ID in scattering data
+    call CS_GET_AD_ATY(CS_atnum(ja), kptr)  ! get atom type index in atomic displacement type
     lxy(1,ia) = CS_atpos(1,ja)*CS_scsx      ! get atom avg. x-position
     lxy(2,ia) = CS_atpos(2,ja)*CS_scsy      ! get atom avg. y-position
     lxy(3,ia) = CS_atpos(3,ja)*CS_scsz - CS_slczlim(1,nslc)     ! get atom avg. z-position relative to slice entrance plane (this should be a positive distance)
@@ -5722,21 +5776,27 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
     dwc = sqrt(biso)                        ! get debye-waller parameter from (nm**2) to (nm) (sqrt(Biso))
     if (infl==1) then                     ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ja)==0) then ! independent atom site
-        !dx = fldamp*dwc*GaussRand()         !   fldamp*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
-        !dy = fldamp*dwc*GaussRand()
-        ! fldamp*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
-        px = fldamp*dwc*GaussRand()*CS_atdwf(2,ja) ! random anisotropic displacement precast x, added 22-Nov-07
-        py = fldamp*dwc*GaussRand()*CS_atdwf(3,ja) ! random anisotropic displacement precast y, added 22-Nov-07
-        ca = cos(CS_atdwf(4,ja))             ! rotation matrix elements ...
-        sa = sin(CS_atdwf(4,ja))             ! ...
-        dx = px * ca - py * sa               ! combined effective x displacement, added 22-Nov-07
+        if (kptr>0) then ! get displacement from table
+          call CS_GET_ADI(kptr, dx, ierr)
+          call CS_GET_ADI(kptr, dy, ierr)
+          !call CS_GET_ADI(kptr, dz, ierr)
+        else ! calculate random displacement using a normal distribution and Biso
+          !dx = fldamp*dwc*GaussRand()         !   fldamp*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
+          !dy = fldamp*dwc*GaussRand()
+          ! fldamp*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
+          px = fldamp*dwc*GaussRand()*CS_atdwf(2,ja) ! random anisotropic displacement precast x, added 22-Nov-07
+          py = fldamp*dwc*GaussRand()*CS_atdwf(3,ja) ! random anisotropic displacement precast y, added 22-Nov-07
+          ca = cos(CS_atdwf(4,ja))             ! rotation matrix elements ...
+          sa = sin(CS_atdwf(4,ja))             ! ...
+          dx = px * ca - py * sa               ! combined effective x displacement, added 22-Nov-07
+          dy = px * sa + py * ca ! combined effective y displacement, added 22-Nov-07
+          !dz = fldamp*dwc*GaussRand()
+        end if
+        
         lxy(1,ia) = lxy(1,ia) + dx           ! add random x displacement
-        dy = px * sa + py * ca ! combined effective y displacement, added 22-Nov-07
         lxy(2,ia) = lxy(2,ia) + dy           ! add random y displacement
-        dz = fldamp*dwc*GaussRand()
-        !lxy(1,ia) = lxy(1,ia) + dx          ! add random x displacement
-        !lxy(2,ia) = lxy(2,ia) + dy          ! add random y displacement
-        lxy(3,ia) = lxy(3,ia) + dz          ! add random z displacement
+        
+        !lxy(3,ia) = lxy(3,ia) + dz          ! add random z displacement
       else ! dependent atom site
         ia2 = jld(CS_atlnk(ja))
         lxy(1,ia) = lxy(1,ia2)
@@ -7095,6 +7155,249 @@ subroutine CS_SUGGEST_NSLCFOLZ(wl, nx, ny, nslc, nerr)
   return
 end subroutine CS_SUGGEST_NSLCFOLZ
 
+
+
+!**********************************************************************!
+!
+! CS_LOAD_ADT
+!
+! subroutine, loads atomic displacement tables from a file.
+!
+! INPUT:
+!   character(len=*) :: sfile = file name
+!   
+! IN/OUTPUT:
+!   integer*4 :: nerr   = error code (0 = success)
+!
+subroutine CS_LOAD_ADT(sfile, nerr)
+
+  implicit none
+  
+  character(len=*), intent(in) :: sfile
+  integer*4, intent(inout) :: nerr
+  
+  integer*4 :: lun, nalloc, i, ioerr, nbytes
+  logical :: fex
+  character(len=CS_ll) :: smsg
+  
+  integer*4, external :: getfreelun
+  
+  ! init
+  nerr = 0
+  
+  ! checks
+  INQUIRE(file=trim(sfile),exist=fex,size=nbytes)
+  if (.not.fex) goto 801
+  
+  ! open file
+  lun = getfreelun()
+  if (lun<0) goto 802
+  open(unit=lun,file=trim(sfile),iostat=ioerr,&
+     & form='binary',action='read',status='old')
+  if (ioerr/=0) goto 803
+  
+  smsg = "reading number of atom types"
+  read(unit=lun, iostat=ioerr) CS_adt_num_aty
+  if (ioerr/=0) goto 804
+  if (CS_adt_num_aty<=0) goto 700 ! stop loading, this does'nt make sense
+  
+  allocate(CS_adt_aty(2*CS_adt_num_aty), CS_adt_idx(2*CS_adt_num_aty), stat=nalloc)
+  if (nalloc/=0) goto 805
+  CS_adt_aty = 0
+  CS_adt_idx = 1
+  
+  smsg = "reading atom types"
+  read(unit=lun, iostat=ioerr) CS_adt_aty(1:CS_adt_num_aty)
+  if (ioerr/=0) goto 804
+  
+  smsg = "reading table length"
+  read(unit=lun, iostat=ioerr) CS_adt_len
+  if (ioerr/=0) goto 804
+  if (CS_adt_len<=0) goto 700 ! stop loading, this does'nt make sense
+  
+  allocate(CS_adt_data(CS_adt_len, CS_adt_num_aty), stat=nalloc)
+  if (nalloc/=0) goto 805
+  CS_adt_data = 0.0
+  
+  smsg = "reading tables"
+  read(unit=lun, iostat=ioerr) CS_adt_data(1:CS_adt_len, 1:CS_adt_num_aty)
+  if (ioerr/=0) goto 804
+  
+  ! close file
+700 continue
+  close(unit=lun, iostat=ioerr)
+  ! done.
+  
+! exit
+800 continue
+  return
+!  
+! error handlings
+801 continue
+  nerr = 1
+  call CS_ERROR("File ["//trim(sfile)//"] not found.")
+  goto 800
+802 continue
+  nerr = 2
+  call CS_ERROR("Failed to acquire free logical file unit.")
+  goto 800
+803 continue
+  nerr = 3
+  write(unit=smsg,fmt='(I)') ioerr
+  call CS_ERROR("Failed to open file ["//trim(sfile)//"], code: "//trim(smsg))
+  goto 800
+804 continue
+  nerr = 4
+  CS_adt_num_aty = 0
+  CS_adt_len = 0
+  call CS_ERROR("Failed "//trim(smsg))
+  goto 700
+805 continue
+  nerr = 5
+  call CS_ERROR("Failed to allocate memory.")
+  goto 700
+!
+  return
+end subroutine CS_LOAD_ADT
+
+
+!**********************************************************************!
+!
+! CS_GET_AD_ATY
+!
+! subroutine, returns the index of the atom type in the table.
+!
+! INPUT:
+!   integer*4 :: z      = atomic number to identify the list
+!   
+! IN/OUTPUT:
+!   integer*4 :: idx    = type index in the table (=0 on fail)
+!
+subroutine CS_GET_AD_ATY(z, idx)
+
+  implicit none
+  
+  integer*4, intent(in) :: z
+  integer*4, intent(inout) :: idx
+  
+  integer*4 :: iat
+  
+  idx = 0
+  
+  if ((CS_adt_num_aty<=0) .or. (CS_adt_len<=0)) goto 800
+  
+  do iat=1, CS_adt_num_aty
+    if (z == CS_adt_aty(iat)) then ! found the atomic number
+      idx = iat
+      goto 800
+    end if
+  end do
+  
+! exit
+800 continue
+  return
+!  
+end subroutine CS_GET_AD_ATY
+
+
+!**********************************************************************!
+!
+! CS_GET_AD
+!
+! subroutine, returns an atomic displacement from the table.
+!
+! INPUT:
+!   integer*4 :: z      = atomic number to identify the list
+!   
+! IN/OUTPUT:
+!   real*4 :: u         = displacement
+!   integer*4 :: nerr   = error code (0 = success)
+!
+subroutine CS_GET_AD(z, u, nerr)
+
+  implicit none
+  
+  integer*4, intent(in) :: z
+  real*4, intent(inout) :: u
+  integer*4, intent(inout) :: nerr
+  
+  integer*4 :: iat, idx
+  
+  nerr = 0
+  u = 0.0
+  
+  call CS_GET_AD_ATY(z, iat)
+  if (iat==0) goto 802
+  
+  idx = CS_adt_idx(iat)
+  u = CS_adt_data(idx, iat)
+  idx = idx + 1
+  if (idx > CS_adt_len) idx = 1
+  CS_adt_idx(iat) = idx
+  
+! exit
+800 continue
+  return
+!  
+! error handlings
+801 continue
+  nerr = 1
+  call CS_ERROR("Atomic displacement tables are not prepared.")
+  goto 800
+802 continue
+  nerr = 2
+  goto 800
+!
+  return
+end subroutine CS_GET_AD
+
+
+!**********************************************************************!
+!
+! CS_GET_ADI
+!
+! subroutine, returns an atomic displacement from a column the table.
+!
+! INPUT:
+!   integer*4 :: iat    = atom type list index
+!   
+! IN/OUTPUT:
+!   real*4 :: u         = displacement
+!   integer*4 :: nerr   = error code (0 = success)
+!
+subroutine CS_GET_ADI(iat, u, nerr)
+
+  implicit none
+  
+  integer*4, intent(in) :: iat
+  real*4, intent(inout) :: u
+  integer*4, intent(inout) :: nerr
+  
+  integer*4 :: idx
+  
+  nerr = 0
+  u = 0.0
+  
+  if ((iat<=0).or.(iat>CS_adt_num_aty)) goto 801
+  
+  idx = CS_adt_idx(iat)
+  u = CS_adt_data(idx, iat)
+  idx = idx + 1
+  if (idx > CS_adt_len) idx = 1
+  CS_adt_idx(iat) = idx
+  
+! exit
+800 continue
+  return
+!  
+! error handlings
+801 continue
+  nerr = 1
+  call CS_ERROR("Invalid atom type index.")
+  goto 800
+!
+  return
+end subroutine CS_GET_ADI
 
 
 END MODULE CellSlicer

@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementations of program CELSLC
 !
-! VERSION: 1.1.4 (20230130)
+! VERSION: 1.1.5 (20230705)
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -67,7 +67,7 @@ program celslc
   !
   integer*4 :: i, j, k, nat
   character(len=1024) :: smsg, sfil, stmp1, stmp2
-  real*4 :: fz0, fz1
+  real*4 :: fz0, fz1, msd
   complex*8, allocatable, dimension(:,:,:) :: slcdat
   
   external :: InitRand, InitRand2
@@ -157,6 +157,16 @@ program celslc
     end if
   end if
   !
+  ! handle external atomic displacements
+  if (nadt>0) then
+    call PostMessage("Loading atomic displacement tabele from file ["//trim(sadfile)//"].")
+    call CS_LOAD_ADT(sadfile, nerr)
+    if (nerr/=0) then
+      call CriticalError("Failed to prepare atomic displacement table from file ["// &
+        & trim(sadfile)//"].")
+    end if
+  end if
+  !
   call PostRuntime("program initialized")
   !
   if (nffdec==1) then ! output ff decay data
@@ -217,11 +227,38 @@ program celslc
       CS_atdwf(4,:) = 0.0
     end if
     !
-    if (nfl==1 .and. CS_numat>0) then ! isotropic thermal displacements added 22-Nov-07
+    if (nfl==1 .and. CS_numat>0 .and. nadt==0) then ! isotropic thermal displacements added 22-Nov-07
       call PostMessage("Assuming isotropic thermal displacements of atoms.")
       CS_atdwf(2,:) = 1.0
       CS_atdwf(3,:) = 1.0
       CS_atdwf(4,:) = 0.0
+    end if
+    if (nfl==1 .and. CS_numat>0 .and. nadt>0) then ! listed thermal displacements added 23-Jul-05
+      call PostMessage("Applying external list of thermal displacements of atoms.")
+      call PostMessage("  table input file: "//trim(sadfile))
+      write(unit=smsg, fmt='(I)') CS_adt_num_aty
+      call PostMessage("  number of atom types (columns): "//trim(adjustl(smsg)))
+      if (CS_adt_num_aty > 0) then
+        smsg = "  Z: ["
+        do i=1, CS_adt_num_aty
+          write(stmp1, fmt=*) CS_adt_aty(i)
+          smsg = trim(smsg) // " " // trim(adjustl(stmp1)) // ","
+        end do
+        smsg = trim(smsg) // "]"
+        call PostMessage(trim(smsg))
+      end if
+      write(unit=smsg, fmt='(I)') CS_adt_len
+      call PostMessage("  number of displacements (rows): "//trim(adjustl(smsg)))
+      if (CS_adt_num_aty > 0 .and. CS_adt_len > 0) then
+        smsg = "  MSD [nm^2]: ["
+        do i=1, CS_adt_num_aty
+          msd = sum((CS_adt_data(1:CS_adt_len,i)**2)) / CS_adt_len
+          write(stmp1, fmt=*) msd
+          smsg = trim(smsg) // " " // trim(adjustl(stmp1)) // ","
+        end do
+        smsg = trim(smsg) // "]"
+        call PostMessage(trim(smsg))
+      end if
     end if
     !
     if (blk==1) then ! re-orientations

@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementation of subroutines for CELSLC
 !
-! VERSION: 1.1.4, J.B., 30.01.2023
+! VERSION: 1.1.5, J.B., 05.07.2023
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -47,7 +47,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program [celslc]                                  |")
-  call PostMessage(" | Version: 1.1.4 64-bit  -  2023 January 30         |")
+  call PostMessage(" | Version: 1.1.5 64-bit  -  2023 July 5             |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -564,6 +564,7 @@ subroutine ExplainUsage()
   call PostMessage(' [-rev         -> slicing in reversed sequence]')
   call PostMessage(' [-ssc <number> = single slice calculation]')
   call PostMessage(' [-tla <x,y,z>  = additional shift of atoms]')
+  call PostMessage(' [-adt <string> = atomic displacement table]')
   call PostMessage(' [] = optional parameters')
   call PostMessage('')
   
@@ -652,6 +653,8 @@ subroutine ParseCommandLine()
   nf2dec = 0
   nextpot = 0
   sextpot = ""
+  nadt = 0
+  sadfile = ""
 
 ! ------------
 ! LOOP OVER ALL GIVEN ARGUMENTS
@@ -1182,6 +1185,22 @@ subroutine ParseCommandLine()
         nsca = 0 ! set back to default Weickenmeier and Kohl
       end if
       
+    ! THE ATOMIC DISPLACEMENT TABLE
+    case ("-adt")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error (-adt <string>).")
+      end if
+      call get_command_argument (i, buffer, len, status) ! form factor table index
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error (-adt <string>).")
+      end if
+      write(unit = sadfile, fmt='(A)') buffer(1:len)
+      nadt = 1
+      
     !! THE NUMBER OF PARALLEL THREADS
     !case ("-nthread")
     !  nfound = 1
@@ -1288,6 +1307,10 @@ SUBROUTINE CheckCommandLine
     nv = 1 ! set number of variants back to default 1.
     if (ndwf==0) then ! turn OFF abs
       !nabs = 0
+    end if
+    if (nadt>0) then ! turn OFF adt loading
+      call PostWarning("Ignoring option -adt, it requires option -fl.")
+      nadt = 0
     end if
   end if
   

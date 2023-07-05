@@ -4,7 +4,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2023-01-30                                                          #
+#   Date: 2023-07-05                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -673,6 +673,17 @@ Example cel files:
 
 
 7) History of changes:
+
+- 230705. JB: Version 1.1.5
+              Added option -adt <string> to load atomic displacements from
+			  a file and apply those instead of the normal random numbers.
+			  The file provides a number of atom types, followed by a list
+			  of atomic numbers of that length, then a number of displacements
+			  followed by a list of displacements of that length times the
+			  number of atom types. Displacements x, y (,and z) will be
+			  applied to atoms of each type in the sequence as thy occur in
+			  the list for each type. If the list is too short, it cycles
+			  periodically.
 
 - 230130. JB: Version 1.1.4
               Corrected wrong column label in the atom_type list of CIF output.
