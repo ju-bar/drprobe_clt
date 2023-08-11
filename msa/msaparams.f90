@@ -12,7 +12,7 @@
 !                                                                      !
 !    Purpose  : parameters, parameter I/O and memory management for    !
 !               the program MSA (see msa.f90)                          !
-!    Version  : 1.4.1, Jan 26, 2023                                    !
+!    Version  : 1.4.2, Aug 11, 2023                                    !
 !    To Link  : MultiSlice.f90                                         !
 !               STEMfunctions.f90                                      !
 !                                                                      !
@@ -386,6 +386,8 @@ MODULE MSAparams
   DATA MSP_FL_varnum /1/
   integer*4, public :: MSP_FL_varcalc ! min. number of frozen lattice variants used for calculating one scan pixel or exit plane waves
   DATA MSP_FL_varcalc /1/
+  integer*4, public :: MSP_FL_varcalc_ex ! override of the number of passes by command line (applies only if >0)
+  DATA MSP_FL_varcalc_ex /0/
   
 ! slice data (single precision)
   character(len=MSP_SF_TITLE_LENGTH), dimension(:), allocatable, public :: MSP_SLC_title ! slice titles
@@ -1095,6 +1097,7 @@ SUBROUTINE MSP_READBLOCK_multislice(nunit)
     end do
   end if
   if (MSP_FL_varcalc<1) MSP_FL_varcalc = 1
+  if (MSP_FL_varcalc_ex>0) MSP_FL_varcalc = MSP_FL_varcalc_ex ! override from command line (v.1.1.4 2023-08-11 JB)
   if (MSP_FL_varnum<1) MSP_FL_varnum = 1
   call MSP_GetNumberOfDigits(MSP_FL_varcalc,MSP_nvard)
   MSP_nvard = max(3,MSP_nvard) ! min. number of expected digits defining the variation number in the file name

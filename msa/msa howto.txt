@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 1.1.3                                  #
+#   HOWTO use the program MSA, Version 1.1.4                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2023-06-13                                                          #
+#   Date: 2023-08-11                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -107,6 +107,7 @@ Command-line calling options for the program msa.exe:
 >     [-sr <effective source radius in nm>]
 >     [-abf <factor> apply absorption (potentials only)]
 >     [-buni <Biso in nm^2> apply DWF (potentials only)]
+>     [-npass <number of QEP passes)]
 >     [/ctem, switch to imaging TEM simulation]
 >     [/txtout, switch for text output, STEM only]
 >     [/3dout, switch for 3d data output, STEM only]
@@ -272,6 +273,12 @@ Command-line calling options for the program msa.exe:
 	define vibration amplitude (Uiso) values in Å^2. Requires that
 	the slice files	provide potential data, not possible if phase
 	grating data is	provided.
+
+
+- npass (int value) [optional]
+
+	Defines the number of QEP passes per probe position to be performed.
+	Overrides the value set in the parameter file.
 
 
 /ctem [optional]
@@ -755,6 +762,12 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 
 6) History of changes
+
+230811: JB: Version 1.1.4
+- Added command-line option -npass <number> to set the number of
+  QEP passes per probe position by call. The value overrides the
+  the paremeter file ([NCPP] = number of minimum frozen lattice
+  variations for one scan pixel).
 
 230613: JB: Version 1.1.3
 - Added command-line option -pcv <value> to allow changing the

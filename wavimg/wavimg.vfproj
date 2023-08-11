@@ -58,6 +58,5 @@
 		<File RelativePath=".\wavimgprm.f90"/>
 		<File RelativePath=".\wavimgsubs.f90"/></Filter>
 		<File RelativePath=".\makefile"/>
-		<File RelativePath=".\wavimg howto.txt"/>
-		<File RelativePath=".\wavimg.prm"/></Files>
+		<File RelativePath=".\wavimg howto.txt"/></Files>
 	<Globals/></VisualStudioProject>

@@ -398,12 +398,16 @@ Additional and experimental options:
   for the first principal axis of vibration relative to the
   Biso parameter, fy is the factor for the second principal
   axis and the angle defines the rotation of the first principal
-  axis towards the supercell a-axis in radians. Note: the
-  default CEL writing zeros for these numbers turns off any
-  displacement when this option is used.
-  Note: This is experimental and should not be used without
+  axis towards the supercell a-axis in radians.
+  Note 1: the default CEL writing zeros for these numbers turns
+  off any displacement when this option is used.
+  Note 2: This is experimental and should not be used without
   prior consultation with the developer. There are several
   other options which will not treat the anisotropy correctly.
+  Note 3: <u^2>   = <u_x^2> + <u_y^2> / 2
+          <u_x^2> = fx^2 * <u^2> => fx = sqrt( <u_x^2> / <u^2> )
+          <u_y^2> = fy^2 * <u^2> => fy = sqrt( <u_y^2> / <u^2> )
+          angle is specified in radians
 
 
   -nsca <number> = switch internal table of atomic form factors.

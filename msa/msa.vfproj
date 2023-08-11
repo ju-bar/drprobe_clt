@@ -58,8 +58,6 @@
 		<File RelativePath="..\common\precision.f90"/>
 		<File RelativePath="..\common\random.f90"/>
 		<File RelativePath=".\STEMfunctions.f90"/></Filter>
-		<File RelativePath=".\detectors.prm"/>
 		<File RelativePath=".\makefile"/>
-		<File RelativePath=".\msa howto.txt"/>
-		<File RelativePath=".\msa.prm"/></Files>
+		<File RelativePath=".\msa howto.txt"/></Files>
 	<Globals/></VisualStudioProject>

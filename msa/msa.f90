@@ -1,13 +1,13 @@
 !**********************************************************************
 !
-!  PROGRAM: msa, version 1.1.0
+!  PROGRAM: msa, version 1.1.4
 !  FILE: msa.f90
 !  PURPOSE:  Entry point for the console application MSA.
 !            Multislice calculation for electron diffraction
 !
 !**********************************************************************
 !                                                                      
-!   Date: 2022-11-18
+!   Date: 2023-08-11
 !                                                                      
 !   Author: Juri Barthel                                               
 !           Ernst Ruska-Centre                                         
@@ -82,7 +82,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "1.1.3 64-bit  -  2023 Juni 13  -"
+  MSP_verApp  =                   "1.1.4 64-bit  -  2023 August 11  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -264,6 +264,11 @@ program msa
     write(unit=MSP_stmp2,fmt=*) MSP_OTExY
     call PostMessage("- overriding object tilt by command-line parameter: otx="// &
        & trim(adjustl(MSP_stmp))//", oty="//trim(adjustl(MSP_stmp2))//" deg.")
+  end if
+  if (MSP_FL_varcalc_ex>0) then ! just inform on external parameter use, the new value was already set when loading the parameter file
+    write(unit=MSP_stmp,fmt=*) MSP_FL_varcalc_ex
+    call PostMessage("- overriding number of passes by command-line parameter: npass="// &
+       & trim(adjustl(MSP_stmp)))
   end if
 ! ------------
   
