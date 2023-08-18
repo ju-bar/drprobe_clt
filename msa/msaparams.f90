@@ -392,6 +392,7 @@ MODULE MSAparams
 ! slice data (single precision)
   character(len=MSP_SF_TITLE_LENGTH), dimension(:), allocatable, public :: MSP_SLC_title ! slice titles
   character(len=MSP_ll), public :: MSP_SLC_filenames ! slice file name prefix
+  character(len=MSP_ll), public :: MSP_SLC_filenames_ex ! slice file name prefix set by command-line option
   integer*4, dimension(:), allocatable, public :: MSP_SLC_object ! stack of slices in sample
   integer*4, dimension(:,:), allocatable, public :: MSP_SLC_iprm ! slice loading parameters (offset, swap, nx, ny, nv)
   real*4, dimension(:,:), allocatable, public :: MSP_SLC_fprm ! slice loading parameters (thickness)
@@ -401,6 +402,11 @@ MODULE MSAparams
   DATA MSP_SLC_num /0/
   integer*4, public :: MSP_SLC_lod ! flag 0:normal pre-load all, else:load slice data on demand
   DATA MSP_SLC_lod /0/
+  
+! slice file name command line option flag
+  integer*4, public :: MSP_use_SLC_filenames_ex
+  DATA MSP_use_SLC_filenames_ex /0/
+  DATA MSP_SLC_filenames_ex /""/
   
 ! plasmon excitation
   integer*4, public :: MSP_do_plasm                         ! flag activating plasmon scattering and selects initialization type
@@ -1101,6 +1107,9 @@ SUBROUTINE MSP_READBLOCK_multislice(nunit)
   if (MSP_FL_varnum<1) MSP_FL_varnum = 1
   call MSP_GetNumberOfDigits(MSP_FL_varcalc,MSP_nvard)
   MSP_nvard = max(3,MSP_nvard) ! min. number of expected digits defining the variation number in the file name
+  if (MSP_use_SLC_filenames_ex == 1) then ! override slice file names from command line input
+    MSP_SLC_filenames = trim(MSP_SLC_filenames_ex)
+  end if
   ! check if the slice file for slice 1 and variant 1 can be found
   MSP_SLI_filenamestruct = 0 ! test for multi-variant files structure
   call GetSliceFileName(1,1,MSP_stmp,nerr)

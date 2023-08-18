@@ -82,7 +82,7 @@ program msa
   call MSP_INIT()
   call EMS_INIT()
   MSP_callApp =                   "[msa] MultiSlice Algorithm"
-  MSP_verApp  =                   "1.1.4 64-bit  -  2023 August 11  -"
+  MSP_verApp  =                   "1.1.4 64-bit  -  2023 August 14  -"
   MSP_authApp =                   "Dr. J. Barthel, ju.barthel@fz-juelich.de"
 ! GET COMMAND LINE ARGUMENTS
   call parsecommandline()
@@ -269,6 +269,10 @@ program msa
     write(unit=MSP_stmp,fmt=*) MSP_FL_varcalc_ex
     call PostMessage("- overriding number of passes by command-line parameter: npass="// &
        & trim(adjustl(MSP_stmp)))
+  end if
+  if (MSP_use_SLC_filenames_ex>0) then ! just inform on external parameter use, the new value was already set when loading the parameter file
+    call PostMessage("- overriding slice file name by command-line parameter: "// &
+       & trim(adjustl(MSP_SLC_filenames_ex)))
   end if
 ! ------------
   

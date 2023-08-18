@@ -1706,6 +1706,8 @@ SUBROUTINE ExplainUsage()
   call PostSureMessage("    [-sr <effective source radius in nm>]")
   call PostSureMessage("    [-abf <factor> apply absorption (potentials only)]")
   call PostSureMessage("    [-buni <Biso in nm^2> apply DWF (potentials only)]")
+  call PostSureMessage("    [-npass <number of QEP passes)]")
+  call PostSureMessage("    [-slc <slice filename>]")
   call PostSureMessage("    [/ctem, switch to imaging TEM simulation]")
   call PostSureMessage("    [/txtout, switch for text output, STEM only]")
   call PostSureMessage("    [/3dout, switch for 3d data output, STEM only]")
@@ -1812,6 +1814,8 @@ SUBROUTINE ParseCommandLine()
   MSP_KmomRange = 0.0
   MSP_useldet = 0
   MSP_do_plasm = 0
+  MSP_use_SLC_filenames_ex = 0
+  MSP_SLC_filenames_ex = ""
   do
     i = i + 1
     if (i>cnt) exit
@@ -2021,6 +2025,17 @@ SUBROUTINE ParseCommandLine()
         MSP_FL_varcalc_ex = 0
         return
       end if
+      
+    ! AN OPTION TO SET THE SLICE FILE NAME
+    case ("-slc")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) goto 101
+      call get_command_argument (i, buffer, plen, status)
+      if (status/=0) goto 102
+      write(unit = MSP_SLC_filenames_ex, fmt='(A)') buffer(1:plen)
+      ! make no checks here, this will be done when loading the parameter file
+      MSP_use_SLC_filenames_ex = 1
       
     ! AN OPTION FOR SETTING A FIX DEFOCUS EXTERNALLY
     case ("-foc")
