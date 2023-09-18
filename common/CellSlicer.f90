@@ -8,7 +8,7 @@
 !         Jülich, Germany
 !         ju.barthel@fz-juelich.de
 !         first version: 13.12.2008
-!         last version: 05.07.2023
+!         last version: 31.08.2023
 !
 ! Purpose: Data and Methods to create Potential slices
 !          for TEM, from given atomic data in form of supercells
@@ -86,6 +86,7 @@ MODULE CellSlicer
   public :: CS_SETSLICE_EQUIDIST
   public :: CS_GETSLICE_PRO
   public :: CS_GETSLICE_PRO2
+  public :: CS_GET_UISO
   public :: CS_GETSLICE_POT
   public :: CS_GETSLICE_POT2
   public :: CS_GETSLICE_PGR
@@ -199,6 +200,8 @@ MODULE CellSlicer
 !
 ! atom identification string length
   integer*4, public, parameter :: CS_atsl = 4
+! atom type identification string length
+  integer*4, public, parameter :: CS_atysl = 12 ! 4 + 8, Ti3+_B0.786
 !
 !! FFT min/max size
 !  integer*4, public :: CS_FFT_BOUND_MAX = 8192
@@ -321,7 +324,7 @@ MODULE CellSlicer
 !
 ! supercell data
 !
-!   number of atoms per super cell
+!   number of atom sites per super cell
   integer*4, public :: CS_numat
   DATA CS_numat /0/
 !
@@ -344,26 +347,27 @@ MODULE CellSlicer
   logical, public :: CS_cellmem_allocated
   DATA CS_cellmem_allocated /.FALSE./
 !
-!     atomic type
+!   arrays per atomic site
+!   |
+!   + atomic type string, e.g. O2-
   character(len=CS_atsl), allocatable, dimension(:), public :: CS_attype
-!
-!     atomic numbers
+!   |
+!   + atomic numbers, e.g. 8
   integer*4, allocatable, dimension(:), public :: CS_atnum
-!
-!     atomic charges
+!   |
+!   + atomic charges, e.g. -2
   real*4, allocatable, dimension(:), public :: CS_atcrg
-
-!
-!     atomic position in supercell
+!   |
+!   + atomic position in supercell, e.g. 0.5, 0., 0.5
   real*4, allocatable, dimension(:,:), public :: CS_atpos
-!
-!     position occupancy
+!   |
+!   + site occupancy, e.g.  1.0
   real*4, allocatable, dimension(:), public :: CS_atocc
-!
-!     debye-waller parameter Biso and in-plane anisotropy factors (changed 22-Nov-07)
+!   |
+!   + debye-waller parameter Biso and in-plane anisotropy factors (changed 22-Nov-07)
   real*4, allocatable, dimension(:,:), public :: CS_atdwf
-!
-!     Link list of atoms sharing the same site.
+!   |
+!   + Link list of atoms sharing the same site.
 !     This is a list of indices, one index per atom.
 !     Links are used to displace linked atoms in the same way
 !     for frozen lattice calculations. The list is not used
@@ -378,7 +382,8 @@ MODULE CellSlicer
   integer*4, allocatable, dimension(:), public :: CS_atlnk
 !
 !
-! scattering amplitudes
+!
+! scattering amplitudes (also used as atom type list)
 !
 !   usage of external scattering table data
   integer*4, public :: CS_useextsca
@@ -396,23 +401,25 @@ MODULE CellSlicer
   DATA CS_scampnum /0/
 !
 !   pointer identifying the scattering table to be used for each atom in the cell
-  integer*4, public, allocatable, dimension(:) :: CS_scampptr
+  integer*4, public, allocatable :: CS_scampptr(:)
 !
 !   atom type-wise atomic symbol for scattering data
-  character(len=CS_atsl), public, allocatable, dimension(:) :: &
-                                                & CS_scampsym
+  character(len=CS_atsl), public, allocatable :: CS_scampsym(:)
+!
+!   atom type-wise names: e.g. "Si_B0.464", for identification in external lists
+  character(len=CS_atysl), public, allocatable :: CS_scampname(:)
 !
 !   atom type-wise atomic numbers for scattering data
-  integer*4, public, allocatable, dimension(:) :: CS_scampatn
+  integer*4, public, allocatable :: CS_scampatn(:)
 !
 !   atom type-wise ionic charge
-  real*4, public, allocatable, dimension(:) :: CS_scampcrg
+  real*4, public, allocatable :: CS_scampcrg(:)
 !
 !   atom type-wise Debye-Waller factors
-  real*4, public, allocatable, dimension(:) :: CS_scampdwf
+  real*4, public, allocatable :: CS_scampdwf(:), CS_scampdwfb(:)
   
 !   atom type-wise temporary data used during calculations
-  real*4, public, allocatable, dimension(:,:) :: CS_scamptmp
+  real*4, public, allocatable :: CS_scamptmp(:,:)
 
 !!
 !!   atom type-wise max. scattering vector in 1/nm
@@ -511,6 +518,15 @@ MODULE CellSlicer
 !   atomic displacement list running index
   integer*4, allocatable, dimension(:), public :: CS_adt_idx
 !
+!!
+!! PDOS handling
+!!
+!!   flag to load PDOS data
+!  integer*4, public :: CS_pdos
+!  DATA CS_pdos /0/
+!!   PDOS file name
+!  character(len=CS_ll) :: CS_pdos_file ! file name for phonon density of states
+!!
 !**********************************************************************!
 
 
@@ -987,11 +1003,11 @@ subroutine CS_DEALLOC_SCAMPMEM(nerr)
   if (CS_scattamp_prepared) then
     ! data is prepared, throw away data and prepare again
     deallocate(CS_scampdat, &
-     &         CS_scampsym, &
+     &         CS_scampsym, CS_scampname, &
      &         CS_scampptr, &
      &         CS_scampatn, &
      &         CS_scampcrg, &
-     &         CS_scampdwf, &
+     &         CS_scampdwf, CS_scampdwfb, &
      &         CS_scamptmp, stat=nerr)
     if (allocated(CS_scaff2d)) deallocate(CS_scaff2d, stat=nerr)
     if (allocated(CS_scagn)) deallocate(CS_scagn, stat=nerr)
@@ -1527,6 +1543,7 @@ end subroutine CS_WRITE_F2DEC
 !                                 scattering amplitude data
 !                                 via indices in CS_scampdat, CS_scampatn, CS_scampdwf
 ! - CS_scampsym                 = atomic symbols for each atom pointer
+! - CS_scampname                = atomic type names for each atom pointer
 ! - CS_scampatn                 = atomic numbers for each atom pointer
 ! - CS_scampcrg                 = atomic charges for each atom pointer
 ! - CS_scampdwf                 = Debye-Waller factor for each atom pointer
@@ -1613,11 +1630,13 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
   if (nerr/=0) goto 15
   allocate(CS_scampsym(CS_numat),stat=nerr)
   if (nerr/=0) goto 15
+  allocate(CS_scampname(CS_numat),stat=nerr)
+  if (nerr/=0) goto 15
   allocate(CS_scampatn(CS_numat),stat=nerr)
   if (nerr/=0) goto 15
   allocate(CS_scampcrg(CS_numat),stat=nerr)
   if (nerr/=0) goto 15
-  allocate(CS_scampdwf(CS_numat),stat=nerr)
+  allocate(CS_scampdwf(CS_numat), CS_scampdwfb(CS_numat),stat=nerr)
   if (nerr/=0) goto 15
   
   !
@@ -1625,10 +1644,12 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
   !
   CS_scampnum = 0   ! clear atom type number
   CS_scampsym = ""  ! clear atom symbol
+  CS_scampname = "" ! clear names
   CS_scampptr = 0   ! clear atom pointer
   CS_scampatn = 0   ! clear atomic numbers
   CS_scampcrg = 0.0 ! clear ionic charge
   CS_scampdwf = 0.0 ! clear atom dwf
+  CS_scampdwfb = 0.0
   dwf = 0.0
   
   do i=1, CS_numat ! loop i over all atoms in supercell
@@ -1650,10 +1671,13 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
     if (k==0) then ! current atom is not known
       CS_scampnum = CS_scampnum + 1
       k = CS_scampnum
+      ! store new atom type
       CS_scampsym(k) = sym
       CS_scampatn(k) = z
       CS_scampcrg(k) = dz
       CS_scampdwf(k) = dwf ! note: this will not distinguish anisotropy differences
+      CS_scampdwfb(k) = CS_atdwf(1,i) 
+      CS_scampname(k) = trim(sym)
     end if
     CS_scampptr(i) = k ! set pointer
   end do ! loop i over all atoms in supercell
@@ -1914,6 +1938,15 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
       end do
     end do
   end if
+  
+  !! handle PDOS data
+  !if (CS_pdos==1) then
+  !  call CS_MESSAGE("Loading PDOS from file ["//trim(CS_pdos_file)//"].")
+  !  call CS_LOAD_PDOS(CS_pdos_file, k)
+  !  if (k/=0) then
+  !    call CS_ERROR("Failed to prepare PDOS from file ["//trim(CS_pdos_file)//"].")
+  !  end if
+  !end if
   
   return
   
@@ -4062,6 +4095,45 @@ end subroutine CS_GETCELL_VOL
 !**********************************************************************!
 
 
+!**********************************************************************!
+!
+! CS_GET_UISO
+!
+! function, returns the Uiso value for atom # ia in nm**2 
+!           taking into account site sharing
+!
+real*4 function CS_GET_UISO(ia)
+
+  implicit none
+  
+  integer*4, intent(in) :: ia
+  integer*4 :: i, num_share, iaty, jaty
+  real*4 :: biso, uiso, bisos, uisos
+  
+  num_share = 1
+  iaty = CS_scampptr(ia) ! ia atom type index
+  biso = CS_atdwf(1,ia) ! initialize with default behaviour
+  uiso = biso * 100.0 / (CS_tpi * CS_fpi)
+  !call get_rand_msd(iaty, uiso) ! possible randomize by PDOS
+  num_share = 1
+  
+  do i=1, CS_numat ! loop over all atoms and check for shared site
+    if (CS_atlnk(i)==ia) then ! accumulate shared site biso values
+      jaty = CS_scampptr(i) ! i atom type index
+      uisos = CS_atdwf(1,i) * 100.0 / (CS_tpi * CS_fpi) ! structure uiso
+      !call get_rand_msd(jaty, uisos) ! possible randomize by PDOS
+      uiso = uiso + uisos ! accumulate to usio
+      num_share = num_share + 1 ! count additions
+    end if
+  end do
+  
+  ! rescale to nm**2 and normalize
+  CS_GET_UISO = uiso * 0.01 / real(num_share)
+  
+  return
+
+end function CS_GET_UISO
+!**********************************************************************!
 
 
 !**********************************************************************!
@@ -4125,7 +4197,7 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
   real*4 :: ht ! high tension in kV
   real*4 :: trpha ! translation phase
   real*4 :: x, y, z, dx, dy, dz ! atom position
-  real*4 :: dwc, fldamp, dwf ! displacement calculation helpers
+  real*4 :: u, dwc, fldamp, dwf ! displacement calculation helpers
   !real*4 :: pocc ! atom occupancy
   real*4 :: vol ! volume in nm^3
   real*4 :: pscal ! potential scaling factor
@@ -4290,7 +4362,10 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
     fld(ia,1) = CS_atpos(1,ia)*CS_scsx              ! get atom x-position
     fld(ia,2) = CS_atpos(2,ia)*CS_scsy              ! get atom y-position
     fld(ia,3) = CS_atpos(3,ia)*CS_scsz              ! get atom z-position
-    dwc = sqrt(CS_atdwf(1,ia))              ! get debye-waller parameter from (nm**2) to (nm), changed 22-Nov-07, no anisotropy supported in 3d
+    ! get debye-waller parameter from (nm**2) to (nm)
+    ! - changed 22-Nov-07, no anisotropy supported in 3d
+    ! - modified 23-Aug-31, using a function to get the value
+    u = sqrt(CS_GET_UISO(ia))
     if (infl==1) then                       ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ia)==0) then ! independent site
         if (kptr>0) then ! get displacement from table
@@ -4298,9 +4373,9 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
           call CS_GET_ADI(kptr, dy, ierr)
           call CS_GET_ADI(kptr, dz, ierr)
         else ! calculate random displacement using a normal distribution and Biso
-          dx = CS_rr8p2*dwc*GaussRand()
-          dy = CS_rr8p2*dwc*GaussRand()
-          dz = CS_rr8p2*dwc*GaussRand()
+          dx = u * GaussRand()
+          dy = u * GaussRand()
+          dz = u * GaussRand()
         end if
         fld(ia,1) = fld(ia,1) + dx            ! add random x displacement
         fld(ia,2) = fld(ia,2) + dy            ! add random y displacement
@@ -4311,7 +4386,7 @@ subroutine CS_GETCELL_POT(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
         fld(ia,3) = fld(CS_atlnk(ia),3)
       end if
     end if
-    fld(ia,4) = dwc                         ! Biso
+    fld(ia,4) = u                           ! u (rms) in nm
     fld(ia,5) = CS_atocc(ia)                ! Occupancy
     fld(ia,6) = CS_atcrg(ia)                ! ionic charge
     if (CS_atcrg(ia) /= 0.0) ild(ia,3) = 1  ! flag ionic potential
@@ -4532,7 +4607,7 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
   real*4 :: ht ! high tension in kV
   real*4 :: trpha ! translation phase
   real*4 :: x, y, z, dx, dy, dz ! atom position
-  real*4 :: dwc, fldamp, dwf ! displacement calculation helpers
+  real*4 :: u, dwf ! displacement calculation helpers
   !real*4 :: pocc ! atom occupancy
   real*4 :: vol ! volume in nm^3
   real*4 :: pscal ! potential scaling factor
@@ -4584,12 +4659,9 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
   infl = nfl
   if (infl<0) infl = 0
   if (infl>1) infl = 1
-  fldamp = 0.0
-  dwc = 0.0
   lndw = ndw
   if (infl==1) then
     lndw = 0
-    fldamp = CS_rr8p2
   end if
   
   !
@@ -4667,7 +4739,7 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
     fld(ia,1) = CS_atpos(1,ia)*CS_scsx              ! get atom x-position
     fld(ia,2) = CS_atpos(2,ia)*CS_scsy              ! get atom y-position
     fld(ia,3) = CS_atpos(3,ia)*CS_scsz              ! get atom z-position
-    dwc = sqrt(CS_atdwf(1,ia))                ! get debye-waller parameter from (nm**2) to (nm) ! changed 22-Nov-07, no anisotropy supported in 3d
+    u = sqrt(CS_GET_UISO(ia))                ! u (rms) in nm
     if (infl==1) then                       ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ia)==0) then ! independent site
         if (kptr>0) then ! get displacement from table
@@ -4675,9 +4747,9 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
           call CS_GET_ADI(kptr, dy, ierr)
           call CS_GET_ADI(kptr, dz, ierr)
         else ! calculate random displacement using a normal distribution and Biso
-          dx = CS_rr8p2*dwc*GaussRand()
-          dy = CS_rr8p2*dwc*GaussRand()
-          dz = CS_rr8p2*dwc*GaussRand()
+          dx = u * GaussRand()
+          dy = u * GaussRand()
+          dz = u * GaussRand()
         end if
         fld(ia,1) = fld(ia,1) + dx            ! add random x displacement
         fld(ia,2) = fld(ia,2) + dy            ! add random y displacement
@@ -4688,7 +4760,7 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
         fld(ia,3) = fld(CS_atlnk(ia),3)
       end if
     end if
-    fld(ia,4) = dwc                         ! Biso
+    fld(ia,4) = u                           ! u (rms) in nm
     fld(ia,5) = CS_atocc(ia)                ! Occupancy
     fld(ia,6) = CS_atcrg(ia)                ! ionic charge
     ascaf(ia,1) = dble(CS_atocc(ia))        ! Occupancy
@@ -4895,235 +4967,6 @@ end subroutine CS_GETCELL_POT2
 
 !**********************************************************************!
 !
-! CS_GETCELL_POTR
-!
-! subroutine, calculates potential of the current supercell in 3D
-!             and projects it in slices stored in the output.
-!             using a partial real-space algorith
-!
-! REQUIRES
-! - supercell data to be allocated and set up
-!   (e.g. call CS_LOAD_EMSCELL)
-! - scattering amplitude data to be allocated and prepared
-!   (call CS_PREPARE_SCATTAMPS)
-!
-! REMARKS
-! - when using frozen lattice displacements, be aware that
-!   damping of scattering factors by debye-waller factors
-!   is senseless and wrong! So turn them off when calculating
-!   the scatterung factors by CS_PREPARE_SCATTAMPS
-!
-! - when using frozen lattice generation, call InitRand() before
-!
-! - Adds the ionic charge potentials here instead of to the
-!   screened potentials in the CS_PREPARE_SCATTAMPS routine.
-!
-! - In order to enable parallel computing calls, we allocate
-!   a local complex*8 square array for the fourier transforms
-!   and projection.
-!
-! INPUT:
-!   integer*4 :: nx, ny, nz         = discretisation of supercell axes
-!   real*4 :: rthr                  = relative strength threshold determining the real-space cut-off
-!   integer*4 :: nfl                = create frozen latice displacements
-!   integer*4 :: ndw                = apply Debye-Waller factors
-!   real*4 :: wl                    = electron wavelength [nm]
-!
-! IN/OUTPUT:
-!   complex*8 :: pot(nx,ny,nz)      = projected potential in slices
-!   integer*4 :: nerr               = error code
-!
-subroutine CS_GETCELL_POTR(nx, ny, nz, rthr, nfl, ndw, wl, pot, nerr)
-
-  implicit none
-  
-  integer*4, intent(in) :: nx, ny, nz, nfl, ndw
-  real*4, intent(in) :: rthr, wl
-  integer*4, intent(inout) :: nerr
-  complex*8, intent(inout) :: pot(nx,ny,nz)
-  
-  ! ---------------------------------------------------------------------------
-  
-  logical :: dwflg
-  integer*4 :: ia
-  integer*4 :: infl, lndw, iion
-  integer*4 :: nyqx, nyqy, nyqz, na
-  real*4 :: ht, ap, fldamp, dwc, vol, pfacio, pscal, relcor
-  real*4 :: sx, sy, sz, itogx, itogy, itogz
-  complex*8 :: cval0, cval, csf ! some complex vars
-  complex*16, dimension(:), allocatable :: cproj ! projection form factor
-  real*4, dimension(:), allocatable :: agx, agy, agz, agze ! spatial frequency lists
-  real*4, dimension(:,:), allocatable :: fld ! frozen lattice displacements and other atom properties
-  integer*4, dimension(:,:), allocatable :: ild ! index table for atoms in the slice
-  complex*16, dimension(:,:), allocatable :: acpx, acpy, acpz ! arrays of complex phase factors for x,y, and z shift of atoms
-  complex*16, dimension(:,:), allocatable :: ascak ! complex scattering coefficients of atoms for one spatial frequency
-  real*8, dimension(:,:), allocatable :: ascaf ! other factors used in vectorized calculation
-  
-  real*4, external :: Gaussrand
-  real*4 :: dx, dy, dz
-  
-  ! ---------------------------------------------------------------------------
-  
-  !
-  ! --- Initializations
-  !
-  nerr = 0
-  ap = 1.0 ! init aperture xy
-  
-  !
-  ! --- Checks on preferences
-  !
-  if (.not.(CS_cellmem_allocated.and.CS_scattamp_prepared)) goto 13
-  
-  !
-  ! --- Check input parameters
-  !
-  if (nx<=0.or.ny<=0.or.nz<=0) goto 14
-  if (wl<=0.0) goto 14
-  
-  !
-  ! handle frozen lattice flag
-  !
-  infl = nfl
-  if (infl<0) infl = 0
-  if (infl>1) infl = 1
-  fldamp = 0.0
-  dwc = 0.0
-  lndw = ndw
-  if (infl==1) then
-    lndw = 0
-    fldamp = CS_rr8p2
-  end if
-  
-  !
-  ! handle DWF flag (used for ionic potential calculations only)
-  !
-  if (lndw==0) then
-    dwflg = .FALSE.
-  else
-    dwflg = .TRUE.
-  end if
-  
-  !
-  ! get sampling constants
-  !
-  nyqx = rshift(nx, 1) ! Nyquist number x
-  nyqy = rshift(ny, 1) ! ... y
-  nyqz = rshift(nz, 1) ! ... z
-  sx = CS_scsx/real(nx) ! real-space sampling rate x
-  sy = CS_scsy/real(ny) ! ... y
-  sz = CS_scsz/real(nz) ! ... z
-  itogx = 1.0 / CS_scsx ! fourier space sampling rate x
-  itogy = 1.0 / CS_scsy ! ... y
-  itogz = 1.0 / CS_scsz ! ... z
-  cval0 = cmplx(0.0,0.0)
-  cval = cval0
-  
-  !
-  ! save as global for the module
-  !
-  CS_sdimx = nx
-  CS_sdimy = ny
-  CS_sdimz = nz
-  CS_repx = 1
-  CS_repy = 1
-  CS_repz = 1
-  CS_sampx = sx
-  CS_sampy = sy
-  CS_sampz = sz
-  
-  !
-  ! other parameters
-  !
-  ht = CS_WL2HT(wl)                                 ! high tension in kV
-  na = CS_numat                                     ! number of atoms in cell
-  vol = CS_scsx*CS_scsy*CS_scsz                     ! supercell volume in nm^3 (assuming orthogonal)
-  pscal = CS_v0 / vol                               ! scattering potential pre-factor
-  relcor = dble((CS_elm0 + ht)/CS_elm0)             ! relativistic correction, gamma
-  pfacio = relcor * dble(CS_scaprea*CS_fpi*10.)     ! pre-factor for ionic part: rel-corr * C * 4 Pi * 10. -> 1/nm
-  
-  !
-  ! initialize potential to zero
-  !
-  pot = cval0
-  
-  !
-  ! return in case of empty cell
-  !
-  if (na<=0) then 
-    return
-  end if
-  
-  !
-  ! precalculate atom displacements for frozen lattice
-  !
-  write(unit=6,fmt='(A)') "  Atomic table preparations ... " 
-  allocate(fld(na,9), ild(na,3), ascaf(na, 3), stat=nerr)
-  if (nerr/=0) goto 15
-  fld = 0.0
-  ild = 0
-  !uatl = 0
-  do ia=1, na ! loop ia over all atoms in cell
-    ild(ia,1) = ia
-    ild(ia,2) = CS_scampptr(ia)
-    fld(ia,1) = CS_atpos(1,ia)*CS_scsx              ! get atom x-position
-    fld(ia,2) = CS_atpos(2,ia)*CS_scsy              ! get atom y-position
-    fld(ia,3) = CS_atpos(3,ia)*CS_scsz              ! get atom z-position
-    dwc = sqrt(CS_atdwf(1,ia))                ! get debye-waller parameter from (nm**2) to (nm), changed 22-Nov-07, no anisotropy supported in 3d
-    if (infl==1) then                       ! dice frozen lattice displacements (x,y) and apply
-      if (CS_atlnk(ia)==0) then ! independent site
-        dx = CS_rr8p2*dwc*GaussRand()
-        fld(ia,1) = fld(ia,1) + dx            ! add random x displacement
-        dy = CS_rr8p2*dwc*GaussRand()
-        fld(ia,2) = fld(ia,2) + dy            ! add random y displacement
-        dz = CS_rr8p2*dwc*GaussRand()
-        fld(ia,3) = fld(ia,3) + dz            ! add random z displacement
-      else ! dependent site (copy position from linked site)
-        fld(ia,1) = fld(CS_atlnk(ia),1)
-        fld(ia,2) = fld(CS_atlnk(ia),2)
-        fld(ia,3) = fld(CS_atlnk(ia),3)
-      end if
-    end if
-    fld(ia,4) = dwc                         ! Biso
-    fld(ia,5) = CS_atocc(ia)                ! Occupancy
-    fld(ia,6) = CS_atcrg(ia)                ! ionic charge
-    ascaf(ia,1) = dble(CS_atocc(ia))        ! Occupancy
-    ascaf(ia,2) = dble(CS_atcrg(ia))        ! ionic charge
-    if (CS_atcrg(ia) /= 0.0) ild(ia,3) = 1  ! flag ionic potential
-  end do ! loop ia over all atoms in slice
-  iion = sum(ild(:,3))
-  if (CS_useextsca==0) then
-    iion = 0
-    ild(:,3) = 0
-    fld(:,6) = 0.0 ! reset ionic charge to zero for standard potentials, they are not for ions
-    ascaf(:,2) = 0.0D0
-  end if
-  
-  
-  return
-  
-  !
-  ! error handling
-  !
-13 nerr=-1
-  call CS_ERROR("Potential memory not allocated.")
-  return
-14 nerr=-1
-  call CS_ERROR("Invalid parameters for 3D potential calculations.")
-  return
-15 nerr=-1
-  call CS_ERROR("Memory allocation failed.")
-  return
-16 nerr=-1
-  call CS_ERROR("Memory deallocation failed.")
-  return
-  
-  
-end subroutine CS_GETCELL_POTR
-
-
-!**********************************************************************!
-!
 ! CS_GETSLICE_POT
 !
 ! subroutine, calculates projected potential of slice n
@@ -5189,7 +5032,7 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   real*8 :: trpha ! translation phase
   real*4 :: x, y, z, dx, dy, dz ! atom position
   real*4 :: px, py, ca, sa ! 2d anisotropy random position precast
-  real*4 :: dwc, fldamp, dwf ! displacement calculation helpers
+  real*4 :: u, dwc, dwf ! displacement calculation helpers
   real*4 :: pocc ! atom occupancy
   real*4 :: dsz, vol ! slice thickness and volume in nm^3
   real*4 :: pscal ! potential scaling factor
@@ -5245,12 +5088,9 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   infl = nfl
   if (infl<0) infl = 0
   if (infl>1) infl = 1
-  fldamp = 0.0
-  dwc = 0.0
   lndw = ndw
   if (infl==1) then
     lndw = 0
-    fldamp = CS_rr8p2
   end if
   !
   ! handle DWF flag (for ionic potential calculations only)
@@ -5362,7 +5202,7 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
     fld(1,ia) = CS_atpos(1,ja)*CS_scsx              ! get atom avg. x-position
     fld(2,ia) = CS_atpos(2,ja)*CS_scsy              ! get atom avg. y-position
     fld(3,ia) = CS_atpos(3,ja)*CS_scsz - CS_slczlim(1,nslc) ! get atom z-position in slice relative to the entrance plane of a slice (should be positive)
-    dwc = sqrt(CS_atdwf(1,ja))                ! get debye-waller parameter from (nm**2) to (nm), changed 22-Nov-07
+    u = sqrt(CS_GET_UISO(ja))                ! u (rms) in nm
     if (infl==1) then                       ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ja)==0) then ! independent site
         if (kptr>0) then ! get displacement from table
@@ -5371,8 +5211,8 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
           !call CS_GET_ADI(kptr, dz, ierr)
         else ! calculate random displacement using a normal distribution and Biso
           ! CS_rr8p2*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
-          px = CS_rr8p2*dwc*GaussRand()*CS_atdwf(2,ja) ! random anisotropic displacement precast x, added 22-Nov-07
-          py = CS_rr8p2*dwc*GaussRand()*CS_atdwf(3,ja) ! random anisotropic displacement precast y, added 22-Nov-07
+          px = u * GaussRand()*CS_atdwf(2,ja) ! random anisotropic displacement precast x, added 22-Nov-07
+          py = u * GaussRand()*CS_atdwf(3,ja) ! random anisotropic displacement precast y, added 22-Nov-07
           ca = cos(CS_atdwf(4,ja))             ! rotation matrix elements ...
           sa = sin(CS_atdwf(4,ja))             ! ...
           dx = px * ca - py * sa               ! combined effective x displacement, added 22-Nov-07
@@ -5386,7 +5226,7 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
         fld(1:3,ia) = fld(1:3,jld(CS_atlnk(ja)))
       end if
     end if
-    fld(4,ia) = dwc                         ! sqrt(Biso)
+    fld(4,ia) = u                           ! u (rms) in nm
     fld(5,ia) = CS_atocc(ja)                ! Occupancy
     fld(6,ia) = CS_atcrg(ja)                ! ionic charge
   end do ! loop ia over all atoms in slice
@@ -5634,7 +5474,7 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   real*4 :: ht ! high tension in kV
   real*4 :: dx, dy, dz ! atom position
   real*4 :: px, py, sa, ca ! anisotropic dwf support, added 22-Nov-07
-  real*4 :: dwc, fldamp, biso ! displacement calculation helpers
+  real*4 :: u ! displacement calculation helpers
   real*4 :: pocc ! atom occupancy
   real*4 :: dsz, vol ! slice thickness and volume in nm^3
   real*4 :: pscal ! potential scaling factor
@@ -5680,12 +5520,9 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   infl = nfl
   if (infl<0) infl = 0
   if (infl>1) infl = 1
-  fldamp = 0.0
-  dwc = 0.0
   lndw = ndw
   if (infl==1) then
     lndw = 0
-    fldamp = CS_rr8p2
   end if
   !
   ! handle DWF flag (for ionic potential calculations only)
@@ -5772,8 +5609,7 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
     lxy(1,ia) = CS_atpos(1,ja)*CS_scsx      ! get atom avg. x-position
     lxy(2,ia) = CS_atpos(2,ja)*CS_scsy      ! get atom avg. y-position
     lxy(3,ia) = CS_atpos(3,ja)*CS_scsz - CS_slczlim(1,nslc)     ! get atom avg. z-position relative to slice entrance plane (this should be a positive distance)
-    biso = CS_atdwf(1,ja)                   ! get debye-waller parameter (nm**2) = Biso, modified 22-Nov-07
-    dwc = sqrt(biso)                        ! get debye-waller parameter from (nm**2) to (nm) (sqrt(Biso))
+    u = sqrt(CS_GET_UISO(ja))               ! u (rms) in nm
     if (infl==1) then                     ! dice frozen lattice displacements (x,y) and apply
       if (CS_atlnk(ja)==0) then ! independent atom site
         if (kptr>0) then ! get displacement from table
@@ -5784,8 +5620,8 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
           !dx = fldamp*dwc*GaussRand()         !   fldamp*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
           !dy = fldamp*dwc*GaussRand()
           ! fldamp*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
-          px = fldamp*dwc*GaussRand()*CS_atdwf(2,ja) ! random anisotropic displacement precast x, added 22-Nov-07
-          py = fldamp*dwc*GaussRand()*CS_atdwf(3,ja) ! random anisotropic displacement precast y, added 22-Nov-07
+          px = u * GaussRand() * CS_atdwf(2,ja) ! random anisotropic displacement precast x, added 22-Nov-07
+          py = u * GaussRand() * CS_atdwf(3,ja) ! random anisotropic displacement precast y, added 22-Nov-07
           ca = cos(CS_atdwf(4,ja))             ! rotation matrix elements ...
           sa = sin(CS_atdwf(4,ja))             ! ...
           dx = px * ca - py * sa               ! combined effective x displacement, added 22-Nov-07
@@ -6094,7 +5930,7 @@ end subroutine CS_GETSLICE_PGR
 !
 ! subroutine, Determines the first position in a list for which the
 !             distance to a test position is below a given threshold.
-!             Poistions are given in fractional coordinates, but the
+!             Positions are given in fractional coordinates, but the
 !             coordinate scale of an orthorhombic system is used to
 !             calculate a real distance.
 !             Periodic wrap-around is considered in the distance check.
@@ -7398,6 +7234,86 @@ subroutine CS_GET_ADI(iat, u, nerr)
 !
   return
 end subroutine CS_GET_ADI
+
+
+!!**********************************************************************!
+!!
+!! CS_LOAD_PDOS
+!!
+!! subroutine, loads PDOS tables from a file.
+!!
+!! INPUT:
+!!   character(len=*) :: sfile = file name
+!!   
+!! IN/OUTPUT:
+!!   integer*4 :: nerr   = error code (0 = success)
+!!
+!subroutine CS_LOAD_PDOS(sfile, nerr)
+!
+!  implicit none
+!  
+!  character(len=*), intent(in) :: sfile
+!  integer*4, intent(inout) :: nerr
+!  
+!  integer*4 :: lun, nalloc, i, ioerr, nt
+!  logical :: fex
+!  character(len=CS_ll) :: smsg
+!  character(len=10), allocatable :: type_names(:)
+!  
+!  integer*4, external :: getfreelun
+!  
+!  ! init
+!  nerr = 0
+!  
+!  ! checks
+!  INQUIRE(file=trim(sfile),exist=fex)
+!  if (.not.fex) goto 801
+!  
+!  ! open file
+!  lun = getfreelun()
+!  if (lun<0) goto 802
+!  open( unit=lun, file=trim(sfile), iostat=ioerr, &
+!      & action='READ', status='OLD' )
+!  if (ioerr/=0) goto 803
+!  
+!  call pd_scan_file(lun, CS_scampnum, CS_scampname)
+!  
+!  call pd_report(CS_scampnum, CS_scampname, CS_scampdwfb * 100.0 / (CS_tpi * CS_fpi))
+!  
+!  ! close file
+!700 continue
+!  close(unit=lun, iostat=ioerr)
+!  ! done.
+!  
+!! exit
+!800 continue
+!  return
+!!  
+!! error handlings
+!801 continue
+!  nerr = 1
+!  call CS_ERROR("File ["//trim(sfile)//"] not found.")
+!  goto 800
+!802 continue
+!  nerr = 2
+!  call CS_ERROR("Failed to acquire free logical file unit.")
+!  goto 800
+!803 continue
+!  nerr = 3
+!  write(unit=smsg,fmt='(I)') ioerr
+!  call CS_ERROR("Failed to open file ["//trim(sfile)//"], code: "//trim(smsg))
+!  goto 800
+!804 continue
+!  nerr = 4
+!  call CS_ERROR("Failed "//trim(smsg))
+!  goto 700
+!805 continue
+!  nerr = 5
+!  call CS_ERROR("Failed to allocate memory.")
+!  goto 700
+!!
+!  return
+!end subroutine CS_LOAD_PDOS
 
 
 END MODULE CellSlicer

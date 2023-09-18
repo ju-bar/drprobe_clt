@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementation of subroutines for CELSLC
 !
-! VERSION: 1.1.5, J.B., 05.07.2023
+! VERSION: 1.1.5, J.B., 18.09.2023
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -47,7 +47,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program [celslc]                                  |")
-  call PostMessage(" | Version: 1.1.5 64-bit  -  2023 July 5             |")
+  call PostMessage(" | Version: 1.1.5 64-bit  -  2023 September 18       |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -655,6 +655,8 @@ subroutine ParseCommandLine()
   sextpot = ""
   nadt = 0
   sadfile = ""
+  !npdos = 0
+  !spdosfile = ""
 
 ! ------------
 ! LOOP OVER ALL GIVEN ARGUMENTS
@@ -826,9 +828,9 @@ subroutine ParseCommandLine()
         call CriticalError("Command line parsing error (-nv <number>).")
       end if
       read(unit=buffer,fmt=*,iostat=status) nv
-      if (status/=0 .or. nv<1 .or. nv>2048) then
+      if (status/=0 .or. nv<1 .or. nv>8192) then
         call ExplainUsage()
-        call CriticalError("Failed to read number of variants per slice.")
+        call CriticalError("Failed to read number of variants per slice. Allowed range: 1 to 8192.")
       end if
       
     ! THE 3D POTENTIAL Z DISRETIZATION
@@ -1193,13 +1195,29 @@ subroutine ParseCommandLine()
         call ExplainUsage()
         call CriticalError("Command line parsing error (-adt <string>).")
       end if
-      call get_command_argument (i, buffer, len, status) ! form factor table index
+      call get_command_argument (i, buffer, len, status) ! buffer to string
       if (status/=0) then
         call ExplainUsage()
         call CriticalError("Command line parsing error (-adt <string>).")
       end if
       write(unit = sadfile, fmt='(A)') buffer(1:len)
       nadt = 1
+      
+    !! THE PDOS TABLES
+    !case ("-pdos")
+    !  nfound = 1
+    !  i = i + 1
+    !  if (i>cnt) then
+    !    call ExplainUsage()
+    !    call CriticalError("Command line parsing error (-pdos <string>).")
+    !  end if
+    !  call get_command_argument (i, buffer, len, status) ! buffer to string
+    !  if (status/=0) then
+    !    call ExplainUsage()
+    !    call CriticalError("Command line parsing error (-pdos <string>).")
+    !  end if
+    !  write(unit = spdosfile, fmt='(A)') buffer(1:len)
+    !  npdos = 1
       
     !! THE NUMBER OF PARALLEL THREADS
     !case ("-nthread")

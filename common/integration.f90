@@ -171,8 +171,49 @@ SUBROUTINE dsimpson(foo,a,b,s)
 
 
 
-
-
+!*********************************************************************!
+!
+! returns the integral of the curve described by points
+! calculated by the trapezoidal rule
+! https://en.wikipedia.org/wiki/Trapezoidal_rule
+!
+! uses a double precision accumulator but input and
+! output is single precision
+!
+! INPUT
+!   integer(4) n = number of points
+!   real(4) points(2,n) = list of n tuples (x_i,y_i)
+!
+! RETURNS
+!   real(4) = the numerical integral for points
+!
+function trapz(n, points)
+  
+  implicit none
+    
+  integer*4, intent(in) :: n ! number of data points
+  real*4, intent(in) :: points(2, n) ! data points (x_i, y_i)
+    
+  real*4 :: trapz ! the integral
+    
+  integer*4 :: i
+  real*4 :: ym, dx
+  real*8 :: s ! accumulator with double precision
+    
+  s = 0.0D+0
+    
+  if (n > 1) then
+    do i=2, n
+      ym = 0.5 * (points(2,i) + points(2,i-1))
+      dx = points(1,i) - points(1,i-1)
+      s = s + real(ym * dx, kind=8) ! accumulate on double precision
+    end do
+  end if
+    
+  trapz = real(s, kind=4) ! type cast result to single precision
+  
+end function
+!*********************************************************************!
 
 
 

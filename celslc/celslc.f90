@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementations of program CELSLC
 !
-! VERSION: 1.1.5 (20230705)
+! VERSION: 1.1.5 (20230918)
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -159,13 +159,20 @@ program celslc
   !
   ! handle external atomic displacements
   if (nadt>0) then
-    call PostMessage("Loading atomic displacement tabele from file ["//trim(sadfile)//"].")
+    call PostMessage("Loading atomic displacement table from file ["//trim(sadfile)//"].")
     call CS_LOAD_ADT(sadfile, nerr)
     if (nerr/=0) then
       call CriticalError("Failed to prepare atomic displacement table from file ["// &
         & trim(sadfile)//"].")
     end if
   end if
+  !
+  !! handle PDOS data
+  !if (nfl>0 .and. npdos>0) then
+  !  call PostMessage("Loading PDOS from file ["//trim(spdosfile)//"].")
+  !  CS_pdos = 1
+  !  CS_pdos_file = trim(spdosfile)
+  !end if
   !
   call PostRuntime("program initialized")
   !

@@ -4,7 +4,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2023-07-05                                                          #
+#   Date: 2023-09-18                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -445,7 +445,6 @@ Additional and experimental options:
   electrostatic potential and the imaginary part represents an
   absorptive potential. Relativistic correction by a gamma factor
   will be done upon loading.
-
 
   -seed <number> = Initializes the random number generator to a
   given seed.

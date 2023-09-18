@@ -9,7 +9,7 @@
 !         RWTH Aachen University, Aachen, Germany
 !         27.11.2019
 !
-! last modified: J.B. 22.11.2021
+! last modified: J.B. 31.08.2023
 !
 !**********************************************************************!
 !----------------------------------------------------------------------
@@ -89,6 +89,7 @@ MODULE celslcprm
   character(len=1024) :: sfefile            ! file name for el. scattering factor parameters
   character(len=1024) :: sextpot(ext_pot_max) ! list of external potential input options
   character(len=1024) :: sadfile            ! file name for atomic displacement tables
+  !character(len=1024) :: spdosfile          ! file name for phonon density of states
   integer*4 :: nfin                         ! input format: 0 = cel, 1 = cif, 10 = asc
   real*4 :: ht, abf, buniv                  ! el. energy, abs., universal Biso
   integer*4 :: nx, ny, nz, nv               ! super-cell discretization
@@ -113,6 +114,7 @@ MODULE celslcprm
   integer*4 :: nffdec                       ! flag for form factor decay output
   integer*4 :: nf2dec                       ! flag for form factor loss output
   integer*4 :: nadt                         ! flag for atomic displacement table input
+  !integer*4 :: npdos                        ! flag for PDOS input
   real*4 :: bloh, blok, blol                ! block orientation in hkl of the input
   real*4 :: blyh, blyk, blyl                ! block y-axis direction in hkl of the input
   real*4 :: blsa, blsb, blsc                ! block dimension in nm
@@ -162,6 +164,7 @@ MODULE celslcprm
   DATA nf2dec /0/
   DATA vf2dec /0.001/ ! default tolerated loss of scattering power
   DATA nadt /0/
+  !DATA npdos /0/
 
 ! ---[ output variables ]---------------------------------------------------------------------------
 
