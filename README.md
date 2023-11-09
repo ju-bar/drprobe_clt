@@ -48,6 +48,27 @@ Documentation and a few examples can be found on the
 tool has its own "howto" text file. These files are used as the primary source
 of documentation.
 
+## Compiling
+
+### Windows
+
+Solution and project files are included that should work with Visual Studio 2017+ 
+and the Intel Parallel Studio or the Intel oneAPI.
+
+The code is using the dfti module (mkl_dfti.f90) of the Intel MKL. This module
+must be compiled, which is not the case by default. Add the source file manually
+to the CELSLC project once and compile it with a release configuration. Then
+copy the mkl_dft*.mod files to the lp64 sub-folder of the MKL include folder
+(ilp64 for 64-bit integer code, default is 32-bit integers). Once the mod files
+are there, and you always use the same MKL version, mkl_dfti can be removed again
+from the project and CELSLC and MSA should both compile and link. This manual
+procedure is needed, since the MKL code folder can be different on different
+systems.
+
+### Linux
+
+Check the makefiles for correct include folders. The setup given should work in
+most cases.
 
 ## Testing
 
