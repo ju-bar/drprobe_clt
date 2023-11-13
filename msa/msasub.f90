@@ -340,8 +340,11 @@ SUBROUTINE Introduce()
 ! ------------
   call PostSureMessage("")
   call PostSureMessage(" +---------------------------------------------------+")
+  !                                "[msa] MultiSlice Algorithm"
   call PostSureMessage(" | Program: "//trim(MSP_callApp)//   "               |")
-  call PostSureMessage(" | Version: "//trim(MSP_verApp)//          "         |")
+  !                                "1.1.4 64-bit  -  2023 November 13  -"
+  call PostSureMessage(" | Version: "//trim(MSP_verApp)//              "     |")
+  !                                "Dr. J. Barthel, ju.barthel@fz-juelich.de"
   call PostSureMessage(" | Author : "//trim(MSP_authApp)//                 " |")
   call PostSureMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostSureMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
