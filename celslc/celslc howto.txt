@@ -122,6 +122,7 @@ Command-line calling options for the program celslc.exe:
   > [-rev         -> slicing in reversed sequence]
   > [-ssc <number> = single slice calculation]
   > [-tla <x,y,z>  = additional shift of atoms]
+  > [-adt <string> = atomic displacement table]
   >
   > [] = optional parameters
 
@@ -322,6 +323,22 @@ Detailed explanations of options:
            by 1/4th and 1/16th of the super-cell dimension.
 
 
+  -adt <string> = atomic displacement table
+
+  Loads atomic displacements from a file and apply those instead 
+  of the usual random numbers. While random displacements simulate
+  an Einstein model of uncorrelated vibrations, the input list of
+  displacements can be correlated.
+  The file provides a number of atom types, followed by a list
+  of atomic numbers of that length, then a number of displacements
+  followed by a list of displacements of that length times the
+  number of atom types. Displacements x, y (,and z) will be
+  applied to atoms of each type in the sequence as they occur in
+  the list for each type. If the list is too short, it cycles
+  periodically.
+
+
+
 Additional and experimental options:
 
   -3dp = create a 3-dimensional potential then slice it
@@ -380,8 +397,7 @@ Additional and experimental options:
   0,1 = default (also when -inf is not used), CIF or CEL text file
   10-19 = external 3d potential in text form (from ABINIT code)
           the last digit identifies the column index after the
-		  three spatial coordinates in the text list of potential
-		  values.
+		  3 spatial coordinates in the text list of potential values.
 		  Example: 14 -> work with column 8 of the table.
 		  Example: 10 -> work with column 4 of the table.
 
@@ -404,7 +420,7 @@ Additional and experimental options:
   Note 2: This is experimental and should not be used without
   prior consultation with the developer. There are several
   other options which will not treat the anisotropy correctly.
-  Note 3: <u^2>   = <u_x^2> + <u_y^2> / 2
+  Note 3: <u^2>   = (<u_x^2> + <u_y^2>) / 2
           <u_x^2> = fx^2 * <u^2> => fx = sqrt( <u_x^2> / <u^2> )
           <u_y^2> = fy^2 * <u^2> => fy = sqrt( <u_y^2> / <u^2> )
           angle is specified in radians
@@ -677,6 +693,12 @@ Example cel files:
 
 7) History of changes:
 
+- 240904. JB: Version 1.1.7
+              Documentation fixes.
+
+- 240502. JB: Version 1.1.6
+              Removed OMP test code.
+
 - 230705. JB: Version 1.1.5
               Added option -adt <string> to load atomic displacements from
 			  a file and apply those instead of the normal random numbers.
@@ -684,7 +706,7 @@ Example cel files:
 			  of atomic numbers of that length, then a number of displacements
 			  followed by a list of displacements of that length times the
 			  number of atom types. Displacements x, y (,and z) will be
-			  applied to atoms of each type in the sequence as thy occur in
+			  applied to atoms of each type in the sequence as they occur in
 			  the list for each type. If the list is too short, it cycles
 			  periodically.
 

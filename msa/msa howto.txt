@@ -1,11 +1,11 @@
 
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program MSA, Version 1.1.4                                  #
+#   HOWTO use the program MSA, Version 1.1.5                                  #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2023-08-14                                                          #
+#   Date: 2024-09-04                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -473,6 +473,8 @@ or are still under development:
 	This can be used to increase the number of samples averaging over
 	frozen lattice configurations, but you'll need to normalize the
 	data yourself.
+	NOTE: The output is not scaled by the number of QEP passes. You
+	will need to make that division in post-processing.
 
 
 /epc [optional]
@@ -769,6 +771,9 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 
 6) History of changes
+
+240904: JB: Version 1.1.5
+- Documentation update.
 
 230814: JB: Version 1.1.4
 - Added the command-line option -npass <number> to set the number
