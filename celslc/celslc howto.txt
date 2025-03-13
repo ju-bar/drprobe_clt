@@ -4,7 +4,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2024-09-04                                                          #
+#   Date: 2025-03-13                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -693,8 +693,8 @@ Example cel files:
 
 7) History of changes:
 
-- 240904. JB: Version 1.1.7
-              Documentation fixes.
+- 250313. JB: Version 1.1.7
+              Minor documentation and output fixes.
 
 - 240502. JB: Version 1.1.6
               Removed OMP test code.

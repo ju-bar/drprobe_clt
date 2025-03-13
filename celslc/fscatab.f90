@@ -123,7 +123,7 @@ MODULE FSCATAB
   real*4, public :: FST_PRM_K0
   DATA FST_PRM_K0 /0.0/
 
-! - temporaray fit parameters  
+! - temporary fit parameters  
   real*4, public :: FST_feptmp(FST_prm_num)
 
 ! --------------------------------------------------------------------

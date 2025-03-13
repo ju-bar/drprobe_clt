@@ -1790,6 +1790,7 @@ SUBROUTINE ParseCommandLine()
   MSP_BeamTiltX = 0.0
   MSP_BeamTiltY = 0.0
   MSP_FL_varcalc_ex = 0
+  MSP_FL_varmode = 0
   MSP_use_extalpha = 0
   MSP_extalpha = 0.0
   MSP_use_extdefocus = 0
@@ -2015,7 +2016,7 @@ SUBROUTINE ParseCommandLine()
       MSP_use_extalpha = 1
     
     ! AN OPTION FOR SETTING NUMBER OF QEP PASSES EXTERNALLY
-    case ("-pass")
+    case ("-npass")
       nfound = 1
       i = i + 1
       if (i>cnt) goto 101
@@ -2382,6 +2383,10 @@ SUBROUTINE ParseCommandLine()
     case ("/padif")
       nfound = 1
       MSP_padifmode = 1
+      
+    case ("/flseq")
+      nfound = 1
+      MSP_FL_varmode = 1
       
     case ("/wave")
       nfound = 1

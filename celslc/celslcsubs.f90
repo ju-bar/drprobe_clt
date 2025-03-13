@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementation of subroutines for CELSLC
 !
-! VERSION: 1.1.7, J.B., 04.09.2024
+! VERSION: 1.1.7, J.B., 13.03.2025
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -47,7 +47,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program [celslc]                                  |")
-  call PostMessage(" | Version: 1.1.7 64-bit  -  2024 September 4        |")
+  call PostMessage(" | Version: 1.1.7 64-bit  -  2025 March 13           |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -912,7 +912,10 @@ subroutine ParseCommandLine()
     ! DEBYE-WALLER FACTOR USAGE
     case ("-dwf")
       nfound = 1
-      ndwf = 1 ! switch on Debye-Waller factors
+      ndwf = 1 ! switch on isotropic Debye-Waller factors
+    case ("-dwf2")
+      nfound = 1
+      ndwf = 2 ! switch on anisotropic Debye-Waller factors
       
     ! ABSORPTION USAGE FROM WEICKENMEYER&KOHL, Acta Cryst. A 47 (1991) p. 597
     case ("-abs")
@@ -1250,7 +1253,7 @@ SUBROUTINE CheckCommandLine
   if (nabf<0) nabf = 0
   if (nabf>1) nabf = 1
   if (ndwf<0) ndwf = 0
-  if (ndwf>1) ndwf = 1
+  if (ndwf>2) ndwf = 2
   if (npot<0) npot = 0
   if (npot>1) npot = 1
   if (npps<0) npps = 0
@@ -1274,7 +1277,7 @@ SUBROUTINE CheckCommandLine
   !  ndwf = 0
   !  !nabs = 0
     if (ndwf>0) then
-      call PostWarning("Unusual combination of flags -fl* and -dwf")
+      call PostWarning("Unusual combination of flags -fl* and -dwf*")
     end if
   else
     nv = 1 ! set number of variants back to default 1.
@@ -1321,8 +1324,9 @@ SUBROUTINE CheckCommandLine
                     & " equidistant slices of the super-cell.")
   end if
   
-  if (ndwf==1) call PostMessage("Using Debye-Waller factors.")
-  if (nabs==1) call PostMessage("Using absorptive form factors.")
+  if (ndwf==1) call PostMessage("Using isotropic Debye-Waller factors.")
+  if (ndwf==2) call PostMessage("Using anisotropic Debye-Waller factors.")
+  if (nabs==1) call PostMessage("Using isotropic absorptive form factors.")
   if (nabf==1) then
     write(unit=smsg,fmt='(F8.3)') abf
     call PostMessage("Using frational absorptive form factors, fraction: " &
@@ -1377,7 +1381,7 @@ SUBROUTINE CheckCommandLine
   write(unit=smsg,fmt='(G12.5)') wl*1000.0
   call PostMessage("Input electron wavelength: "//trim(adjustl(smsg))//" pm")
   write(unit=smsg,fmt='(G12.5)') CS_sig * wl
-  call PostMessage("Interaction constant: "//trim(adjustl(smsg))//" (eV nm)^(-1) (2pi m0 e / h^2 * lambda)")
+  call PostMessage("Interaction constant: "//trim(adjustl(smsg))//" (V nm)^(-1) (2pi m0 e / h^2 * lambda)")
   
   if (nffdec==1) then
     write(unit=smsg,fmt=*) vffdec

@@ -6,11 +6,14 @@
 !
 ! by J. Barthel, Forschungszentrum Jülich GmbH, Jülich, Germany
 !                RWTH Aachen University, Aachen, Germany
-! 2019-June-12
+! 2025-Jan-24
 !
 ! requires extended source lines ( option "/extend_source:132" )
 !
 ! depends on "integration.f90"
+!
+! Calculation of isotropic and anisotropic absorptive form factors
+! according to Hall & Hirsch, Proc. Roy. Soc. A286 (1965) 158 - 177
 !
 ! ******************************************************************** !
 !
@@ -24,6 +27,7 @@
 !       J.B.    30.06.2017 (added parameters for L, z=0, vacancy, V&B-parameters play no role)
 !       J.B.    29.05.2018 (added f^2(theta) integrals, wekof2)
 !       J.B.    12.06.2019 (added absorptive form factors due to an aperture, no TDS assumed)
+!       J.B.    24.01.2025 (added functions to calculate for anisotropic thermal displacements)
 ! 
 ! ******************************************************************** !
 !----------------------------------------------------------------------
@@ -62,6 +66,14 @@
 !                     scattering for a given atom type z at spatial
 !                     frequency g [1/nm], with Debye-Waller parameter
 !                     dw [nm^2] = Biso and electron energy akv [keV]
+! getdwf(g,dw,dwfflg) : (function) (real*4)
+!                     returns the Debye-Waller factor for an isotropic
+!                     mean-squared displacecemt dw / (8pi^2) [nm^2]
+!                     for scattering vectors of length g [1/nm]
+! getdwfa(G,BMAT,dwfflg) : (function) (real*4)
+!                     returns the Debye-Waller factor for anisotropic
+!                     mean-squared displacecemts BMAT / (8pi^2) [nm^2]
+!                     at scattering vector G [1/nm]
 ! wekoscar1(s)      : (function) (real*8) [A] (only for internal use)
 !                     returns the atomic form factor for electron
 !                     scattering for scattering vector magnitude s.
@@ -266,7 +278,7 @@ end function wekoscar
 function getdwf(g,dw,dwfflg)
   implicit none
   logical, intent(in) :: dwfflg
-  real*4, intent(in) :: g, dw ! g [nm] and B [nm^2]
+  real*4, intent(in) :: g, dw ! g [nm] and B [nm^2] (or respective other pairs of units))
   real*4 :: getdwf
   real*4 :: dewa
 !
@@ -276,9 +288,68 @@ function getdwf(g,dw,dwfflg)
   end if
   getdwf = dewa
   return
-end
+  end
 ! ******************************************************************** !
 
+  
+! ******************************************************************** !
+!
+! Calculates the anistropic Debye-Waller factor for a 3d scattering
+! scattering vector G and a set of matrix elements BMAT.
+!
+! G = (Gx, Gy, Gz) in 1/nm
+! BMAT = (Bxx, Byy, Bzz, Bxy, Bxz, Byz) in nm^2
+! G can be given in 1/A if BMAT is in A^2 units
+!
+function getdwfa(G,BMAT,dwfflg)
+  implicit none
+  logical, intent(in) :: dwfflg
+  real*4, intent(in) :: G(3), BMAT(6) ! input G [nm], BMAT [nm^2]
+  real*4 :: getdwfa
+  real*4 :: dewa, dprm
+!
+  dewa  = 1.0
+  if (dwfflg) then
+    dprm = BMAT(1) * g(1)**2 + BMAT(2) * g(2)**2 + BMAT(3) * g(3)**2
+    dprm = dprm + 2 * BMAT(4) * g(1)*g(2) + 2 * BMAT(5) * g(1)*g(3)
+    dprm = dprm + 2 * BMAT(6) * g(2)*g(3)
+    dewa = exp( -0.25 * dprm )
+  end if
+  getdwfa = dewa
+  return
+  end
+! ******************************************************************** !
+
+  
+! ******************************************************************** !
+!
+! Calculates the anistropic Debye-Waller factor for a 3d scattering
+! scattering vector G and a set of matrix elements BMAT.
+!
+! G = (Gx, Gy, Gz) in 1/nm
+! BMAT = (Bxx, Byy, Bzz, Bxy, Bxz, Byz) in nm^2
+! G can be given in 1/A if BMAT is in A^2 units  
+!
+! double precision version for integrators
+!
+function dgetdwfa(G,BMAT,dwfflg)
+  implicit none
+  logical, intent(in) :: dwfflg
+  real*8, intent(in) :: G(3), BMAT(6) ! input G [nm], BMAT [nm^2]
+  real*8 :: dgetdwfa
+  real*8 :: dewa, dprm
+!
+  dewa  = 1.0D+0
+  if (dwfflg) then
+    dprm = BMAT(1)*g(1)**2 + BMAT(2)*g(2)**2 + BMAT(3)*g(3)**2
+    dprm = dprm + 2.D+0*BMAT(4)*g(1)*g(2) + 2.D+0*BMAT(5)*g(1)*g(3)
+    dprm = dprm + 2.D+0*BMAT(6)*g(2)*g(3)
+    dewa = dexp( -0.25D+0 * dprm )
+  end if
+  dgetdwfa = dewa
+  return
+end
+! ******************************************************************** !
 	
 	
 ! ******************************************************************** !
@@ -391,7 +462,7 @@ function wekoabs(ga,dwa,a,b,k0)
   real*8 :: wekog, wekodw, wekok
 ! common blocks ...
   common /weko1/ wekoa, wekob !  for wekoscar1
-  common /weko2/ wekog, wekodw, wekok !  for integrands wakimu0 and wakimug
+  common /weko2/ wekog, wekodw, wekok !  for integrands wekomug*
 ! 
   real*8, external :: dsgrid2d ! link integration.f90 !
   real*8, external :: wekomug ! integrand function
@@ -400,8 +471,8 @@ function wekoabs(ga,dwa,a,b,k0)
   wekoa = a ! set the We&Ko parameters ai to be used
   wekob = b ! set the We&Ko parameters bi to be used
   wekog = dble(ga) ! store ga for the intagrand wekomug
-  wekodw = dble( dwa ) ! store Debye-Waller parameter for both integrands
-  wekok = k0 ! store teh incident electron wave vector [1/A]
+  wekodw = dble( dwa ) ! store Debye-Waller parameter
+  wekok = dble(k0) ! store the incident electron wave vector [1/A]
 ! set integration range
   si0 = 0.d+0 ! 0
   si1 = 3.1415926535898D+0 ! Pi
@@ -415,10 +486,83 @@ function wekoabs(ga,dwa,a,b,k0)
   !
   wekoabs = real(fa, kind=4 )
   return
-end function wekoabs
+  end function wekoabs
 !
 ! ******************************************************************** !
-
+  
+  
+! ******************************************************************** !
+!
+! wekoabsa
+!
+! This function starts a numerical integration of the absorptive
+! form factor for electron scattering form factors given in the
+! Weickenmeier & Kohl parameterization. The absorption is due to
+! thermal diffuse scattering and uses the Hall&Hirsh approach.
+! This implementation is working with anisotropic thermal displacements
+! and thus the input ga is a vectir and the input bmat a list of 6
+! elements of the symmetric squared displacement matrix.
+!
+! Elements of BMAT = {Bij} are related to mean-squared displacements Uij
+! by Bij = 8 pi^2 Uij with i,j in {x, y, z} and Bij = Bji by ansatz.
+!
+! input: (real*4)
+!   ga(3) = diffraction vector [1/A]
+!   bmat(6) = B factors related to mean-squared displacements [A^2]
+!   a(2) = parameters ai from We&Ko's table (defines the atom)
+!   b(6) = parameters bi from We&Ko's table (defines the atom)
+!   k0 = incident beam vacuum wave vector magnitude [1/A] = 1/Lambda
+!      = ( e/(h*c)*10^-7 [A/kV] ) * Sqrt[ (2*E0_keV + HT_kV)*HT_kV ]
+! output: (real*4)
+!   wekoabsa = absorptive form factor without the required pre-factor
+!             gamma^2 / (2*pi*k0)
+!
+function wekoabsa(ga,bmat,a,b,k0)
+!
+  implicit none
+! 
+  real*4, intent(in) :: ga(3), bmat(6), a(2), b(6), k0
+! 
+  real*4 :: wekoabsa
+! 
+  real*4 :: wekoa(2), wekob(6)
+  real*8 :: si0, si1, fa, pi0, pi1
+  real*8 :: wekog, wekodw, wekok
+  real*8 :: wekovecg(3), wekodwfg, wekobmat(6)
+  logical :: flg
+! common blocks ...
+  common /weko1/ wekoa, wekob !  for wekoscar1
+  common /weko2/ wekog, wekodw, wekok !  for integrands wekomug*
+  common /weko3/ wekovecg, wekodwfg, wekobmat ! for integrands wekomug*
+! 
+  real*8, external :: dsgrid2d ! link integration.f90 !
+  real*8, external :: wekomuga ! integrand function
+  real*8, external :: dgetdwfa ! deybe-waller factor (aniso)
+! 
+  flg = .true.
+  wekoabsa = 0.0D+0
+  wekoa = a ! set the We&Ko parameters ai to be used
+  wekob = b ! set the We&Ko parameters bi to be used
+  wekovecg = dble(ga) ! store ga for the intagrand wekomuga
+  wekobmat = dble(bmat) ! store bmat for the integrand wekomuga
+  wekodwfg = dgetdwfa(wekovecg, wekobmat, flg) ! store DWF at ga
+  wekok = dble(k0) ! store the incident electron wave vector [1/A]
+! set integration range for theta
+  si0 = 0.d+0 ! 0
+  si1 = 3.1415926535898D+0 ! Pi
+! set integration range for phi
+  pi0 = 0.d+0 ! 0
+  pi1 = 6.28318530717959D+0 ! 2*Pi
+! call the numerical integrator
+! use a grid of 128 pixels along theta with a square sampling
+!           and 128 pixels along phi with linear sampling
+  fa = dsgrid2d(wekomuga,si0,si1,pi0,pi1,2.0d+0,1.0d+0,128,128)
+  !
+  wekoabsa = real(fa, kind=4 )
+  return
+end function wekoabsa
+!
+! ******************************************************************** !
 
 
 !**********************************************************************!
@@ -477,8 +621,73 @@ function wekomug(theta,phi)
   
   return
     
-end function wekomug
+  end function wekomug
 
+  
+!**********************************************************************!
+!
+! function wekomuga(theta,phi)
+!
+! returns the integrand for the absorptive form factor
+! at vecg=wekovecg with dwfg=wekodwfg
+! for debye-waller parameters bmat=wekobmat
+! for incident electron wave vector k=wekok
+! for atom defined by ai = wekoa and bi=wekob
+!
+! Set the values of common block parameters before using this function!
+! uses common blocks /weko1/ and /weko2/
+!
+function wekomuga(theta,phi)
+  
+  implicit none
+  
+  real*8, intent(in) :: theta, phi
+  real*8 :: wekomuga
+  real*8 :: k, ql, Q(3), G(3), QG(3), ct, st, cp, sp, sq, sqg
+  real*8 :: fq, fqg, dwfg, dwfq, dwfqg
+  real*8 :: wekog, wekodw, wekok
+  real*8 :: wekovecg(3), wekodwfg, wekobmat(6)
+  logical :: flg
+  common /weko2/ wekog, wekodw, wekok ! for integrands wekomug*
+  common /weko3/ wekovecg, wekodwfg, wekobmat ! for integrands wekomug*
+  
+  real*8, external :: wekoscar1 ! form factor function
+                                ! uses common block /weko1/
+  real*8, external :: dgetdwfa  ! anisotropic Debye-Waller factor function
+  
+  flg = .true. ! this has to be true
+  ct = dcos(theta)
+  st = dsin(theta)
+  cp = dcos(phi)
+  sp = dsin(phi)
+  k = wekok ! length of the electron wave vector (also when scattered elastically)
+  ! ql = scattering vector length of Q connecting two points of the Ewald sphere
+  ! Q = (qx, qy, qz) = K' - K
+  Q(1) = k * st * cp
+  Q(2) = k * st * sp
+  Q(3) = k * (1.D+0 - ct)
+  ! G = (Gx, Gy, Gz) = some reciprocal space vector (usually with Gz = 0)
+  G = wekovecg ! ... so G does not really end on the Ewald sphere
+  QG = Q - G ! vector Q - G (starts on Ewald sphere but not really ending there
+  ! g = length of some reciprocal space vector G = (gx, gy, gz)
+  !     with gx = g, gy = 0, gz = 0 (obda)
+  ! Debye-Waller factors associated with G, Q, and Q-G
+  dwfg = wekodwfg ! constant, pre-calculated
+  dwfq = dgetdwfa(Q, wekobmat, flg) ! DWF for Q
+  dwfqg = dgetdwfa(QG, wekobmat, flg) ! DWF for Q-G
+  ! sq = half length of the vector Q
+  sq = 0.5D+0 * dsqrt(Q(1)**2 + Q(2)**2 + Q(3)**2)
+  ! sqg = half length of the difference vector Q - G
+  sqg = 0.5D+0 * dsqrt(QG(1)**2 + QG(2)**2 + QG(3)**2)
+  !
+  fq = wekoscar1(sq) ! fe(|Q|/2)
+  fqg = wekoscar1(sqg) ! fe(|Q-G|/2)
+  !
+  wekomuga = fq*fqg * (dwfg - dwfq*dwfqg) * st
+  
+  return
+    
+end function wekomuga
 
   
 ! ******************************************************************** !

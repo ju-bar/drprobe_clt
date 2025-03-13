@@ -6,11 +6,14 @@
 !
 ! by J. Barthel, Forschungszentrum Jülich GmbH, Jülich, Germany
 !                RWTH Aachen University, Aachen, Germany
-! 2019-June-12
+! 2025-Jan-24
 !
 ! requires extended source lines ( option "/extend_source:132" )
 !
 ! depends on "integration.f90"
+!
+! Calculation of isotropic and anisotropic absorptive form factors
+! according to Hall & Hirsch, Proc. Roy. Soc. A286 (1965) 158 - 177
 !
 ! ******************************************************************** !
 !----------------------------------------------------------------------

@@ -388,6 +388,10 @@ MODULE MSAparams
   DATA MSP_FL_varcalc /1/
   integer*4, public :: MSP_FL_varcalc_ex ! override of the number of passes by command line (applies only if >0)
   DATA MSP_FL_varcalc_ex /0/
+  integer*4, public :: MSP_FL_varmode ! variance selection mode
+                                      ! 0 = random (default)
+                                      ! 1 = sequential as in slice file (phonon EELS from MD trajectories)
+  DATA MSP_FL_varmode /0/
   
 ! slice data (single precision)
   character(len=MSP_SF_TITLE_LENGTH), dimension(:), allocatable, public :: MSP_SLC_title ! slice titles
@@ -1031,25 +1035,45 @@ SUBROUTINE MSP_READBLOCK_multislice(nunit)
 
 
 ! ------------
+  MSP_stmp = "object tilt x"
   read(unit=nunit,fmt=*,err=17) MS_objtiltx
+  MSP_stmp = "object tilt y"
   read(unit=nunit,fmt=*,err=17) MS_objtilty
+  MSP_stmp = "scan offset x"
   read(unit=nunit,fmt=*,err=17) MSP_SF_offsetx
+  MSP_stmp = "scan offset y"
   read(unit=nunit,fmt=*,err=17) MSP_SF_offsety
+  MSP_stmp = "scan frame size x"
   read(unit=nunit,fmt=*,err=17) MSP_SF_sizex
+  MSP_stmp = "scan frame size y"
   read(unit=nunit,fmt=*,err=17) MSP_SF_sizey
+  MSP_stmp = "scan frame rotation"
   read(unit=nunit,fmt=*,err=17) MSP_SF_rot
+  MSP_stmp = "scan points x"
   read(unit=nunit,fmt=*,err=16) MSP_SF_ndimx
+  MSP_stmp = "scan points y"
   read(unit=nunit,fmt=*,err=16) MSP_SF_ndimy
+  MSP_stmp = "flag temporal coherence"
   read(unit=nunit,fmt=*,err=16) MSP_PC_temporal
+  MSP_stmp = "flag spatial coherence"
   read(unit=nunit,fmt=*,err=16) MSP_PC_spatial
+  MSP_stmp = "cell repeat x"
   read(unit=nunit,fmt=*,err=16) MSP_SC_repeatx
+  MSP_stmp = "cell repeat y"
   read(unit=nunit,fmt=*,err=16) MSP_SC_repeaty
+  MSP_stmp = "cell repeat z"
   read(unit=nunit,fmt=*,err=16) MSP_SC_repeatz
+  MSP_stmp = "slice file name"
   read(unit=nunit,fmt=*,err=15) MSP_SLC_filenames  ! slice file name string
+  MSP_stmp = "number of slice files"
   read(unit=nunit,fmt=*,err=16) MS_slicenum        ! number of slices
+  MSP_stmp = "number of slice variants"
   read(unit=nunit,fmt=*,err=16) MSP_FL_varnum      ! number of slice variants
+  MSP_stmp = "number of multislice passes"
   read(unit=nunit,fmt=*,err=16) MSP_FL_varcalc     ! number of variant loops per pixel
+  MSP_stmp = "detector readout period"
   read(unit=nunit,fmt=*,err=16) MSP_detslc         ! detector positions in slice stack
+  MSP_stmp = "number of slices in specimen"
   read(unit=nunit,fmt=*,err=16) MS_stacksize       ! read the slice stacking order and size
   if (MS_stacksize>0) then
     if (allocated(MSP_SLC_object)) then
@@ -1059,6 +1083,7 @@ SUBROUTINE MSP_READBLOCK_multislice(nunit)
     if (status/=0) then
       call MSP_ERROR("Memory allocation failed.", subnum+2)
     end if
+    MSP_stmp = "slice stacking sequence"
     do i = 1, MS_stacksize
       read(unit=nunit,fmt=*,err=16) ntmp
       MSP_SLC_object(i) = ntmp
@@ -1207,9 +1232,9 @@ SUBROUTINE MSP_READBLOCK_multislice(nunit)
 !  write(unit=*,fmt=*) " > MSP_READBLOCK_multislice: EXIT."
   return
   
-15 call CriticalError("Failed reading string parameter from file.")
-16 call CriticalError("Failed reading integer parameter from file.")
-17 call CriticalError("Failed reading float parameter from file.")
+15 call CriticalError("Failed reading string parameter from file ("//trim(MSP_stmp)//").")
+16 call CriticalError("Failed reading integer parameter from file ("//trim(MSP_stmp)//").")
+17 call CriticalError("Failed reading float parameter from file ("//trim(MSP_stmp)//").")
 18 call CriticalError("Invalid number of object slices.")
 19 call CriticalError("Failed to locate slice files.")
 20 call CriticalError("Failed to allocate memory.")   
@@ -2020,6 +2045,7 @@ SUBROUTINE MSP_GetVarList(nslc, nobjslc, lobjstack, lvar, nerr)
     islc = 1 + lobjstack(i) ! get current slice index
     nvarslc = min(qlenmax, MSP_SLC_setup(0, islc)) ! get number of variants to be used for this slice
     itmp = 0 ! preset variant output index to 0
+    
     if (nvarslc > 1) then ! handle case of multiple variants in islc
       if (qlen(islc) < 1) then ! empty queue for slice islc
         ! setup new queue
@@ -2028,8 +2054,12 @@ SUBROUTINE MSP_GetVarList(nslc, nobjslc, lobjstack, lvar, nerr)
         end do
         qlen(islc) = nvarslc
       end if
-      ! select one variant randomly
-      k = modulo( int( UniRand()*real(nvarslc)*0.9999 ), nvarslc )
+      if (MSP_FL_varmode==1) then ! use variant sequence as in slice file
+        k = 0
+      else ! use default random variant sequence
+        ! select one variant randomly
+        k = modulo( int( UniRand()*real(nvarslc)*0.9999 ), nvarslc )
+      end if
       k0 = k
       do while (q(1+k,islc)<0 .or. q(1+k,islc)==qlast(islc))
         k = modulo( 1+k, nvarslc ) ! try to assign next index
@@ -2040,7 +2070,11 @@ SUBROUTINE MSP_GetVarList(nslc, nobjslc, lobjstack, lvar, nerr)
       itmp = q(1+k, islc) ! assign this variant to object slice i
       if (itmp < 0) then ! handle false assignment
         ! draw with returning and initialize queue
-        itmp = modulo( int( UniRand()*real(nvarslc)*0.9999 ), nvarslc )
+        if (MSP_FL_varmode==1) then ! use variant sequence as in slice file
+          itmp = 0
+        else ! use default random variant sequence
+          itmp = modulo( int( UniRand()*real(nvarslc)*0.9999 ), nvarslc )
+        end if
         qlen(islc) = 0
       else
         ! draw itmp without returning
@@ -2048,7 +2082,7 @@ SUBROUTINE MSP_GetVarList(nslc, nobjslc, lobjstack, lvar, nerr)
         qlen(islc) = qlen(islc) - 1 ! decrement queue length
       end if
       qlast(islc) = itmp ! remember last draw
-    end if 
+    end if ! multiple variants
     lvar(i) = itmp
   end do
 ! ------------

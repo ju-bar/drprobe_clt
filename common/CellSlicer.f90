@@ -4107,7 +4107,7 @@ real*4 function CS_GET_UISO(ia)
   implicit none
   
   integer*4, intent(in) :: ia
-  integer*4 :: i, num_share, iaty, jaty
+  integer*4 :: i, num_share, iaty !, jaty
   real*4 :: biso, uiso, bisos, uisos
   
   num_share = 1
@@ -4119,7 +4119,7 @@ real*4 function CS_GET_UISO(ia)
   
   do i=1, CS_numat ! loop over all atoms and check for shared site
     if (CS_atlnk(i)==ia) then ! accumulate shared site biso values
-      jaty = CS_scampptr(i) ! i atom type index
+      !jaty = CS_scampptr(i) ! i atom type index
       uisos = CS_atdwf(1,i) * 100.0 / (CS_tpi * CS_fpi) ! structure uiso
       !call get_rand_msd(jaty, uisos) ! possible randomize by PDOS
       uiso = uiso + uisos ! accumulate to usio

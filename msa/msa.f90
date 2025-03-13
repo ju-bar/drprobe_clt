@@ -192,6 +192,12 @@ program msa
     call PostSureMessage("- Increase the number of frozen-lattice averages per scan pixel.")
   end if
 ! ------------
+
+! ------------
+  if (MSP_FL_varmode==1) then 
+    call PostSureMessage("- Configuration sequence of phase gratings is preserved (no randomization).")
+  end if
+! ------------
   
 ! ------------
 ! probe image calculation warning

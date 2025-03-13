@@ -5,7 +5,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2024-09-04                                                          #
+#   Date: 2025-01-09                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -774,6 +774,8 @@ thicknesses of 0, 1, 2, 4, 8, 12, 20, and 28 slices with 3 detectors:
 
 240904: JB: Version 1.1.5
 - Documentation update.
+- Fixed -npass option, it was -pass but documented as -npass, now
+  acting as documented.
 
 230814: JB: Version 1.1.4
 - Added the command-line option -npass <number> to set the number
