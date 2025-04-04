@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementations of program CELSLC
 !
-! VERSION: 1.1.6 (20240502)
+! VERSION: 1.1.7 (20250404)
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -298,10 +298,16 @@ program celslc
     end if
     !
     ! store / backup used super-cell
+    i = index(trim(scellfile), ".", BACK = .TRUE.)
+    if (i>1) then
+      sfil = scellfile(1:i-1)
+    else
+      sfil = trim(scellfile)
+    end if
     if (nfin==0) then ! CEL
-      call CS_SAVE_EMSCELL("CELSLC_used.cel",nerr)
+      call CS_SAVE_EMSCELL(trim(sfil)//"_celslc_used.cel",nerr)
     elseif (nfin==1) then ! CIF
-      call CS_SAVE_CIFCELL("CELSLC_used.cif",nerr)
+      call CS_SAVE_CIFCELL(trim(sfil)//"_celslc_used.cif",nerr)
     end if
     
     ! post cell info to console (also calculates sampling rates sdx, sdy, sdz)

@@ -4,7 +4,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2025-03-13                                                          #
+#   Date: 2025-04-04                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -692,6 +692,11 @@ Example cel files:
 
 
 7) History of changes:
+
+- 250404. JB: Version 1.1.8
+              Changed name of the control structure file written to
+			  depend on input structure file name. This is to prevent
+			  file write racing conditions in parallel environments.
 
 - 250313. JB: Version 1.1.7
               Minor documentation and output fixes.
