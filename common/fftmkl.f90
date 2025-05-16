@@ -14,7 +14,10 @@
 !    Version  : 1.0.0, Oct 22, 2021                                    !
 !                                                                      !
 !   Linked Libs: Intel Math Kernel Library (sequential)                !
-!   Includes   : mkl_dfti.f90                                          !
+!   Includes   : mkl_dfti.f90 (from mkl/include into source project)   !
+!                MKL doesn't provide object code for this module, so   !
+!                the source must be included in the source project     !
+!                to generate the object code.                          !
 !                                                                      !
 !**********************************************************************!
 !                                                                       
