@@ -6,7 +6,7 @@
    Juri Barthel, 
    Forschungszentrum Jülich GmbH, 52425 Jülich, Germany
 
-   Copyright (c) 2008 - 2024 - Forschungszentrum Jülich GmbH
+   Copyright (c) 2008 - 2025 - Forschungszentrum Jülich GmbH
    
    Published under the GNU General Public License, version 3,
    see <http://www.gnu.org/licenses/> and LICENSE!
@@ -52,18 +52,16 @@ of documentation.
 
 ### Windows
 
-Solution and project files are included that should work with Visual Studio 2017+ 
-and the Intel Parallel Studio or the Intel oneAPI.
+Solution and project files are included that should work with Visual Studio 2022 
+and the Intel oneAPI (IFX compiler).
 
 The code is using the dfti module (mkl_dfti.f90) of the Intel MKL. This module
-must be compiled, which is not the case by default. Add the source file manually
-to the CELSLC project once and compile it with a release configuration. Then
-copy the mkl_dft*.mod files to the lp64 sub-folder of the MKL include folder
-(ilp64 for 64-bit integer code, default is 32-bit integers). Once the mod files
-are there, and you always use the same MKL version, mkl_dfti can be removed again
-from the project and CELSLC and MSA should both compile and link. This manual
-procedure is needed, since the MKL code folder can be different on different
-systems.
+must be compiled, which is not the case by default. The source file is added to
+the projects CELSLC and MSA from the Intel MKL include folder. The project files
+are set up to accomplish this if the MKL installation folder is saved to the
+system environment variable MKL_ROOT. If want to use a different variable or no
+variable at all, check that the file is still somehow found on your system before
+compiling.
 
 ### Linux
 
