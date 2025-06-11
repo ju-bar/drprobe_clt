@@ -1,7 +1,9 @@
 # MAKEFILE for compiling and linking wavimg
 #
 # Defining variables
-f90comp = ifort
+# Take care to initialize the Compiler variables correctly before running the Makefile.
+#   source /usr/local/intel/oneapi/setvars.sh
+f90comp = ifx
 switch = -nologo -O3 -recursive -132 -assume byterecl -threads -static-intel
 # removed switches
 #	 -libs:static ???

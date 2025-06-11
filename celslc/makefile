@@ -1,6 +1,8 @@
 # MAKEFILE for compiling and linking celslc
+# Take care to initialize the Compiler and variables correctly before running the Makefile.
+#   source /usr/local/intel/oneapi/setvars.sh
 # Defining variables
-f90comp = ifort
+f90comp = ifx
 switch3 = -nologo -O3 -recursive -132 -assume byterecl -threads -static-intel
 switch2 = -nologo -O2 -recursive -132 -assume byterecl -threads -static-intel
 switch1 = -nologo -O1 -recursive -132 -assume byterecl -threads -static-intel

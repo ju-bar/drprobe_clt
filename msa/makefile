@@ -1,7 +1,8 @@
 # MAKEFILE for compiling and linking msa
 # Defining variables
-# - choose the compiler, ifort is recommended
-f90c = ifort
+# Take care to initialize the Compiler and variables correctly before running the Makefile.
+#   source /usr/local/intel/oneapi/setvars.sh
+f90c = ifx
 # - set compiler options
 cflags := -nologo -O3 -recursive -132 -assume byterecl -threads -static-intel -fpp
 #cflags := $(cflags) -Ddouble_precision

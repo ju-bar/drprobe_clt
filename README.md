@@ -66,7 +66,13 @@ compiling.
 ### Linux
 
 Check the makefiles for correct include folders. The setup given should work in
-most cases.
+most cases. The makefiles are set up to use the ifx compiler from the Intel oneAPI
+and the Intel MKL. If the compiler variables are not set, you can do this in the
+shell before compiling by running the following command:
+```
+source /usr/local/intel/oneapi/setvars.sh
+```
+(Note: the path may differ on your system, adjust accordingly.)
 
 ## Testing
 

@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27703.2042
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36127.28 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "celslc", "celslc\celslc.vfproj", "{A28A66BE-28A0-4890-B385-0EB0CF6EC606}"
 EndProject
@@ -11,18 +11,14 @@ Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "wavimg", "wavimg\wavimg.vfp
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A437CCEA-E420-45B9-837B-A189441B3C08}"
 	ProjectSection(SolutionItems) = preProject
-		compress-drprobe_clt-bin.osx.sh = compress-drprobe_clt-bin.osx.sh
 		compress-drprobe_clt-bin.sh = compress-drprobe_clt-bin.sh
 		compress-drprobe_clt-src.sh = compress-drprobe_clt-src.sh
-		drprobe_clt_bin.linux.tar.gz = drprobe_clt_bin.linux.tar.gz
-		drprobe_clt_bin.osx.tar.gz = drprobe_clt_bin.osx.tar.gz
-		drprobe_clt_src.tar.gz = drprobe_clt_src.tar.gz
 		DrProbeCLT-Winx64.zip = DrProbeCLT-Winx64.zip
+		drprobe_clt_bin.linux.tar.gz = drprobe_clt_bin.linux.tar.gz
+		drprobe_clt_src.tar.gz = drprobe_clt_src.tar.gz
 		LICENSE = LICENSE
-		make-all.osx.sh = make-all.osx.sh
 		make-all.sh = make-all.sh
 		README.md = README.md
-		update-bin.osx.sh = update-bin.osx.sh
 		update-bin.sh = update-bin.sh
 	EndProjectSection
 EndProject
