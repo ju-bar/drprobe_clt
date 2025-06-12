@@ -4,7 +4,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2025-04-04                                                          #
+#   Date: 2025-06-12                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -693,7 +693,11 @@ Example cel files:
 
 7) History of changes:
 
-- 250404. JB: Version 1.1.8
+
+- 250612. JB: Version 1.1.8
+              Fixed CIF loading negative Biso/Uiso values. ABS is taken
+              on isotropic data and on isotropic values calculated
+              from anisotropic file data.
               Changed name of the control structure file written to
 			  depend on input structure file name. This is to prevent
 			  file write racing conditions in parallel environments.

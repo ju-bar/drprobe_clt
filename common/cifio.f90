@@ -8,7 +8,7 @@
 !         Jülich, Germany
 !         ju.barthel@fz-juelich.de
 !         first version: 05.01.2016
-!         last version: 30.01.2023
+!         last version: 12.06.2025
 !
 ! Purpose: Input and output of structure data from CIF files.
 !          The most recently loaded data is stored in module variables.
@@ -599,7 +599,7 @@ SUBROUTINE CIF_get_iso_from_ani(iat,viso)
       tmp = tmp + adp(i,j)*a0(i)*a0(j)*a1(i)*a1(j)
     end do
   end do
-  viso = tmp / 3.d+0
+  viso = abs(tmp / 3.d+0) ! force positive value, fixing strange Vesta output, 2025-06-12 JB
 END SUBROUTINE CIF_get_iso_from_ani
 
 
@@ -643,6 +643,7 @@ SUBROUTINE CIF_get_atom_site_biso(iat,biso)
     end if
     if (biso <= 0.d+0) biso = 0.d+0 ! reset to zero
   end select ! (adp_type)
+  biso = ABS(biso) ! force positive value, fixing strange Vesta output, 2025-06-12 JB
 END SUBROUTINE CIF_get_atom_site_biso
 
 
@@ -686,6 +687,7 @@ SUBROUTINE CIF_get_atom_site_uiso(iat,uiso)
     end if
     if (uiso <= 0.d+0) uiso = 0.d+0 ! reset to zero
   end select ! (adp_type)
+  uiso = ABS(uiso) ! force positive value, fixing strange Vesta output, 2025-06-12 JB
 END SUBROUTINE CIF_get_atom_site_uiso
 
 

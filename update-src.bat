@@ -3,7 +3,7 @@ echo ---------------------------------------------------
 echo Dr. Probe command-line tool - Source file update.
 echo Warning: This is a service tool for developer only.
 echo ---------------------------------------------------
-SET LPATH=F:\VirtualShare\drprobe_clt\
+SET LPATH=N:\drprobe_clt\
 SET FPATH=F:\Data\F90\drprobe_clt\
 echo Updating source files in [%LPATH%]
 mkdir %LPATH%
