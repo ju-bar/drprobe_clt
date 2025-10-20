@@ -28,7 +28,7 @@
 			<Tool Name="VFManifestTool" SuppressStartupBanner="true"/>
 		</Configuration>
 		<Configuration Name="Debug|x64" UseCompiler="ifxCompiler" TargetName="$(ProjectName)_d" DeleteExtensionsOnClean="*.obj;*.mod;*.pdb;*.asm;*.map;*.dyn;*.dpi;*.tmp;*.log;*.ilk;*.exe;$(TargetPath)">
-			<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" DebugInformationFormat="debugEnabled" Optimization="optimizeDisabled" EnableRecursion="true" FixedFormLineLength="fixedLength132" WarnDeclarations="true" WarnTruncateSource="true" ByteRECL="true" Traceback="true" NullPointerCheck="true" BoundsCheck="true" RuntimeLibrary="rtMultiThreadedDebug"/>
+			<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" DebugInformationFormat="debugEnabled" Optimization="optimizeDisabled" HeapArrays="0" EnableRecursion="true" FixedFormLineLength="fixedLength132" WarnDeclarations="true" WarnTruncateSource="true" ByteRECL="true" Traceback="true" NullPointerCheck="true" BoundsCheck="true" RuntimeLibrary="rtMultiThreadedDebug"/>
 			<Tool Name="VFLinkerTool" LinkIncremental="linkIncrementalNo" SuppressStartupBanner="true" GenerateDebugInformation="true" SubSystem="subSystemConsole"/>
 			<Tool Name="VFResourceCompilerTool"/>
 			<Tool Name="VFMidlTool" SuppressStartupBanner="true" TargetEnvironment="midlTargetAMD64" HeaderFileName="$(InputName).h" TypeLibraryName="$(IntDir)/$(InputName).tlb"/>
@@ -39,7 +39,7 @@
 			<Tool Name="VFManifestTool" SuppressStartupBanner="true"/>
 		</Configuration>
 		<Configuration Name="Release|x64" UseCompiler="ifxCompiler" DeleteExtensionsOnClean="*.obj;*.mod;*.pdb;*.asm;*.map;*.dyn;*.dpi;*.tmp;*.log;*.ilk;*.exe;$(TargetPath)">
-			<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" EnableRecursion="true" FixedFormLineLength="fixedLength132" WarnUnusedVariables="true" WarnTruncateSource="true" ByteRECL="true" ModulePath="$(INTDIR)/" ObjectFile="$(INTDIR)/" RequireProcessorExtensions="codeExclusivelyPentium4"/>
+			<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" HeapArrays="0" EnableRecursion="true" FixedFormLineLength="fixedLength132" WarnUnusedVariables="true" WarnTruncateSource="true" ByteRECL="true" ModulePath="$(INTDIR)/" ObjectFile="$(INTDIR)/" RequireProcessorExtensions="codeExclusivelyPentium4"/>
 			<Tool Name="VFLinkerTool" LinkIncremental="linkIncrementalNo" SuppressStartupBanner="true" SubSystem="subSystemConsole"/>
 			<Tool Name="VFResourceCompilerTool"/>
 			<Tool Name="VFMidlTool" SuppressStartupBanner="true" TargetEnvironment="midlTargetAMD64" HeaderFileName="$(InputName).h" TypeLibraryName="$(IntDir)/$(InputName).tlb"/>

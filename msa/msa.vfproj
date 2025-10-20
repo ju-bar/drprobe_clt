@@ -28,7 +28,7 @@
 			<Tool Name="VFManifestTool" SuppressStartupBanner="true"/>
 		</Configuration>
 		<Configuration Name="Debug|x64" UseCompiler="ifxCompiler" TargetName="$(ProjectName)_d" DeleteExtensionsOnClean="*.obj;*.mod;*.pdb;*.asm;*.map;*.dyn;*.dpi;*.tmp;*.log;*.ilk;*.exe;$(TargetPath)">
-			<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" DebugInformationFormat="debugEnabled" Optimization="optimizeDisabled" Preprocess="preprocessYes" PreprocessorDefinitions="single_precision" EnableRecursion="true" FixedFormLineLength="fixedLength132" ByteRECL="true" Traceback="true" RuntimeLibrary="rtMultiThreadedDebug" UsePortlib="true" UseMkl="mklSequential"/>
+			<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" DebugInformationFormat="debugEnabled" Optimization="optimizeDisabled" HeapArrays="0" Preprocess="preprocessYes" PreprocessorDefinitions="single_precision" EnableRecursion="true" FixedFormLineLength="fixedLength132" ByteRECL="true" Traceback="true" RuntimeLibrary="rtMultiThreadedDebug" UsePortlib="true" UseMkl="mklSequential"/>
 			<Tool Name="VFLinkerTool" LinkIncremental="linkIncrementalYes" SuppressStartupBanner="true" GenerateDebugInformation="true" SubSystem="subSystemConsole"/>
 			<Tool Name="VFResourceCompilerTool"/>
 			<Tool Name="VFMidlTool" SuppressStartupBanner="true" TargetEnvironment="midlTargetAMD64" HeaderFileName="$(InputName).h" TypeLibraryName="$(IntDir)/$(InputName).tlb"/>
@@ -39,7 +39,7 @@
 			<Tool Name="VFManifestTool" SuppressStartupBanner="true"/>
 		</Configuration>
 		<Configuration Name="Release|x64" UseCompiler="ifxCompiler" DeleteExtensionsOnClean="*.obj;*.mod;*.pdb;*.asm;*.map;*.dyn;*.dpi;*.tmp;*.log;*.ilk;*.exe;$(TargetPath)">
-			<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" Optimization="optimizeFull" Preprocess="preprocessYes" PreprocessorDefinitions="single_precision" EnableRecursion="true" FixedFormLineLength="fixedLength132" WarnUnusedVariables="true" WarnTruncateSource="true" WarnUncalled="true" ByteRECL="true" LocalSavedScalarsZero="true" ModulePath="$(INTDIR)/" ObjectFile="$(INTDIR)/" UsePortlib="true" UseMkl="mklSequential" RequireProcessorExtensions="codeExclusivelyPentium4"/>
+			<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" Optimization="optimizeFull" HeapArrays="0" Preprocess="preprocessYes" PreprocessorDefinitions="single_precision" EnableRecursion="true" FixedFormLineLength="fixedLength132" WarnUnusedVariables="true" WarnTruncateSource="true" WarnUncalled="true" ByteRECL="true" LocalSavedScalarsZero="true" ModulePath="$(INTDIR)/" ObjectFile="$(INTDIR)/" UsePortlib="true" UseMkl="mklSequential" RequireProcessorExtensions="codeExclusivelyPentium4"/>
 			<Tool Name="VFLinkerTool" LinkIncremental="linkIncrementalNo" SuppressStartupBanner="true" SubSystem="subSystemConsole" ImportLibrary=""/>
 			<Tool Name="VFResourceCompilerTool"/>
 			<Tool Name="VFMidlTool" SuppressStartupBanner="true" TargetEnvironment="midlTargetAMD64" HeaderFileName="$(InputName).h" TypeLibraryName="$(IntDir)/$(InputName).tlb"/>
@@ -58,11 +58,11 @@
 		<Filter Name="Source Files" Filter="f90;for;f;fpp;ftn;def;odl;idl">
 			<File RelativePath="..\common\emsdata.f90"/>
 			<File RelativePath="C:\Program Files (x86)\Intel\oneAPI\mkl\2025.1\include\mkl_dfti.f90"/>
-			<File RelativePath=".\msa.f90"/>
+			<File RelativePath=".\msa.f90">
+			</File>
 			<File RelativePath=".\msaparams.f90"/>
 			<File RelativePath=".\msasub.f90"/>
-			<File RelativePath=".\MultiSlice.f90">
-			</File>
+			<File RelativePath=".\MultiSlice.f90"/>
 			<File RelativePath=".\plasmon.f90"/>
 			<File RelativePath="..\common\precision.f90"/>
 			<File RelativePath="..\common\random.f90"/>
