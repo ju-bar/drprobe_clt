@@ -57,11 +57,13 @@ and the Intel oneAPI (IFX compiler).
 
 The code is using the dfti module (mkl_dfti.f90) of the Intel MKL. This module
 must be compiled, which is not the case by default. The source file is added to
-the projects CELSLC and MSA from the Intel MKL include folder. The project files
-are set up to accomplish this if the MKL installation folder is saved to the
-system environment variable MKL_ROOT. If want to use a different variable or no
-variable at all, check that the file is still somehow found on your system before
-compiling.
+the projects CELSLC and MSA from the Intel MKL include folder, but won't be found
+on your system because install folder names depend on the installed version of
+the Intel oneAPI or MKL.
+Locate the mkl_dfti.f90 on your system and include it in the projects celslc and
+msa. As a more static alternative, compile mkl_dfti.f90 separately and link the
+module file to the projects. Still, changing the oneAPI version might require
+adjustments.
 
 ### Linux
 

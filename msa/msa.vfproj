@@ -57,7 +57,7 @@
 		<Filter Name="Resource Files" Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"/>
 		<Filter Name="Source Files" Filter="f90;for;f;fpp;ftn;def;odl;idl">
 			<File RelativePath="..\common\emsdata.f90"/>
-			<File RelativePath="C:\Program Files (x86)\Intel\oneAPI\mkl\2025.1\include\mkl_dfti.f90"/>
+			<File RelativePath="C:\Program Files (x86)\Intel\oneAPI\mkl\2025.3\include\mkl_dfti.f90"/>
 			<File RelativePath=".\msa.f90">
 			</File>
 			<File RelativePath=".\msaparams.f90"/>
