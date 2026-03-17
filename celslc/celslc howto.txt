@@ -1,10 +1,10 @@
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program CELSLC, Version 1.1                                 #
+#   HOWTO use the program CELSLC, Version 1.2                                 #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2025-06-12                                                          #
+#   Date: 2025-06-17                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -106,11 +106,11 @@ Command-line calling options for the program celslc.exe:
   > CELSLC parameters
   >  -cel <string> = CEL structure file (e.g. "atoms.cel")
   >  -cif <string> = CIF structure file (e.g. "atoms.cif")
-  >  -ht <number>  = electron energy in keV (10 ... 1300)
+  >  -ht <value>   = electron energy in keV (10 ... 1300)
   >  -nx <number>  = horizontal cell sampling (32 ... 2048)
   >  -ny <number>  = vertical cell sampling (32 ... 2048)
   >  -slc <string> = slice file name (e.g. "scl")
-  > [-abf <number> = apply fix rel. absorption factor]
+  > [-abf <value>  = apply fix rel. absorption factor]
   > [-abs         -> apply built-in absorption factors]
   > [-dwf         -> apply Debye-Waller factors]
   > [-fl          -> frozen-lattice simulation]
@@ -166,10 +166,10 @@ Detailed explanations of options:
   increased calculation times.
   
   
-  -ht <number>  = electron energy in keV (10 ... 1300)
+  -ht <value>  = electron energy in keV (10 ... 1300)
   
   The kinetic energy of the incident electrons must be specified by
-  the input parameter -ht <number>, where the number denotes the
+  the input parameter -ht <value>, where the value denotes the
   electron energy in keV.
   
   
@@ -247,11 +247,11 @@ Detailed explanations of options:
   Using the option -abs will override and deactivate the option -abf.
   
   
-  -abf <number> = apply fractional absorptive form factors
+  -abf <value>  = apply fractional absorptive form factors
   
   By applying the option -abf absorptive form factors are calculated
   as a fraction of the elastic form factors. The fraction must be
-  specified by the input number.
+  specified by the input value.
   
   
   -pot         -> export potentials to files *.pot
@@ -268,7 +268,7 @@ Detailed explanations of options:
   Potentials are stored without the relativistic correction.
     
   
-  -ssc <number> = single slice calculation
+  -ssc <number>  = single slice calculation
   
   This option allows you to calculate the phase grating for one specific
   slice of the object. The slice is identified by an index number. The
@@ -282,15 +282,15 @@ Detailed explanations of options:
   atomic potential projection into each slice.
   
   
-  -prj <9 numbers> = new super-cell, re-orientation and re-sizing
+  -prj <9 values>  = new super-cell, re-orientation and re-sizing
   
   This option can be used to re-orient the input structure and
   use it in a new orthorhombic super-cell of given size. The
-  orientation is given by the first 6 numbers, defining the new
+  orientation is given by the first 6 values, defining the new
   projection direction and a perpendicular direction for the new
   y-axis of the projection. All orientation vectors [uvw] are 
   specified in coordinates of the real-space input lattice. The
-  size of the new super-cell is given by the last 3 numbers
+  size of the new super-cell is given by the last 3 values
   defining the extension in nanometers along each of the 3 new
   axes x, y, and z, where z is along the new projection direction.
   The origin point of the structure is not changed.
@@ -311,7 +311,7 @@ Detailed explanations of options:
            along each of the new axes.
            
   
-  -tla <3 numbers> = additional shift of atoms
+  -tla <3 values>  = additional shift of atoms
   
   This option can be used to shift the whole structure in the
   chosen final orthorhombic super-cell by a given amount in
@@ -323,7 +323,7 @@ Detailed explanations of options:
            by 1/4th and 1/16th of the super-cell dimension.
 
 
-  -adt <string> = atomic displacement table
+  -adt <string>  = atomic displacement table
 
   Loads atomic displacements from a file and apply those instead 
   of the usual random numbers. While random displacements simulate
@@ -377,16 +377,16 @@ Additional and experimental options:
   this option.
 
 
-  -ffdec <number> = output form factor decay q
+  -ffdec <value>  = output form factor decay q
 
   Calculates the scattering vector q for which the atomic form factors
-  has decayed below a relative level as specified by <number>.
+  has decayed below a relative level as specified by <value>.
 
 
-  -f2dec <number> = output of scattering power decay q
+  -f2dec <value>  = output of scattering power decay q
 
   Calculates the scattering vector q for which the square of atomic form
-  factors has decayed below a relative level as specified by <number>.
+  factors has decayed below a relative level as specified by <value>.
 
 
   -inf <number> = input format switch
@@ -397,15 +397,22 @@ Additional and experimental options:
   0,1 = default (also when -inf is not used), CIF or CEL text file
   10-19 = external 3d potential in text form (from ABINIT code)
           the last digit identifies the column index after the
-		  3 spatial coordinates in the text list of potential values.
-		  Example: 14 -> work with column 8 of the table.
-		  Example: 10 -> work with column 4 of the table.
+          3 spatial coordinates in the text list of potential values.
+          Example: 14 -> work with column 8 of the table.
+          Example: 10 -> work with column 4 of the table.
 
 
   -buni <number> = use the provided Biso value [nm^2] for all atoms.
 
 
-  -fl2 = interprete the 3 numbers following the Biso parameter
+  -abf2  = interprete the first value following the Biso parameter
+
+  This option will apply an absorptive form factor as option -abf
+  but can apply different fractional strength for each atom. This
+  option cannot be combined with the option -fl2 (see below).
+
+
+  -fl2  = interprete the 3 values following the Biso parameter
 
   This will activate anisotropic thermal displacements
   in 2d slice calculations. The implementation affects QEP
@@ -462,6 +469,7 @@ Additional and experimental options:
   absorptive potential. Relativistic correction by a gamma factor
   will be done upon loading.
 
+
   -seed <number> = Initializes the random number generator to a
   given seed.
 
@@ -471,10 +479,10 @@ Additional and experimental options:
 
   -rti = print run-time information
 
-  
+
   -silent = print no information
-  
-  
+
+
   -verbose = print more information
 
 
@@ -555,144 +563,42 @@ Example cel files:
 1)
 # BaTiO3 [100] unit cell
  0    0.3995   0.4039   0.3995  90.0000  90.0000  90.0000
-  O    0.000000 0.013000 0.500000 1.000000 0.009600 0.000000 0.000000 0.000000
-  O    0.000000 0.527000 0.000000 1.000000 0.009600 0.000000 0.000000 0.000000
- Ti    0.000000 0.982000 0.000000 1.000000 0.008400 0.000000 0.000000 0.000000
-  O    0.500000 0.013000 0.000000 1.000000 0.009600 0.000000 0.000000 0.000000
- Ba    0.500000 0.500000 0.500000 1.000000 0.007500 0.000000 0.000000 0.000000
+  O    0.000000 0.013000 0.750000 1.000000 0.009600 0.000000 0.000000 0.000000
+  O    0.000000 0.527000 0.250000 1.000000 0.009600 0.000000 0.000000 0.000000
+ Ti    0.000000 0.982000 0.250000 1.000000 0.008400 0.000000 0.000000 0.000000
+  O    0.500000 0.013000 0.250000 1.000000 0.009600 0.000000 0.000000 0.000000
+ Ba    0.500000 0.500000 0.750000 1.000000 0.007500 0.000000 0.000000 0.000000
 *
 
 2)
-# SrTiO3 [110] 3 x 4 x 1 super-cell
-  0   1.65505  1.56040  0.55168 90.00000 90.00000 90.00000
- Sr    0.000000 0.000000 0.000000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.333330 0.000000 0.000000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.166670 0.000000 0.500000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.666670 0.000000 0.000000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.500000 0.000000 0.500000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.833330 0.000000 0.500000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.000000 0.250000 0.000000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.333330 0.250000 0.000000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.166670 0.250000 0.500000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.666670 0.250000 0.000000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.500000 0.250000 0.500000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.833330 0.250000 0.500000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.000000 0.500000 0.000000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.333330 0.500000 0.000000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.166670 0.500000 0.500000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.666670 0.500000 0.000000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.500000 0.500000 0.500000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.833330 0.500000 0.500000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.000000 0.750000 0.000000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.333330 0.750000 0.000000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.166670 0.750000 0.500000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.666670 0.750000 0.000000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.500000 0.750000 0.500000 1.000000 0.006230 0.000000 0.000000 0.000000
- Sr    0.833330 0.750000 0.500000 1.000000 0.006230 0.000000 0.000000 0.000000
- Ti    0.166670 0.125000 0.000000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.000000 0.125000 0.500000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.500000 0.125000 0.000000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.333330 0.125000 0.500000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.833330 0.125000 0.000000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.666670 0.125000 0.500000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.166670 0.375000 0.000000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.000000 0.375000 0.500000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.500000 0.375000 0.000000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.333330 0.375000 0.500000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.833330 0.375000 0.000000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.666670 0.375000 0.500000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.166670 0.625000 0.000000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.000000 0.625000 0.500000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.500000 0.625000 0.000000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.333330 0.625000 0.500000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.833330 0.625000 0.000000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.666670 0.625000 0.500000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.166670 0.875000 0.000000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.000000 0.875000 0.500000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.500000 0.875000 0.000000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.333330 0.875000 0.500000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.833330 0.875000 0.000000 1.000000 0.004406 0.000000 0.000000 0.000000
- Ti    0.666670 0.875000 0.500000 1.000000 0.004406 0.000000 0.000000 0.000000
-  O    0.083330 0.125000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.416670 0.125000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.250000 0.125000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.750000 0.125000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.583330 0.125000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.916670 0.125000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.083330 0.375000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.416670 0.375000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.250000 0.375000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.750000 0.375000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.583330 0.375000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.916670 0.375000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.083330 0.625000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.416670 0.625000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.250000 0.625000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.750000 0.625000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.583330 0.625000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.916670 0.625000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.083330 0.875000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.416670 0.875000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.250000 0.875000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.750000 0.875000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.583330 0.875000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.916670 0.875000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.166670 0.000000 0.000000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.000000 0.000000 0.500000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.500000 0.000000 0.000000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.333330 0.000000 0.500000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.833330 0.000000 0.000000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.666670 0.000000 0.500000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.166670 0.250000 0.000000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.000000 0.250000 0.500000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.500000 0.250000 0.000000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.333330 0.250000 0.500000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.833330 0.250000 0.000000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.666670 0.250000 0.500000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.166670 0.500000 0.000000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.000000 0.500000 0.500000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.500000 0.500000 0.000000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.333330 0.500000 0.500000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.833330 0.500000 0.000000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.666670 0.500000 0.500000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.166670 0.750000 0.000000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.000000 0.750000 0.500000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.500000 0.750000 0.000000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.333330 0.750000 0.500000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.833330 0.750000 0.000000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.666670 0.750000 0.500000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.250000 0.125000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.083330 0.125000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.583330 0.125000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.416670 0.125000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.916670 0.125000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.750000 0.125000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.250000 0.375000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.083330 0.375000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.583330 0.375000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.416670 0.375000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.916670 0.375000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.750000 0.375000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.250000 0.625000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.083330 0.625000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.583330 0.625000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.416670 0.625000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.916670 0.625000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.750000 0.625000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.250000 0.875000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.083330 0.875000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.583330 0.875000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.416670 0.875000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.916670 0.875000 0.250000 1.000000 0.007085 0.000000 0.000000 0.000000
-  O    0.750000 0.875000 0.750000 1.000000 0.007085 0.000000 0.000000 0.000000
+# SrTiO3 [110] unit cell
+  0   0.55168  0.39010  0.55168 90.00000 90.00000 90.00000
+ Sr2+  0.000000 0.000000 0.125000 1.000000 0.006230 0.000000 0.000000 0.000000
+ Sr2+  0.500000 0.000000 0.625000 1.000000 0.006230 0.000000 0.000000 0.000000
+ Ti4+  0.500000 0.500000 0.125000 1.000000 0.004406 0.000000 0.000000 0.000000
+ Ti4+  0.000000 0.500000 0.625000 1.000000 0.004406 0.000000 0.000000 0.000000
+  O2-  0.250000 0.500000 0.375000 1.000000 0.007085 0.000000 0.000000 0.000000
+  O2-  0.750000 0.500000 0.875000 1.000000 0.007085 0.000000 0.000000 0.000000
+  O2-  0.500000 0.000000 0.125000 1.000000 0.007085 0.000000 0.000000 0.000000
+  O2-  0.000000 0.000000 0.625000 1.000000 0.007085 0.000000 0.000000 0.000000
+  O2-  0.750000 0.500000 0.375000 1.000000 0.007085 0.000000 0.000000 0.000000
+  O2-  0.250000 0.500000 0.875000 1.000000 0.007085 0.000000 0.000000 0.000000
 *
-
 
 #-----------------------------------------------------------------------------#
 
 
 7) History of changes:
 
+- 260316. JB: Version 1.2.0
+              Modified the potential calculations for slices and 3d cells
+              to allow per atom abf factors (option -abf2). The per atom
+              relative strength of the absorptive potential is read from
+              the column of the cel file that follows the Biso value. Since
+              the same column is used with option -fl2, the two options
+              exlcude each other. The per atom abf parameters are injected
+              together with the occupance value forming now a complex 
+              preceding factor occ*(1+i*abf).
 
 - 250612. JB: Version 1.1.8
               Fixed CIF loading negative Biso/Uiso values. ABS is taken

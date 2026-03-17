@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementations of program CELSLC
 !
-! VERSION: 1.1.8 (20250612)
+! VERSION: 1.2.0 (20260317)
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -91,8 +91,7 @@ program celslc
   j = 0
   k = 0
   nat = 0
-!  call InitRand()
-!  call CS_INIT()
+  !
   call EMS_INIT()
   call ParseCommandLine()
   CS_doconsolemsg = nverbose
@@ -105,7 +104,6 @@ program celslc
   else
     call InitRand()
   end if
-  !call SetupThreading() ! init threading
   !
   ! ****************************************************************** !
   
@@ -116,10 +114,6 @@ program celslc
   !
   call csprm_initcl()
   !
-!  ! determine max size of FFT
-!  k = max(nx, ny)
-!  CS_FFT_BOUND = max(CS_FFT_BOUND_MIN,2**CEILING(LOG(real(k))/LOG(2.0)))
-!  if (CS_FFT_BOUND>CS_FFT_BOUND_MAX) call CriticalError("FFT plan exceeds maximum size (8192).")
   call CS_INIT()
   !
   ! handle use of external scattering factors
@@ -166,13 +160,6 @@ program celslc
         & trim(sadfile)//"].")
     end if
   end if
-  !
-  !! handle PDOS data
-  !if (nfl>0 .and. npdos>0) then
-  !  call PostMessage("Loading PDOS from file ["//trim(spdosfile)//"].")
-  !  CS_pdos = 1
-  !  CS_pdos_file = trim(spdosfile)
-  !end if
   !
   call PostRuntime("program initialized")
   !
@@ -224,6 +211,15 @@ program celslc
     !
     ! Post loading operations
     !
+    CS_atabf(:) = 0.0 ! default init per atom abs parameters to zero
+    if (nabf==2) then ! per atom absorption factors expected
+      CS_atabf(:) = CS_atdwf(2,:) ! copy per atom abf prm from first column after Biso
+      ! reset anisotropic Biso data to default (isotropic)
+      CS_atdwf(2,:) = 1.0
+      CS_atdwf(3,:) = 1.0
+      CS_atdwf(4,:) = 0.0
+    end if
+    !
     if (buni==1 .and. CS_numat>0) then ! universal Biso values
       write(unit=smsg,fmt=*) buniv
       call PostMessage("Replacing individual B_ISO values by "// &
@@ -240,6 +236,7 @@ program celslc
       CS_atdwf(3,:) = 1.0
       CS_atdwf(4,:) = 0.0
     end if
+    !
     if (nfl==1 .and. CS_numat>0 .and. nadt>0) then ! listed thermal displacements added 23-Jul-05
       call PostMessage("Applying external list of thermal displacements of atoms.")
       call PostMessage("  table input file: "//trim(sadfile))

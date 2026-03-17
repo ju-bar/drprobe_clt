@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementation of subroutines for CELSLC
 !
-! VERSION: 1.1.8, J.B., 12.05.2025
+! VERSION: 1.2.0, J.B., 17.03.2026
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -47,7 +47,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program [celslc]                                  |")
-  call PostMessage(" | Version: 1.1.8 64-bit  -  2025 June 12            |")
+  call PostMessage(" | Version: 1.2.0 64-bit  -  2026 March 17           |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -922,7 +922,7 @@ subroutine ParseCommandLine()
       nfound = 1
       nabs = 1 ! switch on absorption
       
-    ! ABSORPTION USAGE FROM HASHIMOTO, HOWIE, WHELAN, Proc. R. Soc. London Ser. A, 269, 80-103 (1962)   
+    ! ABSORPTION USAGE FROM HASHIMOTO, HOWIE, WHELAN, Proc. R. Soc. London Ser. A, 269, 80-103 (1962)
     case ("-abf")
       nfound = 1
       i = i + 1
@@ -930,7 +930,7 @@ subroutine ParseCommandLine()
         call ExplainUsage()
         call CriticalError("Command line parsing error (-abf <number>).")
       end if
-      call get_command_argument (i, buffer, len, status) ! outputfile
+      call get_command_argument (i, buffer, len, status) ! abf parameter
       if (status/=0) then
         call ExplainUsage()
         call CriticalError("Command line parsing error (-abf <number>).")
@@ -941,6 +941,11 @@ subroutine ParseCommandLine()
         call CriticalError("Unreasonable absorption factor.")
       end if
       nabf = 1
+      
+    ! ABSORPTION PER ATOM FOLLWOING HASHIMOTO, HOWIE, WHELAN, Proc. R. Soc. London Ser. A, 269, 80-103 (1962)
+    case ("-abf2")
+      nfound = 1
+      nabf = 2
       
     ! EXPORT POTENTIAL FILES
     case ("-pot")
@@ -1245,13 +1250,12 @@ SUBROUTINE CheckCommandLine
   character(len=1024) smsg
 
   ! ------------
-! treat unwanted combination of optional parameters
+  ! treat unwanted combination of optional parameters
   if (nfl<0) nfl = 0
-  !if (nfl>1) nfl = 1 ! modified 22-Nov-07, allow more fl modes
   if (nabs<0) nabs = 0
   if (nabs>1) nabs = 1
   if (nabf<0) nabf = 0
-  if (nabf>1) nabf = 1
+  if (nabf>2) nabf = 2
   if (ndwf<0) ndwf = 0
   if (ndwf>2) ndwf = 2
   if (npot<0) npot = 0
@@ -1262,22 +1266,33 @@ SUBROUTINE CheckCommandLine
   if (n3dp>1) n3dp = 1
   if (nrev<0) nrev = 0
   if (nrev>1) nrev = 1
-  
+  ! critical combinations, which lead to program terminations
   if (nfin==1.and.nfl>1) then ! added 22-Nov-07
-    call CriticalError("Option -nfl2 is not supported in combination " // &
-                & "with option -cif, only with option -cel for this.")
+    call CriticalError("Option -fl2 is not supported in combination " // &
+                & "with option -cif, only with option -cel.")
   end if
-  
+  if (nfin==1.and.nabf==2) then ! added 26-Mar-11
+    call CriticalError("Option -abf2 is not supported in combination " // &
+                & "with option -cif, only with option -cel.")
+  end if
   if (n3dp>0.and.nfl>1) then ! added 22-Nov-07
-    call CriticalError("Option -nfl2 is not supported in combination " // &
+    call CriticalError("Option -fl2 is not supported in combination " // &
                 & "with option -3dp.")
   end if
-  
+  if (nfl>0.and.nabf>1) then ! added 26-Mar-11
+    call CriticalError("Options -fl* and -abf2 cannot be used together, "// &
+                & "because parameters are in the same cel file columns.")
+  end if
+  !
+  ! less critical combinations whcih raise warnings
   if (nfl>0) then ! modified 22-Nov-07, was for turn OFF dwf and !abs
   !  ndwf = 0
   !  !nabs = 0
     if (ndwf>0) then
-      call PostWarning("Unusual combination of flags -fl* and -dwf*")
+      call PostWarning("Unusual combination of flags -fl* and -dwf* (except for FRFPMS)")
+    end if
+    if (nabf>0) then
+      call PostWarning("Unusual combination of flags -fl* and -abf* (result may be wrong)")
     end if
   else
     nv = 1 ! set number of variants back to default 1.
@@ -1289,16 +1304,15 @@ SUBROUTINE CheckCommandLine
       nadt = 0
     end if
   end if
-  
-  
-  
-  if (nabs==1) then ! turn OFF abf
+  if (nabs==1) then ! turn OFF abf when abs is used (no mixing of models)
+    if (nabf==1) call PostWarning("Ignoring option -abf due to option -abs.")
+    if (nabf==2) call PostWarning("Ignoring option -abf2 due to option -abs.")
     nabf = 0
   end if
   if (nfe==1.and.nfx==1) then ! prefer fe-prm
     nfx = 0
   end if
-  
+  ! single slice mode critical states, may terminate program
   if (ssc<0) ssc = 0 ! turn single slice calculation off.
   if (ssc>0) then
     if (n3dp>1 .or. nfin>=10) then
@@ -1306,7 +1320,7 @@ SUBROUTINE CheckCommandLine
                        & "option in combination with 3-d potentials.")
     end if
   end if
-  
+  ! slicing options, also may terminate program on critical combinations
   if (nz<=0) then
     if (n3dp>1 .or. nfin>=10) then
       call CriticalError("Automatic slicing is not supported in "// &
@@ -1323,17 +1337,19 @@ SUBROUTINE CheckCommandLine
     call PostMessage( "Creating "//trim(adjustl(smsg))// &
                     & " equidistant slices of the super-cell.")
   end if
-  
+  !
+  ! further program initialization state reporting and minor inits
   if (ndwf==1) call PostMessage("Using isotropic Debye-Waller factors.")
   if (ndwf==2) call PostMessage("Using anisotropic Debye-Waller factors.")
   if (nabs==1) call PostMessage("Using isotropic absorptive form factors.")
   if (nabf==1) then
     write(unit=smsg,fmt='(F8.3)') abf
-    call PostMessage("Using frational absorptive form factors, fraction: " &
+    call PostMessage("Using global frational absorptive form factors, fraction: " &
      &   //trim(adjustl(smsg))//".")
   else
     abf = 0.0
   end if
+  if (nabf>1) call PostMessage("Using per atom fractional absorptive form factors from cel file.")
   if (nfl==1) call PostMessage("Generating thermal displacement configurations.")
   if (nfl==2) call PostMessage("Generating anisotropic thermal displacement configurations.")
   if (nfl>0.and.nv==1) call PostWarning(&
@@ -1730,10 +1746,6 @@ subroutine CEL2SLC()
           & trim(adjustl(stmp1))//" of "//trim(adjustl(smsg))//".")
   end if
     
-  ! set absorption parameters in calculation module
-  CS_useabsorption = 0
-  if (nabs/=0) CS_useabsorption = 1
-  
   ! allocate slice memory
   call PostMessage("Allocating slice memory.")
   allocate(slcdat(nx,ny,nv),stat=nerr)
@@ -1785,7 +1797,7 @@ subroutine CEL2SLC()
         &    " / "//trim(svrmax)//" "
       end if
         
-      call CS_GETSLICE_PGR(i, nx, ny, 1, 1, nabs, nfl, ndwf, wl, &
+      call CS_GETSLICE_PGR(i, nx, ny, 1, 1, nfl, ndwf, wl, &
           & slcdat(:,:,j), nerr)
       if (nerr/=0) call CriticalError("Slice preparation failed.")
       EMS_SLI_data_ctype = 0 ! set default slice data type (phase grating)
@@ -1925,11 +1937,7 @@ subroutine CEL2POT3D2SLC()
   else ! no slices, this is not allowed ... critical error
     call CriticalError("Invalid number of slices (0).")
   end if
-  ! set absorption parameters
-  CS_useabsorption = 0
-  if (nabs/=0) CS_useabsorption = 1
   call PostRuntime("prepared slicing")
-  
   call PostMessage("Calculating 3D potential ...")
   ! allocate potential memory
   if (allocated(M3D_pot_prj)) deallocate(M3D_pot_prj, stat=nerr)
@@ -2009,9 +2017,6 @@ subroutine POT3D2SLC()
   call PostMessage("Calculating phase gratings ...")
   do i=1, nz
     
-    !! handle single slice calculation mode, added 2015-06-03, JB, removed again 2021-11-15, JB this was a mistake
-    !if (ssc>0 .and. i/=ssc) cycle ! skip all other slices in single slice calculation mode
-    
     write(unit=sslnum,fmt='(I<ndigsl>.<ndigsl>)') i
     sslnum = trim(adjustl(sslnum))
     write(unit=sthick,fmt='(F10.3)') CS_slczlim(i,2)-CS_slczlim(i,1)
@@ -2034,7 +2039,7 @@ subroutine POT3D2SLC()
     call PostMessage("  name: "//trim(EMS_SLI_data_title))
     
     ! calculate phase gratings
-    call M3D_getslice_pgr(i, nz, 1, 1, abf, ht, slcdat(:,:,1), nerr)
+    call M3D_getslice_pgr(i, nz, 1, 1, ht, slcdat(:,:,1), nerr)
     if (nerr/=0) call CriticalError("Slice preparation failed.")
     slcdat(1:nx,1:ny,0) = M3D_slcpot(1:nx,1:ny)*fcorr ! get a copy of the potentials with rel. corr. removed
     
@@ -2075,7 +2080,7 @@ subroutine POT3D2SLC()
       call PostMessage("  "//trim(EMS_SLI_data_title))
       !
     else ! no
-      ! clear atom data table, there is non with 3d potentials without loading a cell file
+      ! clear atom data table, there is none with 3d potentials without loading a cell file
       call EMS_SLI_settab0()
     end if
     !

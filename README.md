@@ -6,7 +6,7 @@
    Juri Barthel, 
    Forschungszentrum Jülich GmbH, 52425 Jülich, Germany
 
-   Copyright (c) 2008 - 2025 - Forschungszentrum Jülich GmbH
+   Copyright (c) 2008 - 2026 - Forschungszentrum Jülich GmbH
    
    Published under the GNU General Public License, version 3,
    see <http://www.gnu.org/licenses/> and LICENSE!
@@ -123,14 +123,9 @@ The programs are written in Fortran 90 code for Intel Fortran compilers. CELSLC
 and MSA are linked against the Intel Math Kernel Libraries (MKL).
 
 Current versions:
-* CELSLC: 1.1
+* CELSLC: 1.2
 * MSA: 1.1
 * WAVIMG: 1.0
 
-### TODOs
 
-* add slice loading on demand to MSA
-* add a wrapper tool for applying external transition potentials for EELS and EDX
-* add partial import of wavefunctions and images from 3d data sets with
-  MSA and WAVIMG.
 

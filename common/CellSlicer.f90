@@ -8,7 +8,7 @@
 !         Jülich, Germany
 !         ju.barthel@fz-juelich.de
 !         first version: 13.12.2008
-!         last version: 31.08.2023
+!         last version: 17.06.2026
 !
 ! Purpose: Data and Methods to create Potential slices
 !          for TEM, from given atomic data in form of supercells
@@ -367,6 +367,9 @@ MODULE CellSlicer
 !   + debye-waller parameter Biso and in-plane anisotropy factors (changed 22-Nov-07)
   real*4, allocatable, dimension(:,:), public :: CS_atdwf
 !   |
+!   + per atom absorption scaling factor (applies with option -abf2 comes in via CEL file)
+  real*4, allocatable, dimension(:), public :: CS_atabf
+!   |
 !   + Link list of atoms sharing the same site.
 !     This is a list of indices, one index per atom.
 !     Links are used to displace linked atoms in the same way
@@ -435,8 +438,8 @@ MODULE CellSlicer
 !
 !
 !   absorption calculation parameters
-  integer*4, public :: CS_useabsorption
-  DATA CS_useabsorption /0/
+  integer*4, public :: CS_absmodel ! 0: no absorption, 1: TDS absorptive potentials, 2: global relative factor, 4: per atom relative factor
+  DATA CS_absmodel /0/
   real*4, public :: CS_absorptionprm
   DATA CS_absorptionprm /0.0/
 !
@@ -489,7 +492,7 @@ MODULE CellSlicer
 !     is thus a quasi pointer to these lists)
   integer*4, allocatable, dimension(:,:), public :: CS_slcatacc
 !
-!   accumulated maximum value of phase shifts (do reset this in the beginning
+!   accumulated maximum value of phase shifts (do reset this in the beginning)
   real*4, public :: CS_maxphase
   DATA CS_maxphase /0.0/
 !
@@ -848,7 +851,7 @@ subroutine CS_DEALLOC_CELLMEM(nerr)
   nerr = 0
   if (CS_cellmem_allocated) then
     deallocate(CS_attype, CS_atnum, CS_atlnk, CS_atcrg, &
-     &         CS_atpos, CS_atocc, CS_atdwf, stat=nerr)
+     &         CS_atpos, CS_atocc, CS_atdwf, CS_atabf, stat=nerr)
     if (nerr==0) then
       CS_cellmem_allocated = .FALSE.
     end if
@@ -893,6 +896,7 @@ subroutine CS_ALLOC_CELLMEM(n,nerr)
     if (nerr==0) allocate(CS_atpos(3,i), stat=nerr)
     if (nerr==0) allocate(CS_atocc(i), stat=nerr)
     if (nerr==0) allocate(CS_atdwf(4,i), stat=nerr)
+    if (nerr==0) allocate(CS_atabf(i), stat=nerr)
     if (nerr==0) allocate(CS_atlnk(i), stat=nerr)
     if (nerr==0) then
       CS_attype = ""
@@ -902,6 +906,7 @@ subroutine CS_ALLOC_CELLMEM(n,nerr)
       CS_atpos = 0.0
       CS_atocc = 0.0
       CS_atdwf = 0.0
+      CS_atabf = 0.0
       CS_numat = n
       CS_cellmem_allocated = .TRUE.
     end if
@@ -1060,102 +1065,6 @@ function CS_HT2WL(ht)
 end function CS_HT2WL
 !**********************************************************************!
 
-
-
-!!**********************************************************************!
-!!
-!! CS_CCFFT2D
-!!
-!! subroutine performing out of place 2D Fourier transforms of arbitrary
-!! size complex arrays
-!!
-!! Fourier-space array dimensions are scrambled and transposed with
-!! respect to real space arrays.
-!!
-!! ndir >= 0 -> forward FFT from crs to cfs
-!! ndir <  0 -> backwards FFT from cfs to crs
-!!
-!subroutine CS_CCFFT2D(crs,cfs,nx,ny,ndir)
-!
-!  implicit none
-!  
-!  integer*4, parameter :: nmaxft = 8192 ! max. dimensions supported
-!  
-!  integer*4, intent(in) :: nx, ny, ndir
-!  complex*8, intent(inout) :: crs(nx,ny), cfs(ny,nx) 
-!  
-!! external routines for 2D Fourier transform (link FFTs.f)
-!  external :: ODDCC128S, ODDCC256S,  ODDCC512S,  ODDCC1024S
-!  external :: ODDCC2048S, ODDCC4096S, ODDCC8192S
-!  
-!  integer*4 :: nft, nalloc, n1, n2, i
-!  complex*8, allocatable, dimension(:,:) :: cft
-!  character*40 :: direc
-!  
-!  nalloc = 0
-!  direc = 'FORWARD'
-!  n1 = nx
-!  n2 = ny
-!  if (ndir<0) then
-!    direc = 'BACKWARD'
-!    n1 = ny
-!    n2 = nx
-!  end if
-!  nft = 2**CEILING(LOG(real(max(nx,ny)))/LOG(2.0)) ! next 2^N above max(nx,ny)
-!  nft = max(nft, 128)
-!  if (nft>nmaxft) goto 14
-!  allocate(cft(nft,nft),stat=nalloc)
-!  if (nalloc/=0) goto 13
-!  cft(1:nft,1:nft) = cmplx(0.0,0.0)
-!  if (ndir<0) then ! cfs is input
-!    do i=1, n2
-!      cft(1:n1,i) = cfs(1:n1,i)
-!    end do
-!  else ! crs is input
-!    do i=1, n2
-!      cft(1:n1,i) = crs(1:n1,i)
-!    end do
-!  end if
-!  ! FT or iFT on cft
-!  select case (nft)
-!  case  (128)
-!    call  ODDCC128S(cft,nx,ny,direc)
-!  case  (256)
-!    call  ODDCC256S(cft,nx,ny,direc)
-!  case  (512)
-!    call  ODDCC512S(cft,nx,ny,direc)
-!  case (1024)
-!    call ODDCC1024S(cft,nx,ny,direc)
-!  case (2048)
-!    call ODDCC2048S(cft,nx,ny,direc)
-!  case (4096)
-!    call ODDCC4096S(cft,nx,ny,direc)
-!  case (8192)
-!    call ODDCC8192S(cft,nx,ny,direc)
-!  end select
-!  if (ndir<0) then ! crs is output
-!    do i=1, n1
-!      crs(1:n2,i) = cft(1:n2,i)
-!    end do
-!  else ! cfs is output
-!    do i=1, n1
-!      cfs(1:n2,i) = cft(1:n2,i)
-!    end do
-!  end if
-!  deallocate(cft, stat=nalloc)
-!  !
-!  return
-!
-!13 continue !
-!  call CS_ERROR("FFT array allocation failed.")
-!  return
-!14 continue ! 
-!  call CS_ERROR("Requested FFT size is out of bounds (8192).")
-!  return
-!  
-!end subroutine CS_CCFFT2D
-!!
-!!**********************************************************************!
 
 
 
@@ -1605,11 +1514,9 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
   dwfflg = .FALSE.
   if (ndwf/=0) dwfflg = .TRUE.
   absflg = .FALSE.
-  CS_useabsorption = 0
-  if (nabs/=0) then 
-    absflg = .TRUE.
-    CS_useabsorption = nabs
-  end if
+  if (nabs < 0 .OR. nabs == 3 .OR. nabs > 4) goto 18 ! handle invalid calling with absorptive models
+  if (nabs/=0) absflg = .TRUE.
+  CS_absmodel = nabs ! this stores information about the absorption model in the module
   scaos = min(max(10, CS_scaf_oversamp),100) ! limits the applied oversampling rate between 10 and 100
   !
   ! check cell data presence
@@ -1743,14 +1650,12 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
   !
   CS_scampdat = cval0
   
-  !
-  ! fill imaginary long calulation data now, but only if absflg is set
-  !
-  select case (nabs)
+  ! calculate atomic form factors depending on absorption model
+  select case (CS_absmodel)
   
-  case (2) ! alternative msa absorption model: HASHIMOTO, HOWIE, WHELAN, Proc. R. Soc. London Ser. A, 269, 80-103 (1962)   
+  case (2) ! global msa absorption model: HASHIMOTO, HOWIE, WHELAN, Proc. R. Soc. London Ser. A, 269, 80-103 (1962)   
   
-    call CS_MESSAGE("Calculating real scattering amplitudes with proportional absorption.")
+    call CS_MESSAGE("Calculating real scattering amplitudes with global proportional absorption.")
     
     do k=1, CS_scampnum ! loop k over atom-type lists
     
@@ -1795,7 +1700,7 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
     
     end do ! loop k over atom-type lists
   
-  case (1) ! standard msa absorption model:
+  case (1) ! TDS absorptive potential model:
            ! - WEICKENMEYER&KOHL, Acta Cryst. A 47 (1991) p. 597
            ! or
            ! - numerical integration according to HALL&HIRSCH Proc.Roy.Soc. A 286 (1965) p165 eq. (14a+b)
@@ -1854,7 +1759,8 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
     
     end do ! loop k over atom-type lists
   
-  case (0) ! no absorption, use faster fscatt version
+  case (0,4) ! no absorption, use faster fscatt version
+             ! in case of nabs == 4, per atom abf is applied later
   
     !call CS_MESSAGE("Calculating real scattering amplitudes only, no absorption.")
   
@@ -1901,7 +1807,7 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
     
     end do ! loop k over atom-type lists
   
-  end select ! case (nabs)
+  end select ! case (CS_absmodel)
   
   
 12 CS_scattamp_prepared = .TRUE.
@@ -1939,15 +1845,6 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
     end do
   end if
   
-  !! handle PDOS data
-  !if (CS_pdos==1) then
-  !  call CS_MESSAGE("Loading PDOS from file ["//trim(CS_pdos_file)//"].")
-  !  call CS_LOAD_PDOS(CS_pdos_file, k)
-  !  if (k/=0) then
-  !    call CS_ERROR("Failed to prepare PDOS from file ["//trim(CS_pdos_file)//"].")
-  !  end if
-  !end if
-  
   return
   
   !
@@ -1966,8 +1863,10 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
   call CS_ERROR("There are no atoms?")
   return
 17 nerr=-5
-  call CS_ERROR("Failed to allocate memory for projected form fractors")
+  call CS_ERROR("Failed to allocate memory for projected form fractors.")
   return
+18 nerr=-6
+  call CS_ERROR("Invalid absorption model.")
   
 end subroutine CS_PREPARE_SCATTAMPS
 !**********************************************************************!
@@ -4143,6 +4042,8 @@ end function CS_GET_UISO
 ! subroutine, calculates potential of the current supercell in 3D
 !             and projects it in slices stored in the output.
 !
+! (obsolete version, can probably be removed, newer features are not implemented here)
+!
 ! REQUIRES
 ! - supercell data to be allocated and set up
 !   (e.g. call CS_LOAD_EMSCELL)
@@ -4623,7 +4524,7 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
   complex*8 :: cval0, cval, csf ! some complex vars
   complex*16, dimension(:), allocatable :: cproj ! projection form factor
   real*4, dimension(:), allocatable :: agx, agy, agz, agze ! spatial frequency lists
-  real*4, dimension(:,:), allocatable :: fld ! frozen lattice displacements and other atom propierties
+  real*4, dimension(:,:), allocatable :: fld ! atomic displacements and other atom propierties
   integer*4, dimension(:,:), allocatable :: ild ! index table for atoms in the slice
   complex*16, dimension(:,:), allocatable :: acpx, acpy, acpz ! arrays of complex phase factors for x,y, and z shift of atoms
   complex*16, dimension(:,:), allocatable :: ascak ! complex scattering coefficients of atoms for one spatial frequency
@@ -4727,7 +4628,7 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
   ! precalculate atom displacements for frozen lattice
   !
   write(unit=6,fmt='(A)') "  Atomic table preparations ... " 
-  allocate(fld(na,9), ild(na,3), ascaf(na, 3), stat=nerr)
+  allocate(fld(na,9), ild(na,3), ascaf(na, 4), stat=nerr)
   if (nerr/=0) goto 15
   fld = 0.0
   ild = 0
@@ -4763,9 +4664,11 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
     fld(ia,4) = u                           ! u (rms) in nm
     fld(ia,5) = CS_atocc(ia)                ! Occupancy
     fld(ia,6) = CS_atcrg(ia)                ! ionic charge
+    !fld(ia,7) = CS_atabf(ia)                ! absorption (not used)
     ascaf(ia,1) = dble(CS_atocc(ia))        ! Occupancy
     ascaf(ia,2) = dble(CS_atcrg(ia))        ! ionic charge
     if (CS_atcrg(ia) /= 0.0) ild(ia,3) = 1  ! flag ionic potential
+    ascaf(ia,4) = DBLE(CS_atabf(ia))        ! per atom abf prm (non-zero when CS_absmodel==4)
   end do ! loop ia over all atoms in slice
   iion = sum(ild(:,3))
   if (CS_useextsca==0) then
@@ -4883,8 +4786,8 @@ subroutine CS_GETCELL_POT2(nx, ny, nz, nze, nfl, ndw, wl, pot, nerr)
         end do
         !
         ! --> vector calculation of the structure factor
-        ! pp.shift = occ        * shift.x   * shift.y   * shift.z   ! occupancy and shifting phase plate
-        ascak(:,2) = ascaf(:,1) * acpx(:,i) * acpy(:,j) * acpz(:,k)
+        ! pp.shift = (1 + i * abf)           * occ        * shift.x   * shift.y   * shift.z   ! (occupancy + i abf) and shifting phase plate
+        ascak(:,2) = dcmplx(1.0, ascaf(:,4)) * ascaf(:,1) * acpx(:,i) * acpy(:,j) * acpz(:,k)
         ! scr.pot  = f_scr      * pp.shift
         ascak(:,3) = ascak(:,1) * ascak(:,2)                        ! screened charge structure factor
         cstrfe = sum(ascak(:,3))
@@ -4968,6 +4871,8 @@ end subroutine CS_GETCELL_POT2
 !**********************************************************************!
 !
 ! CS_GETSLICE_POT
+!
+! (obsolete version, can probably be removed, doesn't contain newer features)
 !
 ! subroutine, calculates projected potential of slice n
 !             applies thermal displacements in case of frozen-lattice
@@ -5055,9 +4960,6 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   
   logical :: dwflg
 
-  ! external routines for 2D Fourier transform (link FFTs.f)
-  !external :: ODDCC128S, ODDCC256S,  ODDCC512S,  ODDCC1024S
-  !external :: ODDCC2048S, ODDCC4096S, ODDCC8192S
   external :: fft2_cc
   real*4, external :: UniRand, GaussRand, getdwf
   
@@ -5115,10 +5017,6 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   itogy = 1.0 / CS_scsy ! reciprocal space sampling rate (y) for potential generation
   cval0 = cmplx(0.0,0.0)
   cval = cval0
-  ! set size and allocate FFT working array
-  !nft = 2**CEILING( LOG( real( max(nx,ny) ) )/LOG(2.0) ) ! next 2^N above max(nx,ny)
-  !nft = max(nft, NFT_MIN)
-  !if (nft>NFT_MAX) goto 14
   allocate(lcw(nx,ny),stat=nerr)
   if (nerr/=0) goto 15
   lcw = cmplx(0.0,0.0) ! this is the working array
@@ -5227,23 +5125,15 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
       end if
     end if
     fld(4,ia) = u                           ! u (rms) in nm
-    fld(5,ia) = CS_atocc(ja)                ! Occupancy
+    fld(5,ia) = CS_atocc(ja)                ! occupancy
     fld(6,ia) = CS_atcrg(ja)                ! ionic charge
   end do ! loop ia over all atoms in slice
   if (CS_useextsca==0) then
     fld(6,:) = 0.0 ! reset ionic charge to zero for standard potentials, they are not for ions
-    !call CS_MESSAGE("- setting atomic charges to zero. Using neutral atom scattering tables.")
   end if
   
   !
-  ! calculate super-cell potential in fourier space
-  ! !!! fourierspace is scrambled and transposed
-  !
-  !if (CS_doconsolemsg>0) then
-  !  npc = 0
-  !  write(unit=6,fmt='(A,$)') "  > Progress: "
-  !end if
-  !
+  ! calculate slice potential in fourier space
   do j=1, ny ! loop rows (wy-axis)
     gy = agy(j) ! spatial frequency
     gy2 = gy*gy
@@ -5319,50 +5209,18 @@ subroutine CS_GETSLICE_POT(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
       lcw(i,j) = apdmp*(cstrfe + cstrfi)        ! store the combined structure factors of the screened
                                                 ! potential and the ionic charge potential, bandwidth limited by aperture
       !
-      !if (CS_doconsolemsg>0) then
-      !  ! update progress indicator
-      !  if (npc < int( 20.0*real(i+(j-1)*ny)/real(nx*ny) ) ) then
-      !    npc = npc + 1
-      !    write(unit=6,fmt='(A,$)') "."
-      !  end if
-      !end if
-      !
     end do ! loop columns (wx-axis)
   end do ! loop rows (wy-axis)
   !
-  !if (CS_doconsolemsg>0) then
-  !  write(unit=6,fmt='(A)') ". "
-  !end if
-  !
-  ! transform back to real space
-  !
-  !select case (nft)
-  !case  (128)
-  !  call  ODDCC128S(lcw,nx,ny,'BACK')
-  !case  (256)
-  !  call  ODDCC256S(lcw,nx,ny,'BACK')
-  !case  (512)
-  !  call  ODDCC512S(lcw,nx,ny,'BACK')
-  !case (1024)
-  !  call ODDCC1024S(lcw,nx,ny,'BACK')
-  !case (2048)
-  !  call ODDCC2048S(lcw,nx,ny,'BACK')
-  !case (4096)
-  !  call ODDCC4096S(lcw,nx,ny,'BACK')
-  !case (8192)
-  !  call ODDCC8192S(lcw,nx,ny,'BACK')
-  !end select
   call fft2_cc(lcw, nx, ny, -1)
   !
   ! transfer to output array, use periodic repeat by (nrx, nry)
   !
-  !CS_lastslice_potmax_im = 0.0
   do j=1, dimy
     j1 = modulo(j-1,ny)+1
     do i=1, dimx
       i1 = modulo(i-1,nx)+1
       pot(i,j) = lcw(i1,j1)*pscal
-      !CS_lastslice_potmax_im = max(CS_lastslice_potmax_im,imag(pot(i,j)))
     end do
   end do
   !
@@ -5475,16 +5333,14 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   real*4 :: dx, dy, dz ! atom position
   real*4 :: px, py, sa, ca ! anisotropic dwf support, added 22-Nov-07
   real*4 :: u ! displacement calculation helpers
-  real*4 :: pocc ! atom occupancy
+  complex*8 :: pocc ! atom occupancy (and possible per atom abf)
   real*4 :: dsz, vol ! slice thickness and volume in nm^3
   real*4 :: pscal ! potential scaling factor
   real*4 :: apdmp ! aperture function (damping factor at outer Fourier-space perimeter >2/3 gmax)
   real*4 :: crgio ! ionic charge
-  !real*4 :: fe1, fe2, qx, qy, rc, fscale
   real*4, dimension(:,:), allocatable :: lxy ! list of calculated coordinates
   complex*8 :: cval0, cval ! some complex vars
-  !complex*8, dimension(:,:), allocatable :: lcw, lcwrs, ltpp ! local working array for FFTs
-  complex*8, dimension(:,:), allocatable :: lcw, ltpp ! local working array for FFTs
+  complex*8, dimension(:,:), allocatable :: lcw, ltpp, scaff ! local working array for FFTs
   
   logical :: dwflg
 
@@ -5504,7 +5360,6 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   if (.not.(CS_slicemem_allocated.and. &
      &      CS_cellmem_allocated.and. &
      &      CS_scattamp_prepared)) goto 13
-
   
   !
   ! check parameters
@@ -5548,7 +5403,7 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   cval0 = cmplx(0.0,0.0)
   cval = cval0
   !allocate(lcw(ny,nx), lcwrs(nx,ny), ltpp(ny,nx), stat=nerr)
-  allocate(lcw(nx,ny), ltpp(nx,ny), stat=nerr)
+  allocate(lcw(nx,ny), ltpp(nx,ny), scaff(nx, ny), stat=nerr)
   if (nerr/=0) goto 15
   lcw = cmplx(0.0,0.0) ! this is the working array
   !lcwrs = cmplx(0.0,0.0) ! this is the working array (real-space)
@@ -5568,14 +5423,10 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   ! other parameters
   !
   ht = CS_WL2HT(wl)                                 ! high tension in kV
-  !rc = (CS_elm0+ht)/CS_elm0                         ! relativistic correction
   na = CS_slcatnum(nslc)                            ! number of atoms in slice
   dsz = CS_slczlim(2,nslc)-CS_slczlim(1,nslc)       ! thickness of the slice in nm
   vol = CS_scsx*CS_scsy*dsz                         ! supercell volume in nm^3
   pscal = CS_v0 / vol                               ! potential scaling factor Vamp0 / Volume
-  ! check whether pscal needs a factor 1/sqrt(nx,ny)
-  !fscale = 10. / ( rc * CS_fpi )
-  
   
   !
   ! clear output potential array
@@ -5591,14 +5442,11 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   
   !
   ! calculate super-cell potential in fourier space
-  ! !!! fourierspace is scrambled and transposed
   allocate( lxy(3,na), jld(CS_numat) , stat=nerr)
   if (nerr/=0) goto 15
   lxy = 0.0
   jld = 0
   ia2 = 0
-  !
-  !call CS_PROG_START(na,1.0)
   !
   do ia=1, na ! loop ia over all atoms in slice
     !
@@ -5610,81 +5458,62 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
     lxy(2,ia) = CS_atpos(2,ja)*CS_scsy      ! get atom avg. y-position
     lxy(3,ia) = CS_atpos(3,ja)*CS_scsz - CS_slczlim(1,nslc)     ! get atom avg. z-position relative to slice entrance plane (this should be a positive distance)
     u = sqrt(CS_GET_UISO(ja))               ! u (rms) in nm
-    if (infl==1) then                     ! dice frozen lattice displacements (x,y) and apply
+    if (infl==1) then                       ! dice atomic displacements (x,y) and apply
       if (CS_atlnk(ja)==0) then ! independent atom site
         if (kptr>0) then ! get displacement from table
           call CS_GET_ADI(kptr, dx, ierr)
           call CS_GET_ADI(kptr, dy, ierr)
           !call CS_GET_ADI(kptr, dz, ierr)
         else ! calculate random displacement using a normal distribution and Biso
-          !dx = fldamp*dwc*GaussRand()         !   fldamp*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
-          !dy = fldamp*dwc*GaussRand()
-          ! fldamp*dwc = sqrt( Biso / 8*pi^2) = sqrt( <u_s^2> )
           px = u * GaussRand() * CS_atdwf(2,ja) ! random anisotropic displacement precast x, added 22-Nov-07
           py = u * GaussRand() * CS_atdwf(3,ja) ! random anisotropic displacement precast y, added 22-Nov-07
           ca = cos(CS_atdwf(4,ja))             ! rotation matrix elements ...
           sa = sin(CS_atdwf(4,ja))             ! ...
           dx = px * ca - py * sa               ! combined effective x displacement, added 22-Nov-07
-          dy = px * sa + py * ca ! combined effective y displacement, added 22-Nov-07
-          !dz = fldamp*dwc*GaussRand()
+          dy = px * sa + py * ca               ! combined effective y displacement, added 22-Nov-07
         end if
-        
         lxy(1,ia) = lxy(1,ia) + dx           ! add random x displacement
         lxy(2,ia) = lxy(2,ia) + dy           ! add random y displacement
-        
-        !lxy(3,ia) = lxy(3,ia) + dz          ! add random z displacement
       else ! dependent atom site
-        ia2 = jld(CS_atlnk(ja))
+        ia2 = jld(CS_atlnk(ja))              ! get index to copy displacements from
         lxy(1,ia) = lxy(1,ia2)
         lxy(2,ia) = lxy(2,ia2)
         lxy(3,ia) = lxy(3,ia2)
       end if
     end if
-    pocc = CS_atocc(ja)                     ! Occupancy
+    pocc = cmplx(1.0, CS_atabf(ja)) * CS_atocc(ja)   ! occupancy and per atom absorption
     crgio = CS_atcrg(ja)                    ! ionic charge
     ltpp = cexp(lxy(1,ia)*CS_scagn(1:nx,1:ny,1) + lxy(2,ia)*CS_scagn(1:nx,1:ny,2)) ! atom translation phase plate
     !
+    ! scale and translate the current atomic form factor -> scaff
     if ( crgio==0.0  .or. CS_useextsca==0 ) then ! neutral atoms (faster)
-      ! accumulate                      occupancy * form-factor (core) (DWF is handled already in CS_scaff2d)
-      lcw(1:nx,1:ny) = lcw(1:nx,1:ny) + pocc * CS_scaff2d(1:nx,1:ny,jptr) * ltpp(1:nx,1:ny)
-      !
+      scaff(1:nx,1:ny) = CS_scaff2d(1:nx,1:ny,jptr) * ltpp(1:nx,1:ny)
     else ! ion (slower, need to multiply ionic potential)
-      !
       if (dwflg) then ! apply DWF to ionic part (slower)
-        ! accumulate                      occupancy * ( form-factor (core)
-        lcw(1:nx,1:ny) = lcw(1:nx,1:ny) + pocc * ( CS_scaff2d(1:nx,1:ny,jptr) &
-            &   + crgio* CS_scadwf(1:nx,1:ny,jptr) * CS_scagn(1:nx,1:ny,3) ) & ! + form-factor (ionic charge) with DWF )
-            & * ltpp(1:nx,1:ny) ! * translation phase factor
+        scaff(1:nx,1:ny) = (CS_scaff2d(1:nx,1:ny,jptr) + CS_scagn(1:nx,1:ny,3) * &
+            & CS_scadwf(1:nx,1:ny,jptr) * crgio) * ltpp(1:nx,1:ny)
       else ! no DWF in ionic part (faster)
-        ! accumulate                      occupancy * ( form-factor (core)
-        lcw(1:nx,1:ny) = lcw(1:nx,1:ny) + pocc * ( CS_scaff2d(1:nx,1:ny,jptr) &
-            &   + crgio*CS_scagn(1:nx,1:ny,3) ) & ! + form-factor (ionic charge) )
-            & * ltpp(1:nx,1:ny) ! * translation phase factor
+        scaff(1:nx,1:ny) = (CS_scaff2d(1:nx,1:ny,jptr) + CS_scagn(1:nx,1:ny,3) * &
+            & crgio) * ltpp(1:nx,1:ny)
       end if
     end if
     !
-    ! update progress indicator
-    !call CS_PROG_UPDATE(ia)
-      !
+    ! add current atomic scattering factor to the slice potential
+    !     apply occupancy and per atom absorption
+    lcw = lcw + scaff * pocc
+    !
   end do ! loop ia over all atoms in slice
   !
-  !call CS_PROG_STOP(na)
-  !
   ! transform back to real space
-  !
-  !call CS_CCFFT2D(lcwrs,lcw,nx,ny,-1)
   call fft2_cc(lcw, nx, ny, -1)
   !
   ! transfer to output array, use periodic repeat by (nrx, nry)
   !
-  !CS_lastslice_potmax_im = 0.0
   do j=1, dimy
     j1 = modulo(j-1,ny)+1
     do i=1, dimx
       i1 = modulo(i-1,nx)+1
-      !pot(i,j) = lcwrs(i1,j1)*pscal
-      pot(i,j) = lcw(i1,j1)*pscal
-      !CS_lastslice_potmax_im = max(CS_lastslice_potmax_im,imag(pot(i,j)))
+      pot(i,j) = lcw(i1,j1) * pscal
     end do
   end do
   !
@@ -5692,8 +5521,8 @@ subroutine CS_GETSLICE_POT2(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pot, nerr)
   !  
 10 continue
   if (allocated(lcw)) deallocate(lcw,stat=nerr)
-  !if (allocated(lcwrs)) deallocate(lcwrs,stat=nerr)
   if (allocated(ltpp)) deallocate(ltpp,stat=nerr)
+  if (allocated(scaff)) deallocate(scaff,stat=nerr)
   if (allocated(jld)) deallocate(jld,stat=nerr)
   if (allocated(lxy)) deallocate(lxy,stat=nerr)
   !
@@ -5741,18 +5570,17 @@ end subroutine CS_GETSLICE_POT2
 !   integer*4 :: nslc               = slice number
 !   integer*4 :: nx, ny             = discretisation of supercell axes
 !   integer*4 :: nrx, nry           = repetition of supercell in slice
-!   integer*4 :: nabs               = flag for usage of absorption data
 !   integer*4 :: nfl                = flag for creation of frozen lattice
 !
 ! IN/OUTPUT:
 !   complex*8 :: pgr(nx*nrx,ny*nry) = phase grating
 !   integer*4 :: nerr               = error code
 !
-subroutine CS_GETSLICE_PGR(nslc, nx, ny, nrx, nry, nabs, nfl, ndw, wl, pgr, nerr)
+subroutine CS_GETSLICE_PGR(nslc, nx, ny, nrx, nry, nfl, ndw, wl, pgr, nerr)
 
   implicit none
   
-  integer*4, intent(in) :: nslc, nx, ny, nrx, nry, nabs, nfl, ndw
+  integer*4, intent(in) :: nslc, nx, ny, nrx, nry, nfl, ndw
   real*4, intent(in) :: wl
   integer*4, intent(inout) :: nerr
   complex*8, intent(inout) :: pgr(nx*nrx,ny*nry)
@@ -5770,9 +5598,9 @@ subroutine CS_GETSLICE_PGR(nslc, nx, ny, nrx, nry, nabs, nfl, ndw, wl, pgr, nerr
   real*4 :: rmaxphase ! maximum phase shift
   real*4 :: relati ! relativistic correction
   real*4 :: i2gx, i2gy, gx, gy, gy2, g2, gthr2
-  complex*8 :: cpot ! potential value
+  complex*8 :: cpha ! phase value
   complex*8 :: cpgr ! phase factor
-  complex*8 :: cabsorp ! absorption factor
+  complex*8 :: cfima ! imaginary constant and other global factors
   complex*8, allocatable, dimension(:,:) :: pot ! potential
   complex*8, allocatable, dimension(:,:) :: pgrft ! fourier transform of the phase grating
   
@@ -5790,6 +5618,7 @@ subroutine CS_GETSLICE_PGR(nslc, nx, ny, nrx, nry, nabs, nfl, ndw, wl, pgr, nerr
   relati = 1.0 + ht / CS_elm0                       ! relativistic correction
   sigmae = CS_sig * wl                              ! interaction constant
   pscal = sigmae * dz                               ! product of interaction constant and projected thickness
+  cfima = cmplx(0.0,pscal)                          ! combined imaginary constant and pre-factors (i sigma dt)
   
   !
   ! get projected potential
@@ -5828,12 +5657,6 @@ subroutine CS_GETSLICE_PGR(nslc, nx, ny, nrx, nry, nabs, nfl, ndw, wl, pgr, nerr
   ! get parameters
   !
   rmaxphase = 0.0
-  CS_useabsorption = 0
-  cabsorp = cmplx(0.0,1.0) * pscal
-  if (nabs/=0) then 
-    CS_useabsorption = 1
-    ! cabsorp = cmplx(-CS_absorptionprm,1.0) * pscal, obsolete, 100128 JB
-  end if
   
   !
   ! generate the phase grating // apply periodic repeats
@@ -5846,9 +5669,9 @@ subroutine CS_GETSLICE_PGR(nslc, nx, ny, nrx, nry, nabs, nfl, ndw, wl, pgr, nerr
   !
   do j=1, ny
     do i=1, nx
-      ! calculate exp( ii*potential )
-      cpot = pot(i,j)*cabsorp ! cpot = ii*potential
-      cpgr = exp(cpot) ! phase grating = exp( ii*potential )
+      ! calculate exp( i sigma Vp dt )
+      cpha = pot(i,j) * cfima ! phase (whats in imag(pot) will cause absorption)
+      cpgr = exp(cpha) ! actual phase grating value
       ! store dbg info on max phase
       rV = real(pot(i,j))*pscal ! get real part of potential to check max. phase shift
       rmaxphase = max(rmaxphase,abs(rV)) ! save max. phase shift
@@ -5870,20 +5693,10 @@ subroutine CS_GETSLICE_PGR(nslc, nx, ny, nrx, nry, nabs, nfl, ndw, wl, pgr, nerr
   
   ! update the maximum phase accumulator
   CS_maxphase = max(CS_maxphase, rmaxphase)
-  ! REMOVED 181128, v0.70, JB -> changed to accumulation of max. phase
-  !if (rmaxphase>CS_pi4) then ! check max. phase
-  !  CS_warn_num = CS_warn_num + 1
-  !  write(unit=CS_warnmsg,fmt='(A,G13.4,A)') "Diffraction phase-shift of current slice exceeds pi/4 (",rmaxphase,")."
-  !  call CS_MESSAGE("Warning: "//trim(CS_warnmsg))
-  !end if
   
   deallocate(pot,stat=nalloc)
   
   if (CS_do_bwl_pgr) then ! apply bwl to phase-grating
-    !allocate(pgrft(dimy,dimx),stat=nalloc)
-    !if (nerr/=0) goto 13
-    !pgrft = cmplx(0.0,0.0)
-    !call CS_CCFFT2D(pgr, pgrft, dimx, dimy, 1) ! forward FFT from pgr to pgrft
     call fft2_cc(pgr, dimx, dimy, 1)
     i2gx = 1. / (real(nrx) * CS_scsx) ! fourier space sampling rate x
     i2gy = 1. / (real(nry) * CS_scsy) ! ... y
@@ -5901,10 +5714,8 @@ subroutine CS_GETSLICE_PGR(nslc, nx, ny, nrx, nry, nabs, nfl, ndw, wl, pgr, nerr
         end if
       end do
     end do
-    !call CS_CCFFT2D(pgr, pgrft, dimx, dimy, -1) ! backward FFT from pgrft to pgr
     call fft2_cc(pgr, dimx, dimy, -1)
     pgr = pgr / real(dimx * dimy) ! check this scaling factor!
-    !deallocate(pgrft, stat=nalloc)
   end if
   
   

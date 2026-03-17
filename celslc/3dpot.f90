@@ -1929,11 +1929,7 @@ end subroutine M3D_project
 
 !**********************************************************************!
 !
-subroutine M3D_getslice_pgr(islc, nslc, nrx, nry, fabs, ht, pgr, nerr)
-!
-! Handle cases of imaginary input potentials manually:
-! - Use "fabs" = 0 if  IMAG( "M3D_pot" ) can be /= 0 !
-! - Use "fabs" > 0 ONLY IF  IMAG( "M3D_pot" ) == 0 !
+subroutine M3D_getslice_pgr(islc, nslc, nrx, nry, ht, pgr, nerr)
 
   implicit none
   
@@ -1945,7 +1941,7 @@ subroutine M3D_getslice_pgr(islc, nslc, nrx, nry, fabs, ht, pgr, nerr)
   
   ! INTERFACE DECLARATIONS
   integer*4, intent(in) :: islc, nslc, nrx, nry
-  real*4, intent(in) :: fabs, ht
+  real*4, intent(in) :: ht
   complex*8, intent(out) :: pgr(M3D_n1*nrx,M3D_n2*nry)
   integer*4, intent(inout) :: nerr
   
@@ -1962,7 +1958,6 @@ subroutine M3D_getslice_pgr(islc, nslc, nrx, nry, fabs, ht, pgr, nerr)
   nalloc = 0
   ndimx = M3D_n1*nrx
   ndimy = M3D_n2*nry
-  cabsorb = cmplx(1.0, fabs) ! absorption potential transfer to imaginary part
   cimag = cmplx(0.0, 1.0) ! factor to transform *I (imaginary constant)
   wl = elwl / sqrt( ht * ( 2. * erest + ht ) ) ! lambda, electron wavelength [nm]
   sigmae = psig * wl ! interaction constant [nm-1]
@@ -1970,7 +1965,6 @@ subroutine M3D_getslice_pgr(islc, nslc, nrx, nry, fabs, ht, pgr, nerr)
   ! PRE-CHECK PARAMETERS
   if (nslc>M3D_n3p) goto 101
   if (islc<1.or.islc>nslc) goto 102
-  if (fabs<0.0.or.fabs>1.0) goto 103
   
   ! ALLOCATIONS
   ! - projected potential of a slice including tiling
@@ -1979,55 +1973,6 @@ subroutine M3D_getslice_pgr(islc, nslc, nrx, nry, fabs, ht, pgr, nerr)
   allocate(M3D_slcpot(ndimx,ndimy), stat=nalloc)
   if (nalloc/=0) goto 109
   M3D_slcpot = cmplx(0.0,0.0)
-  !write(*,*) "[dbg] (M3D_getslice_pgr) init"
-  
-  !! PROJECTION // removed 2021-11-15 - the projection is done elsewhere and we use M3D_pot_prj here now
-  !! - calculate fractional z coordinates of the slice start and end
-  !csz = sqrt( sum( M3D_b3*M3D_b3 ) ) * real( M3D_n3p ) ! cell size along the 3rd dimension [nm]
-  !fdz = 1.0 / real(nslc) ! fractional slice thickness
-  !dz  = fdz * csz ! real slice thickness [nm]
-  !fz0 = real(islc-1) * fdz ! fractional slice start z-coordinate
-  !fz1 = real(islc) * fdz   ! fractional slice stop  z-coordinate
-  !pscal = sigmae * dz ! projected potential phase action pre-factor
-  !fk0 = fz0 * real( M3D_n3 ) ! fractional 3D potential start z-coordinate
-  !fk1 = fz1 * real( M3D_n3 ) ! fractional 3D potential stop  z-coordinate
-  !k0 = floor(fk0)   ! integer z coordinate below the start coordinate
-  !k1 = ceiling(fk1) ! integer z coordinate above the start coordinate
-  !! -----> M3D_slcpot <-----| SUM( M3D_pot(:,:,k+1), k=fk0...fk1 )
-  !!
-  !! Example of the projection algorithm for the case of 8 3D potential planes
-  !! and 3 projected slice potentials.
-  !!
-  !! k=  8  1  2  3  4  5  6  7  8  1  2
-  !!        |                    |  |  
-  !! ----+--+--+--+--+--+--+--+--+--+--+--> fz
-  !!    -1  0  1  2  3  4  5  6  7  8  9
-  !!        |       |       |       |
-  !! fkx=   0.000   2.667   5.333   1.000
-  !!
-  !! sl1=  (1)*1.000
-  !!         +(2)*1.000
-  !!            +(3)*0.667
-  !! sl2=        (3)*0.333
-  !!               +(4)*1.000
-  !!                  +(5)*1.000
-  !!                     +(6)*0.333
-  !! sl3=                 (6)*0.667
-  !!                        +(7)*1.000
-  !!                           +(8)*1.000
-  !!
-  !do k=k0, k1
-  !  fki = max(0.0, min(1.0, fk1-real(k)))
-  !  fkt = min(1.0, max(0.0, real(k+1)-fk0))
-  !  fk  = min(fki,fkt) ! contribution of plane k to islc
-  !  if (fk==0.0) cycle ! skip this plane
-  !  k2 = 1 + modulo(k, M3D_n3)
-  !  do j=1, M3D_n2
-  !    do i=1, M3D_n1
-  !      M3D_slcpot(i,j) = M3D_slcpot(i,j) + fk*cabsorb*M3D_pot(i,j,k2)
-  !    end do
-  !  end do
-  !end do
   
   ! PERIODIC REPEAT (nrx,nry)
   !write(*,*) "[dbg] (M3D_getslice_pgr) copy"
@@ -2055,7 +2000,9 @@ subroutine M3D_getslice_pgr(islc, nslc, nrx, nry, fabs, ht, pgr, nerr)
   !write(*,*) "[dbg] (M3D_getslice_pgr) pgr"
   do j=1, ndimy
     do i=1, ndimx
-      cpgr = exp( cimag*sigmae*M3D_slcpot(i,j) ) ! phase grating = exp( I*V - ABF*V ) (only sigmae here, since dz is already multiplied during projection)
+      ! (only sigmae here, since dz is already multiplied during projection)
+      ! (and no extra absorption factor copy, since that is supposed to happen when the potential is created)
+      cpgr = exp( cimag*sigmae*M3D_slcpot(i,j) ) ! phase grating = exp( I*sigma*V )
       pgr(i,j) = cpgr ! set phase grating value
     end do
   end do
@@ -2072,11 +2019,6 @@ subroutine M3D_getslice_pgr(islc, nslc, nrx, nry, fabs, ht, pgr, nerr)
 102 nerr = 2
   call M3D_ErrorMessage("(M3D_getslice_pgr) "// &
      & "Invalid input parameter (slices index).", nerr )
-  return
-! ------ Error #3 : Invalid input parameter (absorption constant).
-103 nerr = 3
-  call M3D_ErrorMessage("(M3D_getslice_pgr) "// &
-     & "Invalid input parameter (absorption constant).", nerr )
   return
 ! ------ Error #8 : Failed to deallocate an allocated array.
 108 nerr = 8

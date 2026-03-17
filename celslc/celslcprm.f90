@@ -6,10 +6,10 @@
 ! PURPOSE: global parameters for program CELSLC
 ! 
 ! AUTHOR: Juri Barthel, ju.barthel@fz-juelich.de
-!         RWTH Aachen University, Aachen, Germany
+!         Forschungszentrum Jülich, Germany
 !         27.11.2019
 !
-! last modified: J.B. 31.08.2023
+! last modified: J.B. 17.03.2026
 !
 !**********************************************************************!
 !----------------------------------------------------------------------
