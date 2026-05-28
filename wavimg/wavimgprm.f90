@@ -68,6 +68,7 @@ MODULE wavimgprm
 ! --------- [ input variables ] ----------------------------------------------------------
   character(len=600) :: sprmfile            ! input parameter file name
   character(len=600) :: swavfile            ! wave function file name
+  character(len=600) :: swavfile_ex         ! wave function file name, external parameter
   character(len=600) :: simgfile            ! image file name
   character(len=600) :: simgfile_ex         ! image file name, external parameter
   character(len=600) :: smtffile            ! detector mtf file name

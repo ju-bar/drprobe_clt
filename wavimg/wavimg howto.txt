@@ -1,10 +1,10 @@
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program WAVIMG, Version 1.0.3                               #
+#   HOWTO use the program WAVIMG, Version 1.0.4                               #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2022-12-20                                                          #
+#   Date: 2026-05-28                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -87,6 +87,7 @@ CONTENT OF THIS FILE:
 
  > Usage of wavimg in command line:
  > wavimg  -prm 'parameter file name', e.g. 'wavimg.prm', MUST
+ >        [-wav 'exit-wave file name', e.g. 'wav\wave.dat', optional]
  >        [-out 'image file name', e.g. 'img\image.dat', optional]
  >        [-foc <float> - image defocus in nm, optional]
  >        [-btx <float> - beam tilt x in mrad, optional]
@@ -102,6 +103,8 @@ CONTENT OF THIS FILE:
 - The parameter file defines the calculation parameters and the calculation
   scheme. Comments and detailed descriptions of the parameter file are given
   in sections 6, 7, and Appendix A.
+- The exit-wave file name specified by the command-line parameter -wav
+  overrides the wave file name defined in the parameter file.
 - The output image file name overrides the image file name defined in the
   parameter file.
 - Beam-tilt parameters are applied to the transfer terms only, the wave is
@@ -320,6 +323,9 @@ Here is an example, which defines a combined defocus and CS variation:
 
 7) History of changes
 
+260528: JB: Version 1.0.4
+- Added command-line option -wav <filename> to override the wave function 
+  file name specified in the parameter file.
 221220: JB: Version 1.0.3
 - Changed noise transfer function estimation. Only the exponential slope
   parameter as determined from the central part of the MTF will be used.

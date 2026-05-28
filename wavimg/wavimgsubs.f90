@@ -34,7 +34,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program: [wavimg]                                 |")
-  call PostMessage(" | Version: 1.0.3 64-bit  -  2022 Dec  20  -         |")
+  call PostMessage(" | Version: 1.0.4 64-bit  -  2026 May  28  -         |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -87,6 +87,7 @@ subroutine ExplainUsage()
   call Introduce()
   call PostMessage("Usage of wavimg in command line:")
   call PostMessage("wavimg  -prm 'parameter file name', e.g. 'wavimg.prm', MUST BE GIVEN")
+  call PostMessage("       [-wav 'exit-wave file name', e.g. 'wav\wave.dat', optional]")
   call PostMessage("       [-out 'image file name', e.g. 'img\image.dat', optional]")
   call PostMessage("       [-foc <float> - image defocus in nm, optional]")
   call PostMessage("       [-btx <float> - beam tilt x in mrad, optional]")
@@ -492,6 +493,7 @@ subroutine ParseCommandLine()
   nfoc_ex = 0
   oapr_ex = -1.0
   simgfile_ex = ""
+  swavfile_ex = ""
   sbshx = 0.0
   sbshy = 0.0
   dornsb = 0
@@ -533,6 +535,21 @@ subroutine ParseCommandLine()
         call CriticalError("Invalid argument: Specified parameter file does not exist.")
       end if
       nprm = 1
+      
+    ! THE WAVE FUNCTION FILE
+     case ("-wav")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error.")
+      end if
+      call get_command_argument (i, buffer, len, status)
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error.")
+      end if
+      write(unit = swavfile_ex, fmt='(A)') buffer(1:len)
     
     ! THE IMAGE OUTPUT FILE NAME
     case ("-out")
@@ -746,7 +763,7 @@ end function ht2wl
 ! line 19: <aidx>, <ax>, <ay>           ! aberration definition (index, ax, ay) [nm]
 ! line 20: <aidx>, <ax>, <ay>           ! aberration definition (index, ax, ay) [nm] .. more similar lines possible depending on value of line 18
 ! line 21: <oap>                        ! Objective aperture radius [mrad]. Set to very large values to deactivate.
-! line 22: <ocx>, <oxy>                 ! Center of the objective aperture with respect to the zero beam [mrad].
+! line 22: <ocx>, <ocy>                 ! Center of the objective aperture with respect to the zero beam [mrad].
 ! line 23: <numloop>                    ! Number variable of loop definitions following below.
 ! line 24: <loop-class>                 ! Loop variable class: 1 = aberration, 2 = coherence params, 3 = wave file
 ! line 25: <loop-id>                    ! Loop variable identifier (e.g. aberration index)
@@ -1113,6 +1130,13 @@ subroutine checkprm
   AF_lamb = wl
   write(unit=sdbgmsg,fmt=*) "parameter calc.: wavelength [nm]: ",wl
   call PostDBGMessage(trim(sdbgmsg))
+  ! input wave function file name
+  if (LEN_TRIM(swavfile_ex)>0) then
+    write(unit=stmp,fmt='(A)') "Overriding wave function file name ("//trim(swavfile)//&
+     &    ") with command-line parameter ("//trim(swavfile_ex)//")."
+    call PostDBGMessage(trim(stmp))
+    swavfile = swavfile_ex
+  end if
   ! image parameters
   if (len_trim(simgfile_ex)>0) then
     write(unit=stmp,fmt='(A)') "Overriding image file name ("//trim(simgfile)//&
