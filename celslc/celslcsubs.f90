@@ -9,7 +9,7 @@
 !
 ! PURPOSE: Implementation of subroutines for CELSLC
 !
-! VERSION: 1.2.0, J.B., 17.03.2026
+! VERSION: 1.2.1, J.B., 17.06.2026
 !
 !**********************************************************************!
 !**********************************************************************!
@@ -47,7 +47,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program [celslc]                                  |")
-  call PostMessage(" | Version: 1.2.0 64-bit  -  2026 March 17           |")
+  call PostMessage(" | Version: 1.2.1 64-bit  -  2026 June 17            |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -511,6 +511,7 @@ subroutine ExplainUsage()
   call PostMessage(' [-abs         -> apply built-in absorption factors]')
   call PostMessage(' [-dwf         -> apply Debye-Waller factors]')
   call PostMessage(' [-fl          -> frozen-lattice simulation]')
+  call PostMessage(' [-una         -> unique atoms in frozen-lattice simulation]')
   call PostMessage(' [-nv <number>  = number of FL variants per slice (1 ... 8192)]')
   call PostMessage(' [-nz <number>  = number of equidistant slices (0 ... 8192)]')
   call PostMessage(' [-pot         -> export potentials to files *.pot]')
@@ -609,6 +610,8 @@ subroutine ParseCommandLine()
   nextpot = 0
   sextpot = ""
   nadt = 0
+  uniqat = 0
+  btol = 0.0001
   sadfile = ""
   !npdos = 0
   !spdosfile = ""
@@ -909,6 +912,11 @@ subroutine ParseCommandLine()
       nfound = 1
       nfl = 2 ! switch on anisotropic displacements
       
+    ! FORCE UNIQUE ATOMS IN FROZEN LATTICE
+    case ("-una")
+      nfound = 1
+      uniqat = 0 ! switch off linked atoms search
+      
     ! DEBYE-WALLER FACTOR USAGE
     case ("-dwf")
       nfound = 1
@@ -1089,6 +1097,25 @@ subroutine ParseCommandLine()
       if (status/=0 .or. buniv<0.0) then
         call ExplainUsage()
         call CriticalError("Failed to read universal B_ISO parameter.")
+      end if
+      
+    ! APPLY A USER-DEFINED Biso TOLERANCE FOR ATOM-TYPE ASSIGNMENTS
+    case ("-btol")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error (-btol <number>).")
+      end if
+      call get_command_argument (i, buffer, len, status) ! universal Biso parameter
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error (-btol <value>).")
+      end if
+      read(unit=buffer,fmt=*,iostat=status) btol
+      if (status/=0 .or. buniv<0.0) then
+        call ExplainUsage()
+        call CriticalError("Failed to read B_ISO tolerance.")
       end if
     
     ! CREATE A RE-ORIENTED ORTHOGONAL SUPER-CELL FROM INPUT STRUCTURE
@@ -1303,6 +1330,7 @@ SUBROUTINE CheckCommandLine
       call PostWarning("Ignoring option -adt, it requires option -fl.")
       nadt = 0
     end if
+    uniqat = 1 ! input atoms are treated as unique
   end if
   if (nabs==1) then ! turn OFF abf when abs is used (no mixing of models)
     if (nabf==1) call PostWarning("Ignoring option -abf due to option -abs.")
@@ -1710,9 +1738,12 @@ subroutine CEL2SLC()
   call PostMessage("- wavelength corrected for refraction: "//trim(adjustl(smsg))//" pm")
   write(unit=smsg,fmt='(F10.5)') wl*1000.
   call PostMessage("- wavelength in vacuum               : "//trim(adjustl(smsg))//" pm")
+  call PostRuntime("generated atomic form factors")
  
   ! prepare slicing
   call PostMessage("Distributing atoms in slices.")
+  CS_search_atlnk = 1
+  if (uniqat > 0) CS_search_atlnk = 0
   if (nz>0) then ! equidistant slicing
     call CS_SETSLICE_EQUIDIST(nz,nrev,nerr)
   else if (nz==0) then ! equidistant auto slicing
@@ -1731,6 +1762,7 @@ subroutine CEL2SLC()
   else ! no slices, this is not allowed ... critical error
     call CriticalError("Invalid number of slices (0).")
   end if
+  call PostRuntime("created slice structure data")
   
   ! determine output file name number digits
   write(unit=stmp1,fmt='(i)') nz
@@ -1855,6 +1887,7 @@ subroutine CEL2SLC()
         call PostMessage("  slice phase-grating data saved to file ["// &
           & trim(sfil)//"].")
       end if
+      call PostRuntime("stored slice data")
     end if
     !
   end do ! loop over slices
@@ -1878,6 +1911,7 @@ subroutine CEL2SLC()
     call PostMessage("Saving slice parameters to file ["//trim(sfil)//"].")
     call writeslcprm(trim(sfil))
     if (nerr/=0) call CriticalError("Failed to save slice parameter file.")
+    call PostRuntime("stored slice parameters")
   end if
   
   return
@@ -2099,6 +2133,7 @@ subroutine POT3D2SLC()
         call PostMessage("  slice phase-grating data saved to file ["// &
           & trim(sfil)//"].")
       end if
+      call PostRuntime("  stored slice data")
     end if
     !
   end do

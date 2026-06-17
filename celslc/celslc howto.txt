@@ -4,7 +4,7 @@
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2025-06-17                                                          #
+#   Date: 2026-06-17                                                          #
 #                                                                             #
 #   Author: Dr. Juri Barthel                                                  #
 #           Ernst Ruska-Centre                                                #
@@ -114,6 +114,7 @@ Command-line calling options for the program celslc.exe:
   > [-abs         -> apply built-in absorption factors]
   > [-dwf         -> apply Debye-Waller factors]
   > [-fl          -> frozen-lattice simulation]
+  > [-una         -> unique atoms in frozen-lattice simulation]
   > [-nv <number>  = number of FL variants per slice (1 ... 2048)]
   > [-nz <number>  = number of equidistant slices (0 ... 2048)]
   > [-pot         -> export potentials to files *.pot]
@@ -218,6 +219,15 @@ Detailed explanations of options:
   this option with the option -nv.
   Waring: The option -fl will override and deactivate the option -dwf.
   
+
+  -una         -> unique input atoms assumed for frozen lattice
+
+  By applying the option -una, all input atoms are treated as unique
+  atoms in the frozen lattice calculation. This avoids the costly
+  search for mixed site occupancy. This seach is done by default in
+  case of frozen-lattice calculations and is not done for absorptive
+  model calculations.
+
   
   -nv <number>  = number of FL variants per slice (1 ... 2048)
   
@@ -403,6 +413,16 @@ Additional and experimental options:
 
 
   -buni <number> = use the provided Biso value [nm^2] for all atoms.
+
+
+  -btol <value>  = Biso type tolerance
+  
+  This option allows you to change the default tolerance of 0.0001 nm²
+  for Biso parameters in the atom type assignment. This can help to
+  reduce the number of atom types in case of large structure, where
+  memeory consumption and computation tome for form factors can be a
+  serious limitation. Deviations of b-values within one assigned type
+  will be omitted and instead the average Biso within a type is used.
 
 
   -abf2  = interprete the first value following the Biso parameter

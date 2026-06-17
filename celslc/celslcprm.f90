@@ -114,6 +114,7 @@ MODULE celslcprm
   integer*4 :: nffdec                       ! flag for form factor decay output
   integer*4 :: nf2dec                       ! flag for form factor loss output
   integer*4 :: nadt                         ! flag for atomic displacement table input
+  integer*4 :: uniqat                       ! flag for handling input as 0: potentially linked atoms, 1: unique atoms, no correlated FL-displacements
   !integer*4 :: npdos                        ! flag for PDOS input
   real*4 :: bloh, blok, blol                ! block orientation in hkl of the input
   real*4 :: blyh, blyk, blyl                ! block y-axis direction in hkl of the input
@@ -121,6 +122,7 @@ MODULE celslcprm
   real*4 :: tlax, tlay, tlaz                ! atom translation vector (fractional coordinates)
   real*4 :: vffdec                          ! form-factor decay value (for output only)
   real*4 :: vf2dec                          ! form-factor loss value (for output only)
+  real*4 :: btol                            ! atom type b-value tolarance in nm^2
   
   
   
@@ -164,6 +166,8 @@ MODULE celslcprm
   DATA nf2dec /0/
   DATA vf2dec /0.001/ ! default tolerated loss of scattering power
   DATA nadt /0/
+  DATA uniqat /0/ ! default looks for mixed sites and correlates the displacement (linked to option -fl*)
+  DATA btol /0.0001/  ! default b value tolerance for atom type assignements
   !DATA npdos /0/
 
 ! ---[ output variables ]---------------------------------------------------------------------------

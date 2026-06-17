@@ -383,6 +383,8 @@ MODULE CellSlicer
 !     The links are reset before slices are generated, or before
 !     a 3D potential is calculated.
   integer*4, allocatable, dimension(:), public :: CS_atlnk
+  integer*4, public :: CS_search_atlnk ! flag to search linked atoms
+  DATA CS_search_atlnk /1/ ! by default run the search
 !
 !
 !
@@ -403,6 +405,10 @@ MODULE CellSlicer
   integer*4, public :: CS_scampnum
   DATA CS_scampnum /0/
 !
+!   tolerance for distinguishing b values (nm^2)
+  real*4, public :: CS_scamp_dwf_tol
+  DATA CS_scamp_dwf_tol /0.0001/ ! values between 0.0001 and 0.001 are safe, do not go above 0.01
+!
 !   pointer identifying the scattering table to be used for each atom in the cell
   integer*4, public, allocatable :: CS_scampptr(:)
 !
@@ -420,6 +426,10 @@ MODULE CellSlicer
 !
 !   atom type-wise Debye-Waller factors
   real*4, public, allocatable :: CS_scampdwf(:), CS_scampdwfb(:)
+  integer*4, public, allocatable :: CS_scampbkey(:) ! keys for grouping types by B value
+  
+!   atom type-wise occupation counts (number of atoms in the type)
+  integer*4, public, allocatable :: CS_scampcnt(:)
   
 !   atom type-wise temporary data used during calculations
   real*4, public, allocatable :: CS_scamptmp(:,:)
@@ -446,7 +456,7 @@ MODULE CellSlicer
 !
   integer*4, public :: CS_useppot ! flag: using projected potentials
   DATA CS_useppot /1/ ! on by default
-!   complex scattering amplitudes (will be allocated when needed)
+!   complex 2d scattering amplitudes (will be allocated when needed)
   complex*8, public, allocatable, dimension (:,:) :: CS_scampdat
   complex*8, public, allocatable, dimension (:,:,:) :: CS_scaff2d
   complex*8, public, allocatable, dimension (:,:,:) :: CS_scagn
@@ -1013,6 +1023,7 @@ subroutine CS_DEALLOC_SCAMPMEM(nerr)
      &         CS_scampatn, &
      &         CS_scampcrg, &
      &         CS_scampdwf, CS_scampdwfb, &
+     &         CS_scampbkey, CS_scampcnt, &
      &         CS_scamptmp, stat=nerr)
     if (allocated(CS_scaff2d)) deallocate(CS_scaff2d, stat=nerr)
     if (allocated(CS_scagn)) deallocate(CS_scagn, stat=nerr)
@@ -1486,6 +1497,7 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
   integer*4 :: z                    ! atomic number
   integer*4 :: nyqx, nyqy, nyqz     ! nyqist numbers
   integer*4 :: scaos                ! applied oversampling rate
+  integer*4 :: ibkey                ! integer key = b-value / tolerance for sorting into types
   real*4 :: dwf                     ! temp DWF
   real*4 :: dz                      ! temp ionic charge
   real*4 :: sx, sy, sz, itogx, itogy, itogz ! sampling parameters
@@ -1545,6 +1557,8 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
   if (nerr/=0) goto 15
   allocate(CS_scampdwf(CS_numat), CS_scampdwfb(CS_numat),stat=nerr)
   if (nerr/=0) goto 15
+  allocate(CS_scampbkey(CS_numat), CS_scampcnt(CS_numat),stat=nerr)
+  if (nerr/=0) goto 15
   
   !
   ! count atom types and fill pointer list
@@ -1557,6 +1571,8 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
   CS_scampcrg = 0.0 ! clear ionic charge
   CS_scampdwf = 0.0 ! clear atom dwf
   CS_scampdwfb = 0.0
+  CS_scampbkey = -1 ! no b key set
+  CS_scampcnt = 0   ! no atoms assigned
   dwf = 0.0
   
   do i=1, CS_numat ! loop i over all atoms in supercell
@@ -1569,7 +1585,8 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
     if (CS_scampnum>0) then
       do j=1, CS_scampnum ! loop j over known atom types
         ! note: this will not distinguish anisotropy differences
-        if ((trim(CS_scampsym(j))==trim(sym)).and.(CS_scampdwf(j)==dwf)) then ! atom is known
+        ibkey = NINT(ABS(dwf) / CS_scamp_dwf_tol)
+        if ((trim(CS_scampsym(j))==trim(sym)).and.(CS_scampbkey(j)==ibkey)) then ! atom is known
           k = j
           exit  ! loop j
         end if
@@ -1579,19 +1596,33 @@ subroutine CS_PREPARE_SCATTAMPS(nx,ny,nz,ndwf,nabs,wl,nerr)
       CS_scampnum = CS_scampnum + 1
       k = CS_scampnum
       ! store new atom type
+      CS_scampcnt(k) = 1 ! one atom assigned to new type
       CS_scampsym(k) = sym
       CS_scampatn(k) = z
       CS_scampcrg(k) = dz
-      CS_scampdwf(k) = dwf ! note: this will not distinguish anisotropy differences
+      CS_scampdwf(k) = dwf ! accumulated dwf
       CS_scampdwfb(k) = CS_atdwf(1,i) 
       CS_scampname(k) = trim(sym)
+      CS_scampbkey(k) = ibkey ! set b key index
+    else
+      CS_scampcnt(k) = CS_scampcnt(k) + 1 ! increment count
+      CS_scampdwf(k) = CS_scampdwf(k) + dwf ! accumulate dwf
+      CS_scampdwfb(k) = CS_scampdwfb(k) + CS_atdwf(1,i) 
     end if
-    CS_scampptr(i) = k ! set pointer
+    CS_scampptr(i) = k ! set type hash (pointer from atom list to type list)
   end do ! loop i over all atoms in supercell
+  !
   if (CS_scampnum==0) goto 16
   write(unit=smsg,fmt='(A,I6,A)') "Found ",CS_scampnum," atomic individuals to prepare."
   call CS_MESSAGE(trim(smsg))
-  
+  !
+  ! calculate mean b values for each type
+  do k=1, CS_scampnum
+    dwf = CS_scampdwf(k) / REAL(CS_scampcnt(k))
+    CS_scampdwf(k) = dwf
+    dwf = CS_scampdwfb(k) / REAL(CS_scampcnt(k))
+    CS_scampdwfb(k) = dwf
+  end do
   !
   ! allocate memory for scattering amplitudes
   ! !!! This is Fourier space data, thus scrambled and transposed
@@ -2103,14 +2134,16 @@ subroutine CS_SETSLICE_AUTO(nrev,nerr)
     CS_slcatnum(k) = CS_slcatnum(k) + 1 ! raise atom count of slice
     CS_slcatacc(CS_slcatnum(k),k) = j ! save atom index in slice list
     !
-    k = 0
-    if (j>1) then
-      ! check for identical atomic site in the preceeding part of the atom list
-      ! use CS_GET_SAMESITE( fpos,            l_fpos,              &
-      !    &                 scal,  ssthr,          idxss, rdss, nerr )
-      call  CS_GET_SAMESITE( CS_atpos(1:3,j), CS_atpos(1:3,1:j-1), &
-           &                 dcell, CS_atdst_thrnm, k,     dist, nerr )
-      if (k>0) CS_atlnk(j) = k
+    if (CS_search_atlnk==1) then ! perform search for linked atoms
+      k = 0
+      if (j>1) then
+        ! check for identical atomic site in the preceeding part of the atom list
+        ! use CS_GET_SAMESITE( fpos,            l_fpos,              &
+        !    &                 scal,  ssthr,          idxss, rdss, nerr )
+        call  CS_GET_SAMESITE( CS_atpos(1:3,j), CS_atpos(1:3,1:j-1), &
+             &                 dcell, CS_atdst_thrnm, k,     dist, nerr )
+        if (k>0) CS_atlnk(j) = k
+      end if
     end if
   end do
   
@@ -2225,14 +2258,16 @@ subroutine CS_SETSLICE_EQUIDIST(nslc,nrev,nerr)
     CS_slcatnum(i) = CS_slcatnum(i) + 1 ! raise atom count of slice
     CS_slcatacc(CS_slcatnum(i),i) = j ! save atom index in slice list
     !
-    k = 0
-    if (j>1) then
-      ! check for identical atomic site in the preceeding part of the atom list
-      ! use CS_GET_SAMESITE( fpos,            l_fpos,              &
-      !    &                 scal,  ssthr,          idxss, rdss, nerr )
-      call  CS_GET_SAMESITE( CS_atpos(1:3,j), CS_atpos(1:3,1:j-1), &
-           &                 dcell, CS_atdst_thrnm, k,     dist, nerr )
-      if (k>0) CS_atlnk(j) = k
+    if (CS_search_atlnk==1) then ! search for linked atoms
+      k = 0
+      if (j>1) then
+        ! check for identical atomic site in the preceeding part of the atom list
+        ! use CS_GET_SAMESITE( fpos,            l_fpos,              &
+        !    &                 scal,  ssthr,          idxss, rdss, nerr )
+        call  CS_GET_SAMESITE( CS_atpos(1:3,j), CS_atpos(1:3,1:j-1), &
+             &                 dcell, CS_atdst_thrnm, k,     dist, nerr )
+        if (k>0) CS_atlnk(j) = k
+      end if
     end if
   end do
   
