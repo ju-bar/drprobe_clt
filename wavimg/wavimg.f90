@@ -254,7 +254,7 @@ program wavimg
         call LinearEnvelopeTCC(wave)
       case (4) ! partial temporal and spatial coherence with envelopes, non-linear, no cross-terms, very lengthy calculations!
         call EnvelopeTCC(wave)
-      case (5) ! frozen lattice coherent sub-image averaging !!! focal and tilt variation scheme is combined & random !!!
+      case (5) ! frozen lattice coherent sub-image averaging !!! focal and tilt variation scheme is combined & random !!! only with loop over wave functions.
         call CoherentSubImage(wave)
       case (6) ! quasi-coherent image calculation
         call QuasiCoherent(wave)

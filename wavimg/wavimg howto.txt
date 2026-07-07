@@ -1,10 +1,10 @@
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   HOWTO use the program WAVIMG, Version 1.0.4                               #
+#   HOWTO use the program WAVIMG, Version 1.0.5                               #
 #                                                                             #
 #-----------------------------------------------------------------------------#
 #                                                                             #
-#   Date: 2026-05-28                                                          #
+#   Date: 2026-07-02                                                          #
 #                                                                             #
 #   Author: Juri Barthel                                                      #
 #           Ernst Ruska-Centre                                                #
@@ -93,6 +93,7 @@ CONTENT OF THIS FILE:
  >        [-btx <float> - beam tilt x in mrad, optional]
  >        [-bty <float> - beam tilt y in mrad, optional]
  >        [-oar <float> - objective aperture radius in mrad, optional]
+ >        [-nksc <int> - number of spatial coherence kernel samples, optional]
  >        [/sil deactivates console output, switch]
  >        [/dbg activates extra debug console output, switch]
  >        [/nli no loop image output in map output mode, switch]
@@ -323,6 +324,10 @@ Here is an example, which defines a combined defocus and CS variation:
 
 7) History of changes
 
+260702: JB: Version 1.0.5
+- Added command-line option -nksc <int> to let the user change the default
+  number of spatial coherence kernel samples (5). This is needed for image
+  using explicit spatial kernels and large aberration (defocus) values.
 260528: JB: Version 1.0.4
 - Added command-line option -wav <filename> to override the wave function 
   file name specified in the parameter file.

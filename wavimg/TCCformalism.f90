@@ -162,16 +162,21 @@ subroutine CoherentSubImage(wave)
   ny2 = nwy/2
   uFS = 0.0
   uSC = 0.0
-  if (doptc>0) uFS = sqrt(0.5)*fs
-  if (dopsc>0) uSC = 0.5*sc
-  
+  dZ = 0.0
   ! dice randomized transfer parameters
-  ! defocus
-  dZ = uFS*GaussRand()
-  ! beam tilt (X)
-  dQx = uSC*GaussRand()
-  ! beam tilt (Y)
-  dQy = uSC*GaussRand()
+  if (doptc>0) then ! focus spread
+      uFS = sqrt(0.5)*fs
+      dZ = uFS*GaussRand()
+  end if
+  dQx = 0.0
+  dQy = 0.0
+  if (dopsc>0) then ! tilt distribution
+      uSC = 0.5*sc
+      ! beam tilt (X)
+      dQx = uSC*GaussRand()
+      ! beam tilt (Y)
+      dQy = uSC*GaussRand()
+  end if
   
   write(unit=sdbgmsg,fmt='(A,F6.2,A,G10.3,A,G10.3,A)') &
      & "- variation of defocus: ",dZ," nm and of beam tilt: (",dQx,",",dQy,") rad."
@@ -211,7 +216,7 @@ subroutine CoherentSubImage(wave)
   
   return
 
-    end subroutine CoherentSubImage
+end subroutine CoherentSubImage
 ! --------------------------------------------------------------------
 
 
@@ -304,8 +309,8 @@ subroutine ExplicitTCC(wave)
   ny2 = nwy/2
   itoz = 0.0
   itoq = 0.0
-  if (doptc>0) itoz = fkw*fs/real(NKFS)
-  if (dopsc>0) itoq = cbkw*sc/real(NKCB)
+  if (doptc>0 .AND. NKFS>0) itoz = fkw*fs/real(NKFS)
+  if (dopsc>0 .AND. NKCB>0) itoq = cbkw*sc/real(NKCB)
   maxq2 = (cbkw*sc)**2
   sc2 = sc*sc
   sumwt = 0.0

@@ -34,7 +34,7 @@ subroutine Introduce
   call PostMessage("")
   call PostMessage(" +---------------------------------------------------+")
   call PostMessage(" | Program: [wavimg]                                 |")
-  call PostMessage(" | Version: 1.0.4 64-bit  -  2026 May  28  -         |")
+  call PostMessage(" | Version: 1.0.5 64-bit  -  2026 July 2  -          |")
   call PostMessage(" | Author : Dr. J. Barthel, ju.barthel@fz-juelich.de |")
   call PostMessage(" |          Forschungszentrum Juelich GmbH, GERMANY  |")
   call PostMessage(" | License: GNU GPL 3 <http://www.gnu.org/licenses/> |")
@@ -93,6 +93,7 @@ subroutine ExplainUsage()
   call PostMessage("       [-btx <float> - beam tilt x in mrad, optional]")
   call PostMessage("       [-bty <float> - beam tilt y in mrad, optional]")
   call PostMessage("       [-oar <float> - objective aperture radius in mrad, optional]")
+  call PostMessage("       [-nksc <int> - number of spatial coherence kernel samples, optional]")
   call PostMessage("       [/sil deactivates console output, switch]")
   call PostMessage("       [/dbg activates extra debug console output, switch]")
   call PostMessage("       [/nli no loop image output in map output mode, switch]")
@@ -676,6 +677,24 @@ subroutine ParseCommandLine()
       end if
       nfoc_ex = 1
       
+    case("-nksc")
+      nfound = 1
+      i = i + 1
+      if (i>cnt) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error.")
+      end if
+      call get_command_argument (i, buffer, len, status)
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Command line parsing error.")
+      end if
+      read(unit=buffer, fmt=*, iostat=status) NKCB
+      if (status/=0) then
+        call ExplainUsage()
+        call CriticalError("Failed to recognize number of spatial coherence kernel samples.")
+      end if
+      
     case ("/rnsb")
       nfound = 1
       dornsb = 1
@@ -1191,32 +1210,13 @@ subroutine checkprm
   
   ! calculate additional parameters for kernels
   nsre = 0
-  !if (sqrt(2.0)*gmax<3.0*ginfo) then ! removed because this effective turns the focus spread off, though the effect is still needed in case of a beam tilt
-  !  call PostDBGMessage("  Choosing focal kernel sampling such that it is outsides the image spectrum.")
-  !  gres1 = 1.1*sqrt(2.0)*gmax
-  !else
-    call PostDBGMessage("  Choosing focal kernel sampling such that first linear resonance is equal to 3*ginfo.")
-    gres1 = 3.0*ginfo
-    nsre = 1
-  !end if
-  dZ = 2.0/wl/(gres1**2)
-  write(unit=sdbgmsg,fmt=*) "parameter calc.: focal kernel sampling [nm/pixel]: ",dZ
-  call PostDBGMessage(trim(sdbgmsg))
+  gres1 = 3.0*ginfo
+  nsre = 1
+  dZ = 2.0/wl/(gres1**2) ! small enough focal kernel step to avoid resonance
   fkw = 2.0
   cbkw = 2.0
   NKFS = 1+int(fs*fkw/dZ)
-  NKCB = 5
-  write(unit=sdbgmsg,fmt=*) "parameter calc.: focal kernel size: ",NKFS
-  call PostDBGMessage(trim(sdbgmsg))
-  
-  ! check file existence
-  ! mtf
-  if (domtf/=0) then
-    domtf = 1
-    inquire(file=trim(smtffile),exist=fex)
-    if (.not.fex) call CriticalError("Detector MTF data file does not exist.")
-    !if (mtfscal>1.0) call CriticalError("Detector MTF scaling parameter out of range (0.0 - 1.0).")
-  end if
+  if (NKCB < 0) NKCB = 0 ! safety check that turns off the convergence kernel
   
   ! check coherence parameters
   if (ncohm<1) ncohm = 1
@@ -1243,6 +1243,12 @@ subroutine checkprm
       doptc = 0
       NKFS = 0
     end if
+    if (NKFS>0) then
+      write(unit=sdbgmsg,fmt=*) "parameter calc.: focal kernel sampling rate [nm/step]: ",dZ
+      call PostDBGMessage(trim(sdbgmsg))
+      write(unit=sdbgmsg,fmt=*) "parameter calc.: number of  focal kernel samples: ",1+2*NKFS
+      call PostDBGMessage(trim(sdbgmsg))
+    end if
   else 
     fs = 0.0
     NKFS = 0
@@ -1267,12 +1273,29 @@ subroutine checkprm
       dopsc = 0
       NKCB = 0
     end if
+    if (NKCB > 0) then
+      write(unit=sdbgmsg,fmt=*) "parameter calc.: convergence kernel sampling rate [mrad/step]: ", cbkw*sc / real(NKCB)
+      call PostDBGMessage(trim(sdbgmsg))
+      write(unit=sdbgmsg,fmt=*) "parameter calc.: number of convergence kernel samples: ", (1+2*NKCB)**2
+      call PostDBGMessage(trim(sdbgmsg))
+    end if
     sc = sc * 0.001 ! translate to radian
   else
     sc = 0.0
     NKCB = 0
     cbkw = 0.0
   end if
+  
+  ! check file existence
+  ! mtf
+  if (domtf/=0) then
+    domtf = 1
+    inquire(file=trim(smtffile),exist=fex)
+    if (.not.fex) call CriticalError("Detector MTF data file does not exist.")
+    !if (mtfscal>1.0) call CriticalError("Detector MTF scaling parameter out of range (0.0 - 1.0).")
+  end if
+  
+  
   if (dofrm/=0) then
     dofrm = 1
   else

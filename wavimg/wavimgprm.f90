@@ -98,6 +98,7 @@ MODULE wavimgprm
   real*4 :: fkw                             ! relative width of the focal kernel wrt. fs
   real*4 :: sc                              ! semi-angle of convergence [mrad]
   integer*4 :: NKCB                         ! number of convergent beam kernel samples offside central beam
+  data  NKCB /5/
   real*4 :: cbkw                            ! relative width of the convergent beam kernel wrt. sc
   integer*4 :: nal                          ! number of aberrations loaded
   integer*4 :: nmtf                         ! number of mtf file pixels
