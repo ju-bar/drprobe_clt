@@ -1454,7 +1454,7 @@ SUBROUTINE MS_PreparePropagators()
   otx = MS_objtiltx * MS_d2r ! object tilt x in radian
   oty = MS_objtilty * MS_d2r ! object tilt y in radian
   !MS_slicethick(nidx) = sthick
-  pfac = MS_pi/MS_lamb*cos(sqrt(otx*otx+oty*oty))
+  pfac = MS_pi/MS_lamb/cos(sqrt(otx*otx+oty*oty))
   rsca = 1.0/real(nx*ny,kind=fpp)
 ! ------------
 
